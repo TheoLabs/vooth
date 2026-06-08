@@ -25,7 +25,8 @@
     "paths": {
       "@libs/*": ["src/libs/*"],
       "@configs": ["src/configs"],
-      "@databases": ["src/databases"]
+      "@databases": ["src/databases"],
+      "@common/*": ["src/common/*"]
     }
   }
 }

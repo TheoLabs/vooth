@@ -1,12 +1,30 @@
-import { Module } from '@nestjs/common';
-import { AppController } from './app.controller';
-import { AppService } from './app.service';
+import { Module, NestModule, MiddlewareConsumer } from '@nestjs/common';
+import { HealthController } from './health.controller';
 import { ConfigsModule } from '@configs';
 import { DatabasesModule } from '@databases';
+import { CommonModule } from './common';
+import { APP_FILTER, APP_INTERCEPTOR } from '@nestjs/core';
+import { ExceptionFilter } from '@libs/filters';
+import { RequestLoggerInterceptor } from '@libs/intercepters';
+import { ContextMiddleware, UUIDMiddleware } from './middlewares';
+import { EventEmitterModule } from '@nestjs/event-emitter';
 
 @Module({
-  imports: [ConfigsModule, DatabasesModule],
-  controllers: [AppController],
-  providers: [AppService],
+  imports: [CommonModule, ConfigsModule, DatabasesModule, EventEmitterModule.forRoot()],
+  controllers: [HealthController],
+  providers: [
+    {
+      provide: APP_FILTER,
+      useClass: ExceptionFilter,
+    },
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: RequestLoggerInterceptor,
+    },
+  ],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer.apply(ContextMiddleware, UUIDMiddleware).forRoutes('*');
+  }
+}
