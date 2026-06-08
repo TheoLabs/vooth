@@ -1,0 +1,85 @@
+.home-page {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+.home-card {
+  width: 100%;
+  max-width: 520px;
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 36px;
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.12);
+}
+
+.home-greeting {
+  margin: 0 0 4px;
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.home-greeting .home-name {
+  color: #4f46e5;
+}
+
+.home-role {
+  margin: 0 0 24px;
+  font-size: 13px;
+  color: #64748b;
+}
+
+.home-section-title {
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #334155;
+}
+
+.home-perms {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 24px;
+  padding: 0;
+  list-style: none;
+}
+
+.home-perms li {
+  padding: 4px 10px;
+  font-size: 12px;
+  color: #4338ca;
+  background: #eef2ff;
+  border-radius: 999px;
+}
+
+.home-note {
+  margin: 0 0 24px;
+  padding: 12px 14px;
+  font-size: 13px;
+  color: #475569;
+  background: #f8fafc;
+  border: 1px dashed #cbd5e1;
+  border-radius: 9px;
+}
+
+.home-logout {
+  padding: 10px 18px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #ffffff;
+  background: #ef4444;
+  border: none;
+  border-radius: 9px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.home-logout:hover {
+  background: #dc2626;
+}

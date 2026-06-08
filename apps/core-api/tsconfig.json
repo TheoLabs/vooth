@@ -26,7 +26,8 @@
       "@libs/*": ["src/libs/*"],
       "@configs": ["src/configs"],
       "@databases": ["src/databases"],
-      "@common/*": ["src/common/*"]
+      "@common/*": ["src/common/*"],
+      "@modules/*": ["src/modules/*"]
     }
   }
 }

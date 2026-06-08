@@ -1,0 +1,136 @@
+.dashboard {
+  min-height: 100svh;
+  background: #f7f7fb;
+  padding: 32px 24px;
+}
+
+.dashboard__inner {
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+.dashboard__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.dashboard__title {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 700;
+  color: #1f1633;
+}
+
+.dashboard__logout {
+  padding: 8px 16px;
+  background: #ffffff;
+  border: 1px solid #dcdbe3;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #3c3a45;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.dashboard__logout:hover {
+  background: #f1f1f6;
+  border-color: #c4c2cf;
+}
+
+.dashboard__card {
+  background: #ffffff;
+  border: 1px solid #ececf1;
+  border-radius: 14px;
+  padding: 24px;
+  box-shadow: 0 6px 18px -10px rgba(24, 16, 48, 0.12);
+  margin-bottom: 20px;
+}
+
+.dashboard__user {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.dashboard__avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #7c3aed, #4f46e5);
+  color: #ffffff;
+  font-size: 20px;
+  font-weight: 700;
+  flex-shrink: 0;
+  object-fit: cover;
+}
+
+.dashboard__name {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: #1f1633;
+}
+
+.dashboard__email {
+  margin: 2px 0 0;
+  font-size: 14px;
+  color: #6b6375;
+}
+
+.dashboard__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.dashboard__label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #6b6375;
+  margin: 0 0 8px;
+}
+
+.dashboard__role {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 12px;
+  background: #ede9fe;
+  color: #6d28d9;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.dashboard__perms {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.dashboard__perm {
+  padding: 4px 10px;
+  background: #f1f1f6;
+  border: 1px solid #e5e4e7;
+  border-radius: 6px;
+  font-size: 12px;
+  font-family: ui-monospace, Consolas, monospace;
+  color: #3c3a45;
+}
+
+.dashboard__note {
+  margin: 0;
+  font-size: 13px;
+  color: #9a94a6;
+}
