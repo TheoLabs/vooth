@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { Select, Tag } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { permissionsMock, type Permission } from '../mocks/permissions.mock';
-import { findRole, rolesMock } from '../mocks/roles.mock';
+import { findRole, rolesMock, ROLE_TYPE_META } from '../mocks/roles.mock';
 import { DataTable, type SearchField } from '../components/DataTable';
 
 const SEARCH_FIELDS = [
@@ -58,7 +58,7 @@ export function PermissionsPage() {
           onChange={(value) => setRoleFilter(value ?? null)}
           options={rolesMock.map((role) => ({
             value: role.id,
-            label: `${role.name} (${role.code})`,
+            label: `${role.name} (${ROLE_TYPE_META[role.type].label})`,
           }))}
         />
       }

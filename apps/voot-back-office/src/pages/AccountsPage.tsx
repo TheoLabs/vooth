@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Alert, Button, Space, Table, Tag, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { AccountType } from '@vooth/shared';
-import { findRole } from '../mocks/roles.mock';
+import { findRole, ROLE_TYPE_META } from '../mocks/roles.mock';
 import { TableToolbar } from '../components/TableToolbar';
 import { useAccounts } from '../features/accounts/useAccounts';
 import type { AccountListItem, AccountStatus } from '../api/accounts.api';
@@ -58,7 +58,7 @@ const columns: ColumnsType<AccountListItem> = [
     render: (roleId: number | null) => {
       const role = findRole(roleId);
       return role ? (
-        <Tag>{`${role.name} (${role.code})`}</Tag>
+        <Tag>{`${role.name} (${ROLE_TYPE_META[role.type].label})`}</Tag>
       ) : (
         <Typography.Text type="secondary">미지정</Typography.Text>
       );

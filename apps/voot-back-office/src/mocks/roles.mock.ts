@@ -1,6 +1,8 @@
+import { RoleType } from '@vooth/shared';
+
 export interface Role {
   id: number;
-  code: string;
+  type: RoleType;
   name: string;
   description: string;
 }
@@ -8,29 +10,42 @@ export interface Role {
 export const rolesMock: Role[] = [
   {
     id: 1,
-    code: 'SUPER_ADMIN',
+    type: RoleType.SUPER,
     name: '슈퍼 관리자',
     description: '모든 기능에 접근 가능한 최고 권한 관리자',
   },
   {
     id: 2,
-    code: 'SETTLEMENT_ADMIN',
+    type: RoleType.SUPER,
     name: '정산 관리자',
     description: '정산 및 계정 조회 권한을 가진 관리자',
   },
   {
     id: 3,
-    code: 'REVIEWER',
+    type: RoleType.SUPER,
     name: '검수 담당자',
     description: '콘텐츠 검수 및 계정 조회 권한',
   },
   {
     id: 4,
-    code: 'VOICE_ACTOR',
+    type: RoleType.CREATOR,
     name: '성우',
     description: '성우 작업 영역에만 접근 가능',
   },
 ];
+
+/** RoleType 표시 메타 (라벨/태그 색상) */
+export const ROLE_TYPE_META: Record<RoleType, { label: string; color: string }> =
+  {
+    [RoleType.SUPER]: { label: '슈퍼 관리자', color: 'geekblue' },
+    [RoleType.CREATOR]: { label: '크리에이터', color: 'green' },
+  };
+
+/** 검색/선택 드롭다운용 RoleType 옵션 (공유 패키지 enum 기반) */
+export const ROLE_TYPE_OPTIONS = Object.values(RoleType).map((type) => ({
+  value: type,
+  label: ROLE_TYPE_META[type].label,
+}));
 
 const roleById = new Map(rolesMock.map((role) => [role.id, role]));
 

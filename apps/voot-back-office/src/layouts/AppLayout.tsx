@@ -15,21 +15,32 @@ const { Header, Sider, Content } = Layout;
 const NAV_ITEMS = [
   { key: '/', icon: <DashboardOutlined />, label: <Link to="/">대시보드</Link> },
   {
-    key: '/accounts',
-    icon: <TeamOutlined />,
-    label: <Link to="/accounts">계정 관리</Link>,
-  },
-  {
-    key: '/roles',
-    icon: <SafetyCertificateOutlined />,
-    label: <Link to="/roles">Role 관리</Link>,
-  },
-  {
-    key: '/permissions',
-    icon: <KeyOutlined />,
-    label: <Link to="/permissions">Permission 관리</Link>,
+    // 접히지 않는 그룹 헤더. 하위 항목이 항상 펼쳐진 채로 노출된다.
+    key: 'account-group',
+    type: 'group' as const,
+    label: '계정',
+    children: [
+      {
+        key: '/accounts',
+        icon: <TeamOutlined />,
+        label: <Link to="/accounts">계정 관리</Link>,
+      },
+      {
+        key: '/roles',
+        icon: <SafetyCertificateOutlined />,
+        label: <Link to="/roles">역할 관리</Link>,
+      },
+      {
+        key: '/permissions',
+        icon: <KeyOutlined />,
+        label: <Link to="/permissions">권한 관리</Link>,
+      },
+    ],
   },
 ];
+
+// 선택 표시에 사용할 리프(실제 경로) 키 목록.
+const LEAF_KEYS = ['/accounts', '/roles', '/permissions'];
 
 export function AppLayout() {
   const { logout } = useAuth();
@@ -37,9 +48,7 @@ export function AppLayout() {
   const location = useLocation();
 
   const selectedKey = useMemo(() => {
-    const match = NAV_ITEMS.map((item) => item.key)
-      .filter((key) => key !== '/')
-      .find((key) => location.pathname.startsWith(key));
+    const match = LEAF_KEYS.find((key) => location.pathname.startsWith(key));
     return match ?? '/';
   }, [location.pathname]);
 

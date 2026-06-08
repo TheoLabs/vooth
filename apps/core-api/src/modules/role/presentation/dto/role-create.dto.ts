@@ -1,4 +1,5 @@
-import { IsArray, IsNotEmpty, IsNumber, IsString } from 'class-validator';
+import { RoleType } from '@vooth/shared';
+import { IsArray, IsEnum, IsNotEmpty, IsString } from 'class-validator';
 
 export class RoleCreateDto {
   @IsString()
@@ -8,4 +9,7 @@ export class RoleCreateDto {
   @IsArray()
   @IsString({ each: true })
   permissionCodes: string[];
+
+  @IsEnum(RoleType)
+  type: RoleType;
 }

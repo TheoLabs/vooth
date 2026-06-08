@@ -52,10 +52,6 @@ export class Account extends DddAggregate {
   static of(args: Ctor): Account {
     const account = new Account(args);
 
-    if (args.type === AccountType.ADMIN) {
-      account.active();
-    }
-
     return account;
   }
 

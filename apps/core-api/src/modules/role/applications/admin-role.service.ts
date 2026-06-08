@@ -5,6 +5,7 @@ import { PaginationOptions } from '@libs/utils';
 import { Transactional } from '@libs/decorators';
 import { PermissionRepository } from '@modules/permission/infrastructure/permission.repository';
 import { Role } from '../domain/role.entity';
+import { RoleType } from '@vooth/shared';
 
 @Injectable()
 export class AdminRoleService extends DddService {
@@ -16,7 +17,7 @@ export class AdminRoleService extends DddService {
   }
 
   @Transactional()
-  async create({ name, permissionCodes }: { name: string; permissionCodes: string[] }) {
+  async create({ name, type, permissionCodes }: { name: string; type: RoleType; permissionCodes: string[] }) {
     const [existingRole] = await this.roleRepository.find({ name });
 
     if (existingRole) {
@@ -29,7 +30,7 @@ export class AdminRoleService extends DddService {
       throw new BadRequestException('미등록된 권한이 존재합니다.', { cause: '미등록된 권한이 존재합니다' });
     }
 
-    const role = Role.of({ name, permissions });
+    const role = Role.of({ name, permissions, type });
 
     await this.roleRepository.save([role]);
   }

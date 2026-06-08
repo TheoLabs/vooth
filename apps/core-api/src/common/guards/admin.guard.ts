@@ -7,16 +7,6 @@ import { TokenService } from '@common/jwt';
 import { Context, ContextKey } from '@common/context';
 import { Account } from '@modules/account/domain/account.entity';
 
-/**
- * 관리자 전용 가드.
- * - Authorization: Bearer <accessToken> 을 검증해 계정을 식별한다.
- * - roleId 가 없으면(falsy) 아직 관리자 승인을 받지 못한 계정 → 차단.
- * - status 가 EXITED 이면 퇴사자 → 차단.
- * 통과한 경우 Context 에 계정을 담는다.
- *
- * 의존성(TokenService / DataSource / Context)이 모두 전역이라
- * 어느 모듈에서든 import 없이 @UseGuards(AdminGuard) 로 사용할 수 있다.
- */
 @Injectable()
 export class AdminGuard implements CanActivate {
   constructor(
