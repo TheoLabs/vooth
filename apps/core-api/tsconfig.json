@@ -23,7 +23,9 @@
     "noFallthroughCasesInSwitch": false,
 
     "paths": {
-      "@libs/*": ["src/libs/*"]
+      "@libs/*": ["src/libs/*"],
+      "@configs": ["src/configs"],
+      "@databases": ["src/databases"]
     }
   }
 }

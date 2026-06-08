@@ -6,7 +6,7 @@ services:
     image: confluentinc/cp-kafka:7.6.1
     container_name: kafka
     ports:
-      - "9092:9092"   # 호스트(로컬 앱)에서 접속
+      - "9092:9092" # 호스트(로컬 앱)에서 접속
       - "29092:29092" # 컨테이너 내부 통신
     environment:
       KAFKA_NODE_ID: 1
@@ -24,7 +24,13 @@ services:
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
       CLUSTER_ID: "MkU3OEVBNTcwNTJENDM2Qk"
     healthcheck:
-      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
+      test:
+        [
+          "CMD",
+          "kafka-broker-api-versions",
+          "--bootstrap-server",
+          "localhost:9092",
+        ]
       interval: 10s
       timeout: 10s
       retries: 10
@@ -40,10 +46,7 @@ services:
     ports:
       - "3306:3306"
     environment:
-      MYSQL_ROOT_PASSWORD: root
-      MYSQL_DATABASE: app
-      MYSQL_USER: app
-      MYSQL_PASSWORD: app
+      MYSQL_ROOT_PASSWORD: 1234
     command:
       - --server-id=1
       - --log-bin=mysql-bin
@@ -54,7 +57,7 @@ services:
       - --character-set-server=utf8mb4
       - --collation-server=utf8mb4_unicode_ci
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-p1234"]
       interval: 10s
       timeout: 5s
       retries: 10
