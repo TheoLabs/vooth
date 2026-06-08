@@ -14,6 +14,7 @@
     "@hookform/resolvers": "^5.4.0",
     "@react-oauth/google": "^0.13.5",
     "@tanstack/react-query": "^5.101.0",
+    "@vooth/shared": "workspace:*",
     "antd": "^6.4.3",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",

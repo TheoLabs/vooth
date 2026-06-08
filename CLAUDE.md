@@ -21,6 +21,11 @@ pnpm + Turborepo 모노레포. `apps/` 에 3개 애플리케이션, 공유 코�
 
 - `packages/` 공유 코드가 core-api에서 사용되는 경우, core-api 쪽 연결 작업은 위 core-api 규칙을 따른다.
 
+## core-api 컨벤션
+
+- **목록 조회용 Query DTO는 항상 `PaginationDto`(`@libs/utils`)를 상속받는다.** 페이지네이션(page/limit/sort/order)을 일관되게 제공하기 위함. (예: `AccountQueryDto`, `RoleQueryDto` → `extends PaginationDto`)
+- 페이지네이션 목록 응답은 `{ items, total }` 형태로 반환한다.
+
 ## 작업 방식 규칙
 
 - **`apps/vooth-maker` 와 `apps/voot-back-office` 는 항상 서로 다른 에이전트로 작업한다.**

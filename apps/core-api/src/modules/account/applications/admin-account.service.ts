@@ -15,6 +15,6 @@ export class AdminAccountService extends DddService {
       this.accountRepository.count({ searchKey, searchValue }),
     ]);
 
-    return { accounts, total };
+    return { items: accounts, total };
   }
 }

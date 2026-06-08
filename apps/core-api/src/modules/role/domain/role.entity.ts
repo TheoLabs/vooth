@@ -27,6 +27,19 @@ export class Role extends DddAggregate {
 
     if (args) {
       this.name = args.name;
+      this.permissions = [];
     }
+  }
+
+  static of(args: { name: string; permissions: Permission[] }) {
+    const role = new Role({ name: args.name });
+
+    role.assignPermissions(args.permissions);
+
+    return role;
+  }
+
+  assignPermissions(permissions: Permission[]) {
+    this.permissions = permissions;
   }
 }

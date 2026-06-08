@@ -3,3 +3,8 @@ export enum AccountStatus {
   ACTIVE = 'active',
   EXITED = 'exited',
 }
+
+export enum AccountType {
+  ADMIN = 'admin',
+  CREATOR = 'creator',
+}

@@ -6,6 +6,7 @@ import { Account } from '@modules/account/domain/account.entity';
 import { Injectable } from '@nestjs/common';
 import { GoogleAuthClient } from '../infrastructure/google-auth.client';
 import { GoogleLoginDto } from '../presentation/dto/google-login.dto';
+import { AccountType } from '@vooth/shared';
 
 @Injectable()
 export class AdminAuthService extends DddService {
@@ -24,7 +25,7 @@ export class AdminAuthService extends DddService {
     let [account] = await this.accountRepository.find({ googleSub });
 
     if (!account) {
-      account = Account.of({ googleSub, email, name });
+      account = Account.of({ googleSub, email, name, type: AccountType.ADMIN });
       await this.accountRepository.save([account]);
     }
 

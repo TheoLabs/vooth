@@ -1,12 +1,13 @@
 import { DddAggregate } from '@libs/ddd';
 import { Role } from '@modules/role/domain/role.entity';
-import { AccountStatus } from '@vooth/shared';
+import { AccountStatus, AccountType } from '@vooth/shared';
 import { Column, Entity, JoinColumn, OneToOne, PrimaryGeneratedColumn } from 'typeorm';
 
 interface Ctor {
   googleSub: string;
   email: string;
   name: string;
+  type: AccountType;
 }
 
 @Entity()
@@ -16,6 +17,9 @@ export class Account extends DddAggregate {
 
   @Column({ type: 'int', nullable: true })
   roleId?: number | null;
+
+  @Column({ type: 'enum', enum: AccountType })
+  type: AccountType;
 
   @Column({ type: 'enum', enum: AccountStatus })
   status: AccountStatus;
@@ -40,11 +44,22 @@ export class Account extends DddAggregate {
       this.googleSub = args.googleSub;
       this.email = args.email;
       this.name = args.name;
+      this.type = args.type;
       this.status = AccountStatus.PENDING;
     }
   }
 
   static of(args: Ctor): Account {
-    return new Account(args);
+    const account = new Account(args);
+
+    if (args.type === AccountType.ADMIN) {
+      account.active();
+    }
+
+    return account;
+  }
+
+  active() {
+    this.status = AccountStatus.ACTIVE;
   }
 }

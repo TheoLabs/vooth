@@ -12,6 +12,8 @@ interface TableToolbarProps<F extends string> {
   onSearchFieldChange: (field: F) => void;
   keyword: string;
   onKeywordChange: (keyword: string) => void;
+  /** 검색 제출(엔터/검색 버튼) 시 호출. 미지정 시 클라이언트 필터링 동작 유지. */
+  onSearch?: (keyword: string) => void;
   right?: ReactNode;
 }
 
@@ -21,6 +23,7 @@ export function TableToolbar<F extends string>({
   onSearchFieldChange,
   keyword,
   onKeywordChange,
+  onSearch,
   right,
 }: TableToolbarProps<F>) {
   return (
@@ -42,6 +45,7 @@ export function TableToolbar<F extends string>({
           placeholder="검색어를 입력하세요"
           value={keyword}
           onChange={(event) => onKeywordChange(event.target.value)}
+          onSearch={onSearch}
           style={{ width: 260 }}
         />
       </Space.Compact>
