@@ -1,7 +1,10 @@
-# Nestjs specific
-/dist
-/node_modules
-/build
+# dependencies / build outputs (all workspaces)
+node_modules
+dist
+build
+out
+.next
+.turbo
 /tmp
 
 # Logs
