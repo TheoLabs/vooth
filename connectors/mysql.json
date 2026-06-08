@@ -6,17 +6,16 @@
     "database.hostname": "mysql",
     "database.port": "3306",
     "database.user": "root",
-    "database.password": "root",
+    "database.password": "1234",
     "database.server.id": "184054",
     "topic.prefix": "dbserver1",
-    "database.include.list": "app",
-    "table.include.list": "app.users,app.orders",
+    "database.include.list": "vooth",
+    "table.include.list": "vooth.ddd_events",
     "schema.history.internal.kafka.bootstrap.servers": "kafka:29092",
-    "schema.history.internal.kafka.topic": "schema-changes.app",
+    "schema.history.internal.kafka.topic": "schema-changes.vooth",
     "key.converter": "org.apache.kafka.connect.json.JsonConverter",
     "value.converter": "org.apache.kafka.connect.json.JsonConverter",
     "key.converter.schemas.enable": "false",
     "value.converter.schemas.enable": "false"
   }
 }
-w

@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { type DataSourceOptions } from 'typeorm';
-import { AwsConfig, S3Options } from './configuration';
+import { AwsConfig, KafkaConfig, S3Options } from './configuration';
 
 @Injectable()
 export class ConfigsService {
@@ -25,5 +25,9 @@ export class ConfigsService {
 
   get aws() {
     return this.configService.get<AwsConfig>('aws')!;
+  }
+
+  get kafka() {
+    return this.configService.get<KafkaConfig>('kafka')!;
   }
 }
