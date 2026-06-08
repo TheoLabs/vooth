@@ -1,7 +1,7 @@
-import { permissionCatalog, type PermissionDef } from '../mocks/permissions.mock';
+import { permissionsMock, type Permission } from '../mocks/permissions.mock';
 
-/** 권한 단건 모델. (백엔드 Permission 과 1:1 매핑 예정) */
-export type PermissionItem = PermissionDef;
+/** 권한 단건 모델. (백엔드 Permission 과 1:1 매핑: code/name/category/description) */
+export type PermissionItem = Permission;
 
 /**
  * 할당 가능한 전체 권한 목록을 조회한다.
@@ -10,5 +10,5 @@ export type PermissionItem = PermissionDef;
  *   `apiRequest<PermissionItem[]>('/admins/permissions')` 로 교체한다.
  */
 export async function fetchPermissionCatalog(): Promise<PermissionItem[]> {
-  return permissionCatalog;
+  return permissionsMock;
 }

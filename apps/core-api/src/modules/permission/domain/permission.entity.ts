@@ -1,9 +1,11 @@
 import { DddAggregate } from '@libs/ddd';
+import { PermissionCategory } from '@vooth/shared';
 import { Column, Entity, PrimaryColumn } from 'typeorm';
 
 type Ctor = {
   code: string;
   name: string;
+  category: PermissionCategory;
   description: string;
 };
 
@@ -15,6 +17,9 @@ export class Permission extends DddAggregate {
   @Column()
   name: string;
 
+  @Column({ type: 'enum', enum: PermissionCategory })
+  category: PermissionCategory;
+
   @Column({ length: 400 })
   description: string;
 
@@ -24,6 +29,7 @@ export class Permission extends DddAggregate {
     if (args) {
       this.code = args.code;
       this.name = args.name;
+      this.category = args.category;
       this.description = args.description;
     }
   }

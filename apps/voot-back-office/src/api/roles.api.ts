@@ -1,12 +1,14 @@
+import { RoleType } from '@vooth/shared';
 import { apiRequest } from '../lib/apiClient';
 import type { PaginatedResponse } from './pagination';
 
 /**
  * GET /admins/roles 응답의 역할 모델.
- * 백엔드 Role 엔티티는 code/description/권한 수를 반환하지 않는다.
+ * 목록 응답에는 권한(permissions) 관계가 포함되지 않는다.
  */
 export interface RoleListItem {
   id: number;
+  type: RoleType;
   name: string;
   createdAt?: string;
   updatedAt?: string;
@@ -46,4 +48,16 @@ export async function fetchRoles(
   return apiRequest<PaginatedResponse<RoleListItem>>(
     `/admins/roles?${query.toString()}`,
   );
+}
+
+/** POST /admins/roles 요청 본문 (RoleCreateDto 와 1:1). */
+export interface CreateRolePayload {
+  type: RoleType;
+  name: string;
+  permissionCodes: string[];
+}
+
+/** 역할을 생성한다. */
+export async function createRole(payload: CreateRolePayload): Promise<void> {
+  await apiRequest('/admins/roles', { method: 'POST', body: payload });
 }

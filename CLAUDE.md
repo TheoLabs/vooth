@@ -26,6 +26,17 @@ pnpm + Turborepo 모노레포. `apps/` 에 3개 애플리케이션, 공유 코�
 - **목록 조회용 Query DTO는 항상 `PaginationDto`(`@libs/utils`)를 상속받는다.** 페이지네이션(page/limit/sort/order)을 일관되게 제공하기 위함. (예: `AccountQueryDto`, `RoleQueryDto` → `extends PaginationDto`)
 - 페이지네이션 목록 응답은 `{ items, total }` 형태로 반환한다.
 
+## voot-back-office 컨벤션
+
+- **레이아웃 룰: main content(테이블 영역)에는 바깥 스크롤을 만들지 않는다.** 화면은 항상 뷰포트에 꽉 차고, 스크롤은 **테이블 내부 body** 에만 생긴다.
+  - `AppLayout`의 Content 는 `.bo-content`(높이 고정 + `overflow: hidden`).
+  - 모든 리스트/테이블 페이지의 루트는 `.bo-page`(flex 컬럼, `height: 100%`).
+  - 테이블은 `<FullHeightTable>`(`components/FullHeightTable.tsx`)을 쓴다 — 남은 높이를 채우고 내부 body 스크롤 높이를 계산한다. 일반 `<Table>` 을 직접 쓰지 않는다.
+  - 관련 클래스는 `src/index.css` 에 정의돼 있다.
+- **필터 배치 룰: 목록 필터는 검색창(`TableToolbar`) 하단의 필터 바에 둔다.** 검색창 오른쪽이나 같은 줄에 붙이지 않는다.
+  - 필터 바는 `<FilterBar>`, 각 필터는 `<FilterField label="...">`(`components/FilterBar.tsx`)로 감싼다. **form-label 은 컨트롤 상단**에 온다.
+  - 필터 축이 늘면 `FilterField` 를 추가하면 된다.
+
 ## 작업 방식 규칙
 
 - **`apps/vooth-maker` 와 `apps/voot-back-office` 는 항상 서로 다른 에이전트로 작업한다.**

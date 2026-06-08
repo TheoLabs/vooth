@@ -33,7 +33,7 @@ export class ExceptionFilter implements NestExceptionFilter {
     const stack = exception instanceof Error ? exception.stack : '';
 
     const logPayload = {
-      message: `[${request.method}] ${request.url} - ${txId}${this.configsService.isLocal() ? `\n${stack}` : ''}`,
+      message: `[${request.method}] ${request.url} - ${txId}${'\n' + stack}`,
       txId,
       stack,
       error: exceptionResponse,

@@ -1,53 +1,60 @@
 import { useMemo, useState } from 'react';
 import { Alert, Empty, Flex, Input, Spin, Tree, Typography } from 'antd';
 import type { DataNode, TreeProps } from 'antd/es/tree';
+import type { PermissionCategory } from '@vooth/shared';
 import { usePermissionCatalog } from '../features/permissions/usePermissionCatalog';
 import type { PermissionItem } from '../api/permissions.api';
+import { PERMISSION_CATEGORY_META } from '../mocks/permissions.mock';
 import './permission-tree-select.css';
 
 interface PermissionTreeSelectProps {
-  /** 선택된 권한 action 목록 (Form.Item 이 주입) */
+  /** 선택된 권한 code 목록 (Form.Item 이 주입) */
   value?: string[];
   onChange?: (value: string[]) => void;
 }
 
-const groupKey = (group: string) => `group:${group}`;
+const categoryKey = (category: PermissionCategory) => `category:${category}`;
 
-/** 권한 목록을 그룹별로 묶는다. 카탈로그 순서를 유지한다. */
-function groupPermissions(items: PermissionItem[]): [string, PermissionItem[]][] {
-  const map = new Map<string, PermissionItem[]>();
+const categoryLabel = (category: PermissionCategory) =>
+  PERMISSION_CATEGORY_META[category]?.label ?? category;
+
+/** 권한 목록을 카테고리별로 묶는다. 카탈로그 순서를 유지한다. */
+function groupByCategory(
+  items: PermissionItem[],
+): [PermissionCategory, PermissionItem[]][] {
+  const map = new Map<PermissionCategory, PermissionItem[]>();
   for (const item of items) {
-    const list = map.get(item.group);
+    const list = map.get(item.category);
     if (list) list.push(item);
-    else map.set(item.group, [item]);
+    else map.set(item.category, [item]);
   }
   return [...map.entries()];
 }
 
-function buildGroupNode(
-  group: string,
+function buildCategoryNode(
+  category: PermissionCategory,
   perms: PermissionItem[],
   total: number,
 ): DataNode {
   return {
-    key: groupKey(group),
-    // 그룹 자체는 선택 대상이 아니므로 라벨만 표시한다.
+    key: categoryKey(category),
+    // 카테고리 자체는 선택 대상이 아니므로 라벨만 표시한다.
     selectable: false,
     title: (
       <span className="perm-tree__group">
-        {group}
+        {categoryLabel(category)}
         <span className="perm-tree__group-count">
           {perms.length === total ? total : `${perms.length}/${total}`}
         </span>
       </span>
     ),
     children: perms.map((perm) => ({
-      key: perm.action,
+      key: perm.code,
       selectable: false,
       title: (
         <span className="perm-tree__leaf">
-          <span className="perm-tree__leaf-desc">{perm.description}</span>
-          <code className="perm-tree__leaf-action">{perm.action}</code>
+          <span className="perm-tree__leaf-desc">{perm.name}</span>
+          <code className="perm-tree__leaf-action">{perm.code}</code>
         </span>
       ),
     })),
@@ -55,7 +62,7 @@ function buildGroupNode(
 }
 
 /**
- * 검색 + 그룹 체크박스 트리로 권한을 선택한다.
+ * 검색 + 카테고리 체크박스 트리로 권한을 선택한다.
  * 권한 수가 많아질 수 있어 스크롤 영역과 검색 필터를 제공하고,
  * 검색으로 가려진 선택 항목도 유지한다.
  */
@@ -67,47 +74,48 @@ export function PermissionTreeSelect({
   const [search, setSearch] = useState('');
   const [expandedKeys, setExpandedKeys] = useState<React.Key[]>([]);
 
-  const actionSet = useMemo(
-    () => new Set((permissions ?? []).map((p) => p.action)),
+  const codeSet = useMemo(
+    () => new Set((permissions ?? []).map((p) => p.code)),
     [permissions],
   );
 
   const grouped = useMemo(
-    () => groupPermissions(permissions ?? []),
+    () => groupByCategory(permissions ?? []),
     [permissions],
   );
 
   const query = search.trim().toLowerCase();
   const isSearching = query.length > 0;
 
-  // 검색어로 필터링된 트리 + 펼칠 그룹 + 현재 보이는 leaf action 집합.
-  const { treeData, searchExpandedKeys, visibleActions } = useMemo(() => {
+  // 검색어로 필터링된 트리 + 펼칠 카테고리 + 현재 보이는 leaf code 집합.
+  const { treeData, searchExpandedKeys, visibleCodes } = useMemo(() => {
     const nodes: DataNode[] = [];
     const expanded: React.Key[] = [];
     const visible = new Set<string>();
 
-    for (const [group, perms] of grouped) {
-      const groupMatch = group.toLowerCase().includes(query);
+    for (const [category, perms] of grouped) {
+      const label = categoryLabel(category).toLowerCase();
+      const categoryMatch = label.includes(query);
       const matched =
-        !isSearching || groupMatch
+        !isSearching || categoryMatch
           ? perms
           : perms.filter(
               (p) =>
-                p.action.toLowerCase().includes(query) ||
-                p.description.toLowerCase().includes(query),
+                p.code.toLowerCase().includes(query) ||
+                p.name.toLowerCase().includes(query),
             );
 
       if (matched.length === 0) continue;
 
-      nodes.push(buildGroupNode(group, matched, perms.length));
-      expanded.push(groupKey(group));
-      matched.forEach((p) => visible.add(p.action));
+      nodes.push(buildCategoryNode(category, matched, perms.length));
+      expanded.push(categoryKey(category));
+      matched.forEach((p) => visible.add(p.code));
     }
 
     return {
       treeData: nodes,
       searchExpandedKeys: expanded,
-      visibleActions: visible,
+      visibleCodes: visible,
     };
   }, [grouped, query, isSearching]);
 
@@ -116,9 +124,9 @@ export function PermissionTreeSelect({
     // 현재 보이는 leaf 중 체크된 것
     const checkedVisible = (keys as React.Key[])
       .map(String)
-      .filter((k) => actionSet.has(k));
+      .filter((k) => codeSet.has(k));
     // 검색으로 가려진(현재 트리에 없는) 기존 선택은 그대로 유지한다.
-    const preserved = value.filter((a) => !visibleActions.has(a));
+    const preserved = value.filter((c) => !visibleCodes.has(c));
     onChange?.([...new Set([...preserved, ...checkedVisible])]);
   };
 
@@ -146,7 +154,7 @@ export function PermissionTreeSelect({
       <Flex align="center" justify="space-between" gap={8} className="perm-tree__toolbar">
         <Input.Search
           allowClear
-          placeholder="권한 검색 (이름 / action)"
+          placeholder="권한 검색 (이름 / code)"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />

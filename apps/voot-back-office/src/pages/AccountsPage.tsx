@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { Alert, Button, Space, Table, Tag, Typography } from 'antd';
+import { Alert, Button, Space, Tag, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { AccountType } from '@vooth/shared';
 import { findRole, ROLE_TYPE_META } from '../mocks/roles.mock';
 import { TableToolbar } from '../components/TableToolbar';
+import { FullHeightTable } from '../components/FullHeightTable';
 import { useAccounts } from '../features/accounts/useAccounts';
 import type { AccountListItem, AccountStatus } from '../api/accounts.api';
 import '../components/DataTable.css';
@@ -106,7 +107,7 @@ export function AccountsPage() {
   };
 
   return (
-    <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+    <div className="bo-page">
       <Space
         align="center"
         style={{ width: '100%', justifyContent: 'space-between' }}
@@ -142,7 +143,7 @@ export function AccountsPage() {
         />
       )}
 
-      <Table<AccountListItem>
+      <FullHeightTable<AccountListItem>
         className="data-table"
         rowKey="id"
         columns={columns}
@@ -166,6 +167,6 @@ export function AccountsPage() {
           }
         }}
       />
-    </Space>
+    </div>
   );
 }

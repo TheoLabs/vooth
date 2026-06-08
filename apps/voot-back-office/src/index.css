@@ -22,5 +22,33 @@ body {
 }
 
 #root {
-  min-height: 100%;
+  height: 100%;
+}
+
+/* ---------------------------------------------------------------------------
+ * 백오피스 레이아웃 룰
+ * - main content(테이블 영역)는 뷰포트에 꽉 차고 "바깥 스크롤이 없다".
+ * - 스크롤은 내부 테이블 body 에만 생긴다 (FullHeightTable 이 높이 계산).
+ * - 모든 리스트/테이블 페이지는 .bo-page 루트 + FullHeightTable 을 사용한다.
+ * ------------------------------------------------------------------------- */
+.bo-content {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden; /* 바깥 스크롤 제거 */
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+}
+
+.bo-page {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  gap: 16px;
+}
+
+/* 테이블이 남은 높이를 채우는 래퍼. 내부 body 스크롤 높이는 FullHeightTable 이 계산한다. */
+.bo-table-fill {
+  flex: 1;
+  min-height: 0;
 }

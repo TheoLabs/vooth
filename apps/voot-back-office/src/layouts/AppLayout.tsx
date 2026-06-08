@@ -53,7 +53,7 @@ export function AppLayout() {
   }, [location.pathname]);
 
   return (
-    <Layout style={{ minHeight: '100vh' }}>
+    <Layout style={{ height: '100vh', overflow: 'hidden' }}>
       <Sider breakpoint="lg" collapsedWidth="0" theme="dark">
         <div
           style={{
@@ -95,7 +95,7 @@ export function AppLayout() {
             <Button onClick={logout}>로그아웃</Button>
           </Space>
         </Header>
-        <Content style={{ margin: 24 }}>
+        <Content className="bo-content">
           <Outlet />
         </Content>
       </Layout>

@@ -18,7 +18,7 @@ export class AdminRoleService extends DddService {
 
   @Transactional()
   async create({ name, type, permissionCodes }: { name: string; type: RoleType; permissionCodes: string[] }) {
-    const [existingRole] = await this.roleRepository.find({ name });
+    const [existingRole] = await this.roleRepository.find({ type });
 
     if (existingRole) {
       throw new BadRequestException('이미 등록된 역할군입니다.', { cause: '이미 등록된 역할군입니다.' });
@@ -37,7 +37,7 @@ export class AdminRoleService extends DddService {
 
   async list({ searchKey, searchValue }: { searchKey?: string; searchValue?: string }, options?: PaginationOptions) {
     const [roles, total] = await Promise.all([
-      this.roleRepository.find({ searchKey, searchValue }, { options }),
+      this.roleRepository.find({ searchKey, searchValue }, { options, relations: { permissions: true } }),
       this.roleRepository.count({ searchKey, searchValue }),
     ]);
 

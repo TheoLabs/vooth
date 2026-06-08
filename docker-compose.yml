@@ -68,7 +68,10 @@ services:
   # Debezium (Kafka Connect + Debezium 커넥터)
   # ---------------------------------------------------------------------------
   debezium:
-    image: debezium/connect:2.7.3.Final
+    image: debezium/connect:3.0.0.Final
+    # arm64 JVM(JDK 21.0.4)이 이 Docker 환경에서 SIGILL 로 크래시하므로
+    # amd64 이미지를 에뮬레이션으로 실행한다. (버전 무관, 2.7/3.0 동일 증상)
+    platform: linux/amd64
     container_name: debezium
     ports:
       - "8083:8083" # Kafka Connect REST API
