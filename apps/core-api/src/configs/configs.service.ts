@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { type DataSourceOptions } from 'typeorm';
-import { AwsConfig, KafkaConfig, S3Options } from './configuration';
+import { AwsConfig, GoogleConfig, JwtConfig, KafkaConfig, S3Options } from './configuration';
 
 @Injectable()
 export class ConfigsService {
@@ -29,5 +29,13 @@ export class ConfigsService {
 
   get kafka() {
     return this.configService.get<KafkaConfig>('kafka')!;
+  }
+
+  get google() {
+    return this.configService.get<GoogleConfig>('google')!;
+  }
+
+  get jwt() {
+    return this.configService.get<JwtConfig>('jwt')!;
   }
 }

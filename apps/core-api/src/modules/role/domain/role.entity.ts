@@ -1,5 +1,6 @@
 import { DddAggregate } from '@libs/ddd';
-import { Column, Entity, PrimaryGeneratedColumn } from 'typeorm';
+import { Permission } from '@modules/permission/domain/permission.entity';
+import { Column, Entity, JoinTable, ManyToMany, PrimaryGeneratedColumn } from 'typeorm';
 
 type Ctor = {
   name: string;
@@ -12,6 +13,14 @@ export class Role extends DddAggregate {
 
   @Column()
   name: string;
+
+  @ManyToMany(() => Permission, { cascade: true })
+  @JoinTable({
+    name: 'role_permissions',
+    joinColumn: { name: 'roleId' },
+    inverseJoinColumn: { name: 'codeId' },
+  })
+  permissions: Permission[];
 
   private constructor(args: Ctor) {
     super();

@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react'
+import { clearAccessToken } from './token'
 import type { AuthUser } from './types'
 
 const STORAGE_KEY = 'vooth-maker.auth'
@@ -31,6 +32,7 @@ export function AuthProvider({ children }: { children: ReactNode }): React.JSX.E
 
   const logout = useCallback(() => {
     localStorage.removeItem(STORAGE_KEY)
+    clearAccessToken()
     setUser(null)
   }, [])
 

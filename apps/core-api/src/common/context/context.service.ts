@@ -5,9 +5,10 @@ export enum ContextKey {
   ENTITY_MANAGER = 'entityManager',
   DDD_EVENTS = 'dddEvents',
   TXID = 'txId',
-  ADMIN = 'admin',
+  ACCOUNT = 'admin',
   USER = 'user',
   CLIENT = 'client',
+  ROLE = 'role',
   // NOTE: 추후 필요한 경우 추가.
 }
 

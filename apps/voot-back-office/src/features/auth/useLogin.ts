@@ -1,6 +1,6 @@
 import { useMutation } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { mockGoogleLogin } from '../../api/auth.api';
+import { googleLogin } from '../../api/auth.api';
 import { useAuth } from '../../auth/AuthContext';
 
 export function useGoogleLogin() {
@@ -8,9 +8,9 @@ export function useGoogleLogin() {
   const navigate = useNavigate();
 
   return useMutation({
-    mutationFn: mockGoogleLogin,
-    onSuccess: ({ user }) => {
-      login(user);
+    mutationFn: (idToken: string) => googleLogin(idToken),
+    onSuccess: ({ accessToken }) => {
+      login(accessToken);
       navigate('/', { replace: true });
     },
   });

@@ -19,11 +19,22 @@ export interface KafkaConfig {
   topic: string;
 }
 
+export interface GoogleConfig {
+  clientId: string;
+}
+
+export interface JwtConfig {
+  accessSecret: string;
+  accessExpiresIn: string;
+}
+
 interface AppConfig {
   mysql: DataSourceOptions;
   aws: AwsConfig;
   s3: S3Options;
   kafka: KafkaConfig;
+  google: GoogleConfig;
+  jwt: JwtConfig;
 }
 
 export default (env: Record<string, any> = process.env): AppConfig => ({
@@ -52,5 +63,12 @@ export default (env: Record<string, any> = process.env): AppConfig => ({
       .filter(Boolean),
     groupId: env.KAFKA_GROUP_ID ?? 'core-api',
     topic: env.KAFKA_DDD_EVENT_TOPIC ?? 'dbserver1.vooth.ddd_events',
+  },
+  google: {
+    clientId: env.GOOGLE_CLIENT_ID,
+  },
+  jwt: {
+    accessSecret: env.JWT_ACCESS_SECRET ?? 'dev-access-secret-change-me',
+    accessExpiresIn: env.JWT_ACCESS_EXPIRES_IN ?? '1h',
   },
 });
