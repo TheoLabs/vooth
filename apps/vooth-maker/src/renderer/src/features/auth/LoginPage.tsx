@@ -1,35 +1,42 @@
 import { useEffect } from 'react'
-import { useForm } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../auth/AuthContext'
-import { loginSchema, type LoginInput } from './login.schema'
-import { useLoginMutation } from './useLogin'
+import { useGoogleLogin } from './useLogin'
 import './login.css'
+
+function GoogleIcon(): React.JSX.Element {
+  return (
+    <svg className="login-google-icon" viewBox="0 0 18 18" aria-hidden="true">
+      <path
+        fill="#4285F4"
+        d="M17.64 9.205c0-.639-.057-1.252-.164-1.841H9v3.481h4.844a4.14 4.14 0 0 1-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615z"
+      />
+      <path
+        fill="#34A853"
+        d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z"
+      />
+      <path
+        fill="#FBBC05"
+        d="M3.964 10.71A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.042l3.007-2.332z"
+      />
+      <path
+        fill="#EA4335"
+        d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z"
+      />
+    </svg>
+  )
+}
 
 export function LoginPage(): React.JSX.Element {
   const { user } = useAuth()
   const navigate = useNavigate()
-  const loginMutation = useLoginMutation()
-
-  const {
-    register,
-    handleSubmit,
-    formState: { errors }
-  } = useForm<LoginInput>({
-    resolver: zodResolver(loginSchema),
-    defaultValues: { email: '', password: '' }
-  })
+  const { mutate, isPending, isError, error } = useGoogleLogin()
 
   useEffect(() => {
     if (user) {
       navigate('/', { replace: true })
     }
   }, [user, navigate])
-
-  const onSubmit = (values: LoginInput): void => {
-    loginMutation.mutate(values)
-  }
 
   return (
     <div className="login-page">
@@ -39,54 +46,27 @@ export function LoginPage(): React.JSX.Element {
           <p className="login-subtitle">보이스툰 제작 스튜디오</p>
         </header>
 
-        <form className="login-form" onSubmit={handleSubmit(onSubmit)} noValidate>
-          <div className="login-field">
-            <label className="login-label" htmlFor="email">
-              이메일
-            </label>
-            <input
-              id="email"
-              type="email"
-              autoComplete="username"
-              placeholder="name@vooth.com"
-              className={`login-input${errors.email ? ' has-error' : ''}`}
-              {...register('email')}
-            />
-            {errors.email && <span className="login-error">{errors.email.message}</span>}
-          </div>
-
-          <div className="login-field">
-            <label className="login-label" htmlFor="password">
-              비밀번호
-            </label>
-            <input
-              id="password"
-              type="password"
-              autoComplete="current-password"
-              placeholder="비밀번호를 입력하세요"
-              className={`login-input${errors.password ? ' has-error' : ''}`}
-              {...register('password')}
-            />
-            {errors.password && <span className="login-error">{errors.password.message}</span>}
-          </div>
-
-          {loginMutation.isError && (
-            <div className="login-form-error" role="alert">
-              {loginMutation.error.message}
-            </div>
-          )}
-
-          <button type="submit" className="login-submit" disabled={loginMutation.isPending}>
-            {loginMutation.isPending ? '로그인 중...' : '로그인'}
+        <div className="login-google">
+          <button
+            type="button"
+            className="login-google-button"
+            disabled={isPending}
+            onClick={() => mutate()}
+          >
+            <GoogleIcon />
+            {isPending ? '로그인 중…' : 'Google 계정으로 로그인'}
           </button>
-        </form>
+        </div>
+
+        {isError && (
+          <p className="login-form-error" role="alert">
+            {error?.message ?? '로그인에 실패했습니다. 잠시 후 다시 시도해주세요.'}
+          </p>
+        )}
 
         <div className="login-hint">
-          <strong>데모 계정</strong>
-          <br />
-          admin@vooth.com / password123
-          <br />
-          actor@vooth.com / password123
+          Google 계정으로 로그인하세요. 첫 로그인 시 자동으로 가입되며, 관리자 승인 후 이용할 수
+          있습니다.
         </div>
       </div>
     </div>

@@ -20,5 +20,11 @@ export function useMe() {
     queryFn: fetchMe,
     enabled: Boolean(user),
     retry: false,
+    // /me 는 세션당 한 번만 가져온다. 새 옵저버(마운트)마다 재요청해
+    // 무한 refetch 루프가 도는 것을 막는다. 명시적 refetch() 와
+    // invalidateQueries(['me']) 는 여전히 동작한다.
+    staleTime: Infinity,
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
   });
 }

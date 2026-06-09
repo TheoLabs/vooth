@@ -8,7 +8,7 @@ import { Context, ContextKey } from '@common/context';
 import { Account } from '@modules/account/domain/account.entity';
 
 @Injectable()
-export class AdminGuard implements CanActivate {
+export class CreatorGuard implements CanActivate {
   constructor(
     private readonly tokenService: TokenService,
     @InjectDataSource() private readonly dataSource: DataSource,
@@ -32,9 +32,9 @@ export class AdminGuard implements CanActivate {
 
     const account = await this.dataSource
       .getRepository(Account)
-      .findOne({ where: { id: payload.sub, type: AccountType.ADMIN }, relations: { role: true } });
+      .findOne({ where: { id: payload.sub, type: AccountType.CREATOR }, relations: { role: true } });
     if (!account) {
-      throw new UnauthorizedException('존재하지 않는 계정입니다.');
+      throw new UnauthorizedException('존재하지 않는 크리에이터 계정입니다.');
     }
 
     if (account.status === AccountStatus.EXITED) {

@@ -4,9 +4,15 @@
     <meta charset="UTF-8" />
     <title>Electron</title>
     <!-- https://developer.mozilla.org/en-US/docs/Web/HTTP/CSP -->
+    <!--
+      NOTE: The backend API origin in connect-src below (http://localhost:3000) is the dev API.
+      For non-localhost/prod backends this origin must be updated to the real API URL.
+      Google sign-in happens in the system browser (main-process loopback+PKCE flow), so the
+      renderer does not need to load any Google scripts/frames.
+    -->
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://*.googleusercontent.com; connect-src 'self' http://localhost:3000"
     />
   </head>
 

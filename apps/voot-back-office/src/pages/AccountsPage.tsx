@@ -170,6 +170,26 @@ export function AccountsPage() {
     );
   };
 
+  const handleReassignRole = () => {
+    if (!selectedAccount || selectedRoleId === undefined) return;
+    const targetRoleId = selectedRoleId;
+    approveMutation.mutate(
+      { id: selectedAccount.id, payload: { roleId: targetRoleId } },
+      {
+        onSuccess: () => {
+          message.success('역할이 변경되었습니다.');
+          // 목록 무효화와 별개로 열려 있는 Drawer 에도 변경된 역할을 반영한다.
+          setSelectedAccount((prev) =>
+            prev ? { ...prev, roleId: targetRoleId } : prev,
+          );
+        },
+        onError: (err) => {
+          message.error(err.message);
+        },
+      },
+    );
+  };
+
   const handleReject = () => {
     if (!selectedAccount) return;
     rejectMutation.mutate(selectedAccount.id, {
@@ -422,31 +442,70 @@ export function AccountsPage() {
             )}
 
             {activeDrawer && (
-              <Space direction="vertical" size="small" style={{ width: '100%' }}>
-                <Typography.Text strong>퇴사 처리</Typography.Text>
-                <Typography.Text type="secondary">
-                  퇴사 처리하면 계정의 역할이 해제됩니다.
-                </Typography.Text>
-                {isSelf ? (
+              <Space direction="vertical" size="large" style={{ width: '100%' }}>
+                <Space
+                  direction="vertical"
+                  size="small"
+                  style={{ width: '100%' }}
+                >
+                  <Typography.Text strong>역할 변경</Typography.Text>
                   <Typography.Text type="secondary">
-                    본인 계정은 퇴사 처리할 수 없습니다.
+                    변경할 역할을 선택한 뒤 역할 변경을 적용하세요.
                   </Typography.Text>
-                ) : (
-                  <Popconfirm
-                    title="이 계정을 퇴사 처리하시겠어요?"
-                    okText="퇴사 처리"
-                    cancelText="취소"
-                    okButtonProps={{
-                      danger: true,
-                      loading: exitMutation.isPending,
-                    }}
-                    onConfirm={handleExit}
+                  <Select
+                    style={{ width: '100%' }}
+                    placeholder="역할 선택"
+                    value={selectedRoleId}
+                    onChange={setSelectedRoleId}
+                    options={roles.map((role) => ({
+                      value: role.id,
+                      label: roleLabel(role),
+                    }))}
+                  />
+                  <Button
+                    type="primary"
+                    block
+                    disabled={
+                      selectedRoleId === undefined ||
+                      selectedRoleId === selectedAccount.roleId
+                    }
+                    loading={approveMutation.isPending}
+                    onClick={handleReassignRole}
                   >
-                    <Button danger block loading={exitMutation.isPending}>
-                      퇴사 처리
-                    </Button>
-                  </Popconfirm>
-                )}
+                    역할 변경
+                  </Button>
+                </Space>
+
+                <Space
+                  direction="vertical"
+                  size="small"
+                  style={{ width: '100%' }}
+                >
+                  <Typography.Text strong>퇴사 처리</Typography.Text>
+                  <Typography.Text type="secondary">
+                    퇴사 처리하면 계정의 역할이 해제됩니다.
+                  </Typography.Text>
+                  {isSelf ? (
+                    <Typography.Text type="secondary">
+                      본인 계정은 퇴사 처리할 수 없습니다.
+                    </Typography.Text>
+                  ) : (
+                    <Popconfirm
+                      title="이 계정을 퇴사 처리하시겠어요?"
+                      okText="퇴사 처리"
+                      cancelText="취소"
+                      okButtonProps={{
+                        danger: true,
+                        loading: exitMutation.isPending,
+                      }}
+                      onConfirm={handleExit}
+                    >
+                      <Button danger block loading={exitMutation.isPending}>
+                        퇴사 처리
+                      </Button>
+                    </Popconfirm>
+                  )}
+                </Space>
               </Space>
             )}
           </Space>

@@ -2,6 +2,9 @@ import { app, shell, BrowserWindow, ipcMain } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
+import { runGoogleDesktopAuth } from './googleAuth'
+
+const GOOGLE_DESKTOP_CLIENT_ID = import.meta.env.MAIN_VITE_GOOGLE_DESKTOP_CLIENT_ID
 
 function createWindow(): void {
   // Create the browser window.
@@ -51,6 +54,14 @@ app.whenReady().then(() => {
 
   // IPC test
   ipcMain.on('ping', () => console.log('pong'))
+
+  // Google 데스크톱 OAuth: 시스템 브라우저 + 루프백 + PKCE 로 인증 코드를 받아 반환한다.
+  ipcMain.handle('auth:google-desktop', () => {
+    if (!GOOGLE_DESKTOP_CLIENT_ID) {
+      throw new Error('MAIN_VITE_GOOGLE_DESKTOP_CLIENT_ID 가 설정되지 않았습니다.')
+    }
+    return runGoogleDesktopAuth(GOOGLE_DESKTOP_CLIENT_ID)
+  })
 
   createWindow()
 

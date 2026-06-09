@@ -1,5 +1,6 @@
 .pending {
-  min-height: 100svh;
+  position: fixed;
+  inset: 0;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -16,6 +17,15 @@
   padding: 40px 32px;
   box-shadow: 0 10px 30px -10px rgba(24, 16, 48, 0.18);
   text-align: center;
+}
+
+.pending__brand {
+  display: block;
+  margin-bottom: 20px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #7c3aed;
 }
 
 .pending__icon {
@@ -42,6 +52,78 @@
   font-size: 14px;
   line-height: 1.6;
   color: #6b6375;
+}
+
+.pending__steps {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 4px;
+  margin: 0 0 24px;
+  padding: 0;
+  list-style: none;
+}
+
+.pending__step {
+  position: relative;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+/* 단계 사이를 잇는 연결선 */
+.pending__step:not(:first-child)::before {
+  content: '';
+  position: absolute;
+  top: 7px;
+  right: 50%;
+  width: 100%;
+  height: 2px;
+  background: #ececf1;
+}
+
+.pending__step--done::before,
+.pending__step--current::before {
+  background: #c4b5fd;
+}
+
+.pending__step-dot {
+  position: relative;
+  z-index: 1;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 2px solid #dcdbe3;
+}
+
+.pending__step--done .pending__step-dot {
+  background: #7c3aed;
+  border-color: #7c3aed;
+}
+
+.pending__step--current .pending__step-dot {
+  background: #ffffff;
+  border-color: #7c3aed;
+  box-shadow: 0 0 0 4px #ede9fe;
+}
+
+.pending__step-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: #9a94a6;
+}
+
+.pending__step--done .pending__step-label,
+.pending__step--current .pending__step-label {
+  color: #3c3a45;
+}
+
+.pending__step--current .pending__step-label {
+  font-weight: 700;
+  color: #5b21b6;
 }
 
 .pending__account {
@@ -80,7 +162,10 @@
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.15s ease, border-color 0.15s ease, opacity 0.15s ease;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    opacity 0.15s ease;
 }
 
 .pending__btn:disabled {

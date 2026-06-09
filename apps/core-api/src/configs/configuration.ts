@@ -20,7 +20,12 @@ export interface KafkaConfig {
 }
 
 export interface GoogleConfig {
+  /** 웹(백오피스) OAuth 클라이언트 ID */
   clientId: string;
+  /** 데스크톱(vooth-maker) OAuth 클라이언트 ID */
+  desktopClientId: string;
+  /** 데스크톱 OAuth 클라이언트 secret (서버에서 code 교환 시 사용) */
+  desktopClientSecret: string;
 }
 
 export interface JwtConfig {
@@ -66,6 +71,8 @@ export default (env: Record<string, any> = process.env): AppConfig => ({
   },
   google: {
     clientId: env.GOOGLE_CLIENT_ID,
+    desktopClientId: env.GOOGLE_DESKTOP_CLIENT_ID,
+    desktopClientSecret: env.GOOGLE_DESKTOP_CLIENT_SECRET,
   },
   jwt: {
     accessSecret: env.JWT_ACCESS_SECRET ?? 'dev-access-secret-change-me',

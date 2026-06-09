@@ -24,7 +24,10 @@ export class GoogleAuthClient {
     try {
       const ticket = await this.client.verifyIdToken({
         idToken,
-        audience: this.configsService.google.clientId,
+        // 웹(백오피스) / 데스크톱(maker) 클라이언트 둘 다 허용.
+        audience: [this.configsService.google.clientId, this.configsService.google.desktopClientId].filter(
+          Boolean
+        ),
       });
       payload = ticket.getPayload();
     } catch {
@@ -36,5 +39,39 @@ export class GoogleAuthClient {
     }
 
     return { googleSub: payload.sub, email: payload.email, name: payload.name };
+  }
+
+  /**
+   * 데스크톱(설치형) 앱의 OAuth authorization code 를 교환한다.
+   * Electron 이 시스템 브라우저 + loopback + PKCE 로 받은 code 를 서버에서 교환하고,
+   * 발급된 id_token 을 검증해 식별 정보를 반환한다. (secret 은 서버에만 보관)
+   */
+  async exchangeCode({
+    code,
+    codeVerifier,
+    redirectUri,
+  }: {
+    code: string;
+    codeVerifier: string;
+    redirectUri: string;
+  }): Promise<GoogleProfile> {
+    let idToken: string | null | undefined;
+    try {
+      const oauth2 = new OAuth2Client({
+        clientId: this.configsService.google.desktopClientId,
+        clientSecret: this.configsService.google.desktopClientSecret,
+        redirectUri,
+      });
+      const { tokens } = await oauth2.getToken({ code, codeVerifier, redirect_uri: redirectUri });
+      idToken = tokens.id_token;
+    } catch {
+      throw new UnauthorizedException('Google 인증 코드 교환에 실패했습니다.');
+    }
+
+    if (!idToken) {
+      throw new UnauthorizedException('Google id_token 을 받지 못했습니다.');
+    }
+
+    return this.verify(idToken);
   }
 }

@@ -1,53 +1,21 @@
-import type { AuthUser } from '../auth/types'
-import type { LoginInput } from '../features/auth/login.schema'
+import { apiRequest } from '../lib/apiClient'
 
-interface MockAccount {
-  email: string
-  password: string
-  user: AuthUser
+export interface DesktopGoogleLoginInput {
+  code: string
+  codeVerifier: string
+  redirectUri: string
 }
 
-const MOCK_ACCOUNTS: MockAccount[] = [
-  {
-    email: 'admin@vooth.com',
-    password: 'password123',
-    user: {
-      id: 'acc_1',
-      email: 'admin@vooth.com',
-      name: '슈퍼 관리자',
-      role: 'SUPER_ADMIN',
-      permissions: ['account:read', 'account:write', 'role:write']
-    }
-  },
-  {
-    email: 'actor@vooth.com',
-    password: 'password123',
-    user: {
-      id: 'acc_2',
-      email: 'actor@vooth.com',
-      name: '김성우',
-      role: 'VOICE_ACTOR',
-      permissions: ['project:read']
-    }
-  }
-]
-
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms))
-}
-
-export async function mockLogin(
-  input: LoginInput
-): Promise<{ user: AuthUser; accessToken: string }> {
-  await delay(800)
-
-  const account = MOCK_ACCOUNTS.find(
-    (acc) => acc.email === input.email && acc.password === input.password
-  )
-
-  if (!account) {
-    throw new Error('이메일 또는 비밀번호가 올바르지 않습니다.')
-  }
-
-  return { user: account.user, accessToken: 'mock-token' }
+/**
+ * 데스크톱 OAuth 인증 코드로 CREATOR 로그인.
+ * 백엔드가 Google 과 코드를 교환하고 앱 accessToken 을 발급한다.
+ * 최초 로그인 시 PENDING 상태로 계정이 자동 생성된다(=회원가입).
+ */
+export function desktopGoogleLogin(
+  input: DesktopGoogleLoginInput
+): Promise<{ accessToken: string }> {
+  return apiRequest<{ accessToken: string }>('/creators/auth/login/google/desktop', {
+    method: 'POST',
+    body: JSON.stringify(input)
+  })
 }

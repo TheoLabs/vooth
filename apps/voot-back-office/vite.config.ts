@@ -5,6 +5,10 @@ import react from '@vitejs/plugin-react'
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
+  server: {
+    port: 5173,
+    strictPort: true,
+  },
   resolve: {
     alias: {
       // @vooth/shared 를 빌드 산출물(dist) 대신 소스로 직접 해석한다.
