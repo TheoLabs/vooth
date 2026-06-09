@@ -7,9 +7,11 @@ import {
 import {
   createRole,
   fetchRoles,
+  updateRole,
   type CreateRolePayload,
   type FetchRolesParams,
   type RoleListItem,
+  type UpdateRolePayload,
 } from '../../api/roles.api';
 import type { PaginatedResponse } from '../../api/pagination';
 import { ApiError } from '../../lib/apiClient';
@@ -43,6 +45,27 @@ export function useCreateRole() {
 
   return useMutation<void, ApiError, CreateRolePayload>({
     mutationFn: createRole,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ROLES_QUERY_PREFIX });
+    },
+  });
+}
+
+/** useUpdateRole 의 mutate 인자: 대상 역할 id + 수정 본문. */
+export interface UpdateRoleVariables {
+  id: number;
+  payload: UpdateRolePayload;
+}
+
+/**
+ * 역할의 권한을 수정한다(PUT /admins/roles/:id).
+ * 성공 시 역할 목록 쿼리를 무효화해 최신 목록을 다시 불러온다.
+ */
+export function useUpdateRole() {
+  const queryClient = useQueryClient();
+
+  return useMutation<void, ApiError, UpdateRoleVariables>({
+    mutationFn: ({ id, payload }) => updateRole(id, payload),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ROLES_QUERY_PREFIX });
     },

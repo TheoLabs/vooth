@@ -9,14 +9,14 @@ export class RoleRepository extends DddRepository<Role> {
   entityClass = Role;
 
   async find(
-    conditions: { ids?: number[]; name?: string; type?: RoleType; searchKey?: string; searchValue?: string },
+    conditions: { ids?: number[]; name?: string; types?: RoleType[]; searchKey?: string; searchValue?: string },
     options?: TypeormRelationOptions<Role>
   ) {
     return this.entityManager.find(this.entityClass, {
       where: stripUndefined({
         id: checkInValue(conditions.ids),
         name: conditions.name,
-        type: conditions.type,
+        type: checkInValue(conditions.types),
         ...checkLikeValue({ searchKey: conditions.searchKey, searchValue: conditions.searchValue }),
       }),
       ...convertOptions(options),
@@ -26,7 +26,7 @@ export class RoleRepository extends DddRepository<Role> {
   async count(conditions: {
     ids?: number[];
     name?: string;
-    type?: RoleType;
+    types?: RoleType[];
     searchKey?: string;
     searchValue?: string;
   }) {
@@ -34,7 +34,7 @@ export class RoleRepository extends DddRepository<Role> {
       where: stripUndefined({
         id: checkInValue(conditions.ids),
         name: conditions.name,
-        type: conditions.type,
+        type: checkInValue(conditions.types),
         ...checkLikeValue({ searchKey: conditions.searchKey, searchValue: conditions.searchValue }),
       }),
     });

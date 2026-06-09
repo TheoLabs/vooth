@@ -38,6 +38,11 @@ export const rolesMock: Role[] = [
 export const ROLE_TYPE_META: Record<RoleType, { label: string; color: string }> =
   {
     [RoleType.SUPER]: { label: '슈퍼 관리자', color: 'geekblue' },
+    [RoleType.ACCOUNT_MANAGER]: { label: '계정 관리자', color: 'blue' },
+    [RoleType.CONTENT_MANAGER]: { label: '콘텐츠 관리자', color: 'cyan' },
+    [RoleType.SETTLEMENT_MANAGER]: { label: '정산 관리자', color: 'gold' },
+    [RoleType.STATS_MANAGER]: { label: '통계 관리자', color: 'purple' },
+    [RoleType.NOTIFICATION_MANAGER]: { label: '알림 관리자', color: 'volcano' },
     [RoleType.CREATOR]: { label: '크리에이터', color: 'green' },
   };
 

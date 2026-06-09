@@ -1,7 +1,7 @@
-import { Controller, Get, Query, UseGuards, Post, Body } from '@nestjs/common';
+import { Controller, Get, Query, UseGuards, Post, Body, Param, ParseIntPipe, Put } from '@nestjs/common';
 import { AdminRoleService } from '../applications/admin-role.service';
 import { AdminGuard } from '@common/guards';
-import { RoleCreateDto, RoleQueryDto } from './dto';
+import { RoleCreateDto, RoleQueryDto, RoleUpdateDto } from './dto';
 
 @Controller('admins/roles')
 @UseGuards(AdminGuard)
@@ -11,11 +11,11 @@ export class AdminRoleController {
   @Get()
   async list(@Query() query: RoleQueryDto) {
     // 1. Destructure body, params, query
-    const { searchKey, searchValue, ...options } = query;
+    const { searchKey, searchValue, types, ...options } = query;
 
     // 2. Get context
     // 3. Get result
-    const data = await this.adminRoleService.list({ searchKey, searchValue }, options);
+    const data = await this.adminRoleService.list({ searchKey, searchValue, types }, options);
 
     // 4. Send response
     return { data };
@@ -28,6 +28,28 @@ export class AdminRoleController {
     // 2. Get context
     // 3. Get result
     await this.adminRoleService.create(body);
+
+    // 4. Send response
+    return { data: {} };
+  }
+
+  @Get(':id')
+  async retrieve(@Param('id', ParseIntPipe) id: number) {
+    // 1. Destructure body, params, query
+    // 2. Get context
+    // 3. Get result
+    const data = await this.adminRoleService.retrieve({ id });
+
+    // 4. Send response
+    return { data };
+  }
+
+  @Put(':id')
+  async update(@Param('id', ParseIntPipe) id: number, @Body() body: RoleUpdateDto) {
+    // 1. Destructure body, params, query
+    // 2. Get context
+    // 3. Get result
+    await this.adminRoleService.update({ id, ...body });
 
     // 4. Send response
     return { data: {} };

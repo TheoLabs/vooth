@@ -1,5 +1,14 @@
 import { useState } from 'react';
-import { Alert, App, Button, Select, Space, Tag, Typography } from 'antd';
+import {
+  Alert,
+  App,
+  Button,
+  Select,
+  Space,
+  Tag,
+  Tooltip,
+  Typography,
+} from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { RoleType } from '@vooth/shared';
 import { TableToolbar } from '../components/TableToolbar';
@@ -9,14 +18,17 @@ import {
   RoleFormModal,
   type RoleFormValues,
 } from '../components/RoleFormModal';
-import { useCreateRole, useRoles } from '../features/roles/useRoles';
-import type { RoleListItem } from '../api/roles.api';
+import {
+  useCreateRole,
+  useRoles,
+  useUpdateRole,
+} from '../features/roles/useRoles';
+import type { RoleListItem, RolePermission } from '../api/roles.api';
 import { ROLE_TYPE_META, ROLE_TYPE_OPTIONS } from '../mocks/roles.mock';
 import { ApiError } from '../lib/apiClient';
 import '../components/DataTable.css';
 
-// 이름은 텍스트 검색, 유형은 드롭다운으로 필터링한다.
-// (백엔드는 단일 searchKey/searchValue 만 지원하므로 둘은 상호 배타적이다.)
+// 이름은 텍스트 검색, 유형은 필터 바 다중 선택으로 필터링한다.
 type SearchField = 'name';
 
 const SEARCH_FIELDS: { value: SearchField; label: string }[] = [
@@ -26,16 +38,12 @@ const SEARCH_FIELDS: { value: SearchField; label: string }[] = [
 const DEFAULT_PAGE = 1;
 const DEFAULT_LIMIT = 30;
 
-function formatDate(value?: string): string {
-  if (!value) return '-';
-  const date = new Date(value);
-  return Number.isNaN(date.getTime())
-    ? value
-    : date.toISOString().slice(0, 10);
-}
+// 권한 컬럼에 노출할 최대 태그 수. 초과분은 "+N" 으로 요약한다.
+const MAX_VISIBLE_PERMISSIONS = 3;
 
-const columns: ColumnsType<RoleListItem> = [
+const baseColumns: ColumnsType<RoleListItem> = [
   { title: 'ID', dataIndex: 'id', key: 'id', width: 64 },
+  { title: '이름', dataIndex: 'name', key: 'name' },
   {
     title: '유형',
     dataIndex: 'type',
@@ -50,13 +58,37 @@ const columns: ColumnsType<RoleListItem> = [
       );
     },
   },
-  { title: '이름', dataIndex: 'name', key: 'name' },
   {
-    title: '생성일',
-    dataIndex: 'createdAt',
-    key: 'createdAt',
-    width: 140,
-    render: (value?: string) => formatDate(value),
+    title: '권한 수',
+    key: 'permissionCount',
+    width: 96,
+    render: (_, role) => <Tag>{role.permissions.length}</Tag>,
+  },
+  {
+    title: '권한',
+    key: 'permissions',
+    render: (_, role) => {
+      const { permissions } = role;
+      if (permissions.length === 0) {
+        return <Typography.Text type="secondary">-</Typography.Text>;
+      }
+
+      const visible = permissions.slice(0, MAX_VISIBLE_PERMISSIONS);
+      const rest = permissions.slice(MAX_VISIBLE_PERMISSIONS);
+
+      return (
+        <Space size={4} wrap>
+          {visible.map((permission: RolePermission) => (
+            <Tag key={permission.code}>{permission.name}</Tag>
+          ))}
+          {rest.length > 0 && (
+            <Tooltip title={rest.map((permission) => permission.name).join(', ')}>
+              <Tag>{`+${rest.length}`}</Tag>
+            </Tooltip>
+          )}
+        </Space>
+      );
+    },
   },
 ];
 
@@ -72,33 +104,33 @@ export function RolesPage() {
     key: string;
     value: string;
   } | null>(null);
-  // 공유 패키지 RoleType 기반 유형 필터.
-  const [typeFilter, setTypeFilter] = useState<RoleType | null>(null);
+  // 공유 패키지 RoleType 기반 유형 필터(다중 선택, types 파라미터로 전달).
+  const [typeFilter, setTypeFilter] = useState<RoleType[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
+  // 수정 대상 역할. null 이면 수정 모달이 닫힌 상태.
+  const [editingRole, setEditingRole] = useState<RoleListItem | null>(null);
 
   const { data, isFetching, isError, error } = useRoles({
     page,
     limit,
     searchKey: appliedSearch?.key,
     searchValue: appliedSearch?.value,
+    types: typeFilter,
   });
 
   const createRole = useCreateRole();
+  const updateRole = useUpdateRole();
 
-  // 이름 검색: 유형 필터와 상호 배타.
   const submitSearch = () => {
     const term = keywordInput.trim();
     setPage(DEFAULT_PAGE);
-    setTypeFilter(null);
     setAppliedSearch(term ? { key: searchField, value: term } : null);
   };
 
-  // 유형 필터: 이름 검색과 상호 배타.
-  const handleTypeFilter = (value: RoleType | null) => {
+  // 유형 필터: types 파라미터를 갱신하고 1페이지로 되돌린다.
+  const handleTypeFilter = (value: RoleType[]) => {
     setPage(DEFAULT_PAGE);
     setTypeFilter(value);
-    setKeywordInput('');
-    setAppliedSearch(value ? { key: 'type', value } : null);
   };
 
   const handleCreate = (values: RoleFormValues) => {
@@ -124,6 +156,66 @@ export function RolesPage() {
       },
     );
   };
+
+  // 수정 모달을 닫으면서 대상 역할을 비운다.
+  const closeEditModal = () => setEditingRole(null);
+
+  const handleUpdate = (values: RoleFormValues) => {
+    if (!editingRole) return;
+
+    updateRole.mutate(
+      {
+        id: editingRole.id,
+        // 수정 API 는 권한만 재할당한다(name/type 은 무시됨).
+        payload: {
+          permissionCodes: values.permissions,
+        },
+      },
+      {
+        onSuccess: () => {
+          closeEditModal();
+          message.success('역할이 수정되었습니다.');
+        },
+        onError: (err) => {
+          message.error(
+            err instanceof ApiError
+              ? err.message
+              : '역할 수정에 실패했습니다.',
+          );
+        },
+      },
+    );
+  };
+
+  // 기본 컬럼에 "관리"(수정) 액션 컬럼을 덧붙인다.
+  const columns: ColumnsType<RoleListItem> = [
+    ...baseColumns,
+    {
+      title: '관리',
+      key: 'actions',
+      width: 96,
+      fixed: 'right',
+      render: (_, role) => (
+        <Button
+          type="link"
+          size="small"
+          style={{ paddingInline: 0 }}
+          onClick={() => setEditingRole(role)}
+        >
+          수정
+        </Button>
+      ),
+    },
+  ];
+
+  // 선택된 역할로 수정 폼 초기값을 구성한다(권한은 코드 배열로 변환).
+  const editInitialValues: RoleFormValues | undefined = editingRole
+    ? {
+        type: editingRole.type,
+        name: editingRole.name,
+        permissions: editingRole.permissions.map((permission) => permission.code),
+      }
+    : undefined;
 
   return (
     <div className="bo-page">
@@ -157,12 +249,13 @@ export function RolesPage() {
 
       <FilterBar>
         <FilterField label="유형">
-          <Select<RoleType>
+          <Select<RoleType[]>
+            mode="multiple"
             allowClear
             placeholder="전체"
-            style={{ width: 200 }}
+            style={{ minWidth: 200 }}
             value={typeFilter}
-            onChange={(value) => handleTypeFilter(value ?? null)}
+            onChange={(value) => handleTypeFilter(value ?? [])}
             options={ROLE_TYPE_OPTIONS}
           />
         </FilterField>
@@ -207,6 +300,15 @@ export function RolesPage() {
         submitting={createRole.isPending}
         onCancel={() => setModalOpen(false)}
         onSubmit={handleCreate}
+      />
+
+      <RoleFormModal
+        open={editingRole !== null}
+        mode="edit"
+        initialValues={editInitialValues}
+        submitting={updateRole.isPending}
+        onCancel={closeEditModal}
+        onSubmit={handleUpdate}
       />
     </div>
   );
