@@ -126,7 +126,6 @@ export function PermissionsPage() {
             allowClear
             showSearch
             placeholder="전체"
-            style={{ minWidth: 260, maxWidth: 420 }}
             value={categories}
             onChange={handleCategoriesChange}
             options={PERMISSION_CATEGORY_OPTIONS}

@@ -1,16 +1,23 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   Alert,
   App,
   Button,
+  Checkbox,
+  Descriptions,
+  Divider,
+  Drawer,
+  Empty,
   Select,
   Space,
+  Spin,
   Tag,
   Tooltip,
   Typography,
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import { RoleType } from '@vooth/shared';
+import { PermissionCategory, RoleType } from '@vooth/shared';
+import { PERMISSION_CATEGORY_META } from '../mocks/permissions.mock';
 import { TableToolbar } from '../components/TableToolbar';
 import { FilterBar, FilterField } from '../components/FilterBar';
 import { FullHeightTable } from '../components/FullHeightTable';
@@ -18,12 +25,10 @@ import {
   RoleFormModal,
   type RoleFormValues,
 } from '../components/RoleFormModal';
-import {
-  useCreateRole,
-  useRoles,
-  useUpdateRole,
-} from '../features/roles/useRoles';
+import { useCreateRole, useRoles, useUpdateRole } from '../features/roles/useRoles';
+import { usePermissions } from '../features/permissions/usePermissions';
 import type { RoleListItem, RolePermission } from '../api/roles.api';
+import type { PermissionItem } from '../api/permissions.api';
 import { ROLE_TYPE_META, ROLE_TYPE_OPTIONS } from '../mocks/roles.mock';
 import { ApiError } from '../lib/apiClient';
 import '../components/DataTable.css';
@@ -40,6 +45,32 @@ const DEFAULT_LIMIT = 30;
 
 // 권한 컬럼에 노출할 최대 태그 수. 초과분은 "+N" 으로 요약한다.
 const MAX_VISIBLE_PERMISSIONS = 3;
+
+// 카테고리 코드(문자열)에 대한 표시 메타. 알 수 없는 코드는 코드 자체를 라벨로 사용한다.
+function categoryMeta(category: string): { label: string; color?: string } {
+  const meta = PERMISSION_CATEGORY_META[category as PermissionCategory];
+  return meta ?? { label: category };
+}
+
+// 카테고리(category) 필드를 가진 항목을 카테고리별로 묶는다(원본 순서 유지).
+function groupByCategory<T extends { category: string }>(
+  items: T[],
+): { category: string; items: T[] }[] {
+  const groups: { category: string; items: T[] }[] = [];
+  const indexByCategory = new Map<string, number>();
+
+  for (const item of items) {
+    const existing = indexByCategory.get(item.category);
+    if (existing === undefined) {
+      indexByCategory.set(item.category, groups.length);
+      groups.push({ category: item.category, items: [item] });
+    } else {
+      groups[existing].items.push(item);
+    }
+  }
+
+  return groups;
+}
 
 const baseColumns: ColumnsType<RoleListItem> = [
   { title: 'ID', dataIndex: 'id', key: 'id', width: 64 },
@@ -107,8 +138,12 @@ export function RolesPage() {
   // 공유 패키지 RoleType 기반 유형 필터(다중 선택, types 파라미터로 전달).
   const [typeFilter, setTypeFilter] = useState<RoleType[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
-  // 수정 대상 역할. null 이면 수정 모달이 닫힌 상태.
-  const [editingRole, setEditingRole] = useState<RoleListItem | null>(null);
+  // 상세 Drawer 대상 역할. null 이면 닫힌 상태.
+  const [selectedRole, setSelectedRole] = useState<RoleListItem | null>(null);
+  // Drawer 권한 섹션 편집 모드 여부. true 이면 체크박스 편집기를 노출한다.
+  const [isEditing, setIsEditing] = useState(false);
+  // 편집 모드에서 체크된 권한 코드 집합.
+  const [checkedCodes, setCheckedCodes] = useState<string[]>([]);
 
   const { data, isFetching, isError, error } = useRoles({
     page,
@@ -120,6 +155,99 @@ export function RolesPage() {
 
   const createRole = useCreateRole();
   const updateRole = useUpdateRole();
+
+  // 편집 모드에서만 전체 권한 카탈로그를 조회한다(약 27개, 넉넉히 limit 100).
+  const {
+    data: catalogData,
+    isFetching: isCatalogFetching,
+    isError: isCatalogError,
+  } = usePermissions(
+    { page: 1, limit: 100 },
+    { enabled: isEditing },
+  );
+
+  const catalogItems = useMemo(
+    () => catalogData?.items ?? [],
+    [catalogData],
+  );
+  const catalogGroups = useMemo(
+    () => groupByCategory(catalogItems),
+    [catalogItems],
+  );
+
+  // Drawer 를 닫거나 다른 역할을 선택하면 편집 상태를 초기화한다.
+  const closeDrawer = () => {
+    setSelectedRole(null);
+    setIsEditing(false);
+    setCheckedCodes([]);
+  };
+
+  // 보기 → 편집 전환: 현재 역할의 권한 코드로 체크 상태를 초기화한다.
+  const startEditing = () => {
+    if (!selectedRole) return;
+    setCheckedCodes(selectedRole.permissions.map((permission) => permission.code));
+    setIsEditing(true);
+  };
+
+  // 편집 취소: 변경 사항을 버리고 보기 모드로 돌아간다.
+  const cancelEditing = () => {
+    setIsEditing(false);
+    setCheckedCodes([]);
+  };
+
+  const toggleCode = (code: string, checked: boolean) => {
+    setCheckedCodes((prev) =>
+      checked ? [...prev, code] : prev.filter((value) => value !== code),
+    );
+  };
+
+  // 카테고리 단위 전체 선택/해제.
+  const toggleCategory = (codes: string[], checked: boolean) => {
+    setCheckedCodes((prev) => {
+      if (checked) {
+        const next = new Set(prev);
+        codes.forEach((code) => next.add(code));
+        return [...next];
+      }
+      const removeSet = new Set(codes);
+      return prev.filter((value) => !removeSet.has(value));
+    });
+  };
+
+  // 저장: 체크된 권한 코드로 PUT 한 뒤 Drawer 의 표시 역할을 즉시 갱신한다.
+  const handleSavePermissions = () => {
+    if (!selectedRole) return;
+
+    updateRole.mutate(
+      {
+        id: selectedRole.id,
+        payload: { permissionCodes: checkedCodes },
+      },
+      {
+        onSuccess: () => {
+          // 카탈로그에서 체크된 코드에 해당하는 권한 객체를 추려 보기 모드 목록을 갱신한다.
+          const checkedSet = new Set(checkedCodes);
+          const nextPermissions: RolePermission[] = catalogItems
+            .filter((item) => checkedSet.has(item.code))
+            .map((item) => ({
+              code: item.code,
+              name: item.name,
+              category: item.category,
+              description: item.description,
+            }));
+          setSelectedRole({ ...selectedRole, permissions: nextPermissions });
+          setIsEditing(false);
+          setCheckedCodes([]);
+          message.success('역할 권한이 수정되었습니다.');
+        },
+        onError: (err) => {
+          message.error(
+            err instanceof ApiError ? err.message : '역할 권한 수정에 실패했습니다.',
+          );
+        },
+      },
+    );
+  };
 
   const submitSearch = () => {
     const term = keywordInput.trim();
@@ -157,65 +285,117 @@ export function RolesPage() {
     );
   };
 
-  // 수정 모달을 닫으면서 대상 역할을 비운다.
-  const closeEditModal = () => setEditingRole(null);
+  // 보기 모드: 역할에 할당된 권한을 카테고리별 읽기 전용 목록으로 렌더링한다.
+  const renderPermissionView = (permissions: RolePermission[]) => {
+    if (permissions.length === 0) {
+      return (
+        <Empty
+          image={Empty.PRESENTED_IMAGE_SIMPLE}
+          description={
+            <Typography.Text type="secondary">
+              할당된 권한이 없습니다.
+            </Typography.Text>
+          }
+        />
+      );
+    }
 
-  const handleUpdate = (values: RoleFormValues) => {
-    if (!editingRole) return;
-
-    updateRole.mutate(
-      {
-        id: editingRole.id,
-        // 수정 API 는 권한만 재할당한다(name/type 은 무시됨).
-        payload: {
-          permissionCodes: values.permissions,
-        },
-      },
-      {
-        onSuccess: () => {
-          closeEditModal();
-          message.success('역할이 수정되었습니다.');
-        },
-        onError: (err) => {
-          message.error(
-            err instanceof ApiError
-              ? err.message
-              : '역할 수정에 실패했습니다.',
-          );
-        },
-      },
-    );
+    return groupByCategory(permissions).map((group, index) => {
+      const meta = categoryMeta(group.category);
+      return (
+        <div key={group.category}>
+          {index > 0 && <Divider style={{ margin: '12px 0' }} />}
+          <div style={{ marginTop: index === 0 ? 8 : 0 }}>
+            <Tag color={meta.color}>{meta.label}</Tag>
+          </div>
+          <Space
+            direction="vertical"
+            size={4}
+            style={{ width: '100%', marginTop: 8 }}
+          >
+            {group.items.map((permission) => (
+              <div key={permission.code}>
+                <Typography.Text>{permission.name}</Typography.Text>{' '}
+                <Typography.Text type="secondary" code>
+                  {permission.code}
+                </Typography.Text>
+              </div>
+            ))}
+          </Space>
+        </div>
+      );
+    });
   };
 
-  // 기본 컬럼에 "관리"(수정) 액션 컬럼을 덧붙인다.
-  const columns: ColumnsType<RoleListItem> = [
-    ...baseColumns,
-    {
-      title: '관리',
-      key: 'actions',
-      width: 96,
-      fixed: 'right',
-      render: (_, role) => (
-        <Button
-          type="link"
-          size="small"
-          style={{ paddingInline: 0 }}
-          onClick={() => setEditingRole(role)}
-        >
-          수정
-        </Button>
-      ),
-    },
-  ];
+  // 편집 모드: 전체 권한 카탈로그를 카테고리별 체크박스로 렌더링한다.
+  const renderPermissionEditor = () => {
+    if (isCatalogError) {
+      return (
+        <Alert
+          type="error"
+          showIcon
+          style={{ marginTop: 8 }}
+          message="권한 목록을 불러오지 못했습니다."
+        />
+      );
+    }
 
-  // 선택된 역할로 수정 폼 초기값을 구성한다(권한은 코드 배열로 변환).
-  const editInitialValues: RoleFormValues | undefined = editingRole
-    ? {
-        type: editingRole.type,
-        name: editingRole.name,
-        permissions: editingRole.permissions.map((permission) => permission.code),
-      }
-    : undefined;
+    if (isCatalogFetching && catalogItems.length === 0) {
+      return (
+        <div style={{ textAlign: 'center', padding: '24px 0' }}>
+          <Spin />
+        </div>
+      );
+    }
+
+    const checkedSet = new Set(checkedCodes);
+
+    return catalogGroups.map((group, index) => {
+      const meta = categoryMeta(group.category);
+      const codes = group.items.map((item) => item.code);
+      const allChecked = codes.every((code) => checkedSet.has(code));
+      const someChecked = codes.some((code) => checkedSet.has(code));
+
+      return (
+        <div key={group.category}>
+          {index > 0 && <Divider style={{ margin: '12px 0' }} />}
+          <div
+            style={{
+              marginTop: index === 0 ? 8 : 0,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+            }}
+          >
+            <Checkbox
+              checked={allChecked}
+              indeterminate={!allChecked && someChecked}
+              onChange={(e) => toggleCategory(codes, e.target.checked)}
+            />
+            <Tag color={meta.color}>{meta.label}</Tag>
+          </div>
+          <Space
+            direction="vertical"
+            size={4}
+            style={{ width: '100%', marginTop: 8 }}
+          >
+            {group.items.map((item: PermissionItem) => (
+              <Checkbox
+                key={item.code}
+                checked={checkedSet.has(item.code)}
+                onChange={(e) => toggleCode(item.code, e.target.checked)}
+              >
+                <Typography.Text>{item.name}</Typography.Text>{' '}
+                <Typography.Text type="secondary" code>
+                  {item.code}
+                </Typography.Text>
+              </Checkbox>
+            ))}
+          </Space>
+        </div>
+      );
+    });
+  };
 
   return (
     <div className="bo-page">
@@ -253,10 +433,10 @@ export function RolesPage() {
             mode="multiple"
             allowClear
             placeholder="전체"
-            style={{ minWidth: 200 }}
             value={typeFilter}
             onChange={(value) => handleTypeFilter(value ?? [])}
             options={ROLE_TYPE_OPTIONS}
+            maxTagCount="responsive"
           />
         </FilterField>
       </FilterBar>
@@ -273,9 +453,13 @@ export function RolesPage() {
       <FullHeightTable<RoleListItem>
         className="data-table"
         rowKey="id"
-        columns={columns}
+        columns={baseColumns}
         dataSource={data?.items ?? []}
         loading={isFetching}
+        onRow={(record) => ({
+          onClick: () => setSelectedRole(record),
+          style: { cursor: 'pointer' },
+        })}
         pagination={{
           current: page,
           pageSize: limit,
@@ -295,20 +479,72 @@ export function RolesPage() {
         }}
       />
 
+      <Drawer
+        title="역할 상세"
+        placement="right"
+        width={480}
+        open={selectedRole !== null}
+        onClose={closeDrawer}
+        destroyOnClose
+        extra={
+          selectedRole &&
+          (isEditing ? (
+            <Space>
+              <Button onClick={cancelEditing} disabled={updateRole.isPending}>
+                취소
+              </Button>
+              <Button
+                type="primary"
+                loading={updateRole.isPending}
+                disabled={isCatalogFetching}
+                onClick={handleSavePermissions}
+              >
+                저장
+              </Button>
+            </Space>
+          ) : (
+            <Button type="primary" onClick={startEditing}>
+              수정
+            </Button>
+          ))
+        }
+      >
+        {selectedRole && (
+          <Space direction="vertical" size="large" style={{ width: '100%' }}>
+            <Descriptions column={1} bordered size="small">
+              <Descriptions.Item label="ID">{selectedRole.id}</Descriptions.Item>
+              <Descriptions.Item label="이름">
+                {selectedRole.name}
+              </Descriptions.Item>
+              <Descriptions.Item label="유형">
+                {ROLE_TYPE_META[selectedRole.type] ? (
+                  <Tag color={ROLE_TYPE_META[selectedRole.type].color}>
+                    {ROLE_TYPE_META[selectedRole.type].label}
+                  </Tag>
+                ) : (
+                  <Tag>{selectedRole.type}</Tag>
+                )}
+              </Descriptions.Item>
+              <Descriptions.Item label="권한 수">
+                <Tag>{selectedRole.permissions.length}</Tag>
+              </Descriptions.Item>
+            </Descriptions>
+
+            <div>
+              <Typography.Text strong>권한 목록</Typography.Text>
+              {isEditing
+                ? renderPermissionEditor()
+                : renderPermissionView(selectedRole.permissions)}
+            </div>
+          </Space>
+        )}
+      </Drawer>
+
       <RoleFormModal
         open={modalOpen}
         submitting={createRole.isPending}
         onCancel={() => setModalOpen(false)}
         onSubmit={handleCreate}
-      />
-
-      <RoleFormModal
-        open={editingRole !== null}
-        mode="edit"
-        initialValues={editInitialValues}
-        submitting={updateRole.isPending}
-        onCancel={closeEditModal}
-        onSubmit={handleUpdate}
       />
     </div>
   );

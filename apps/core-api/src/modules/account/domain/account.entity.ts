@@ -1,5 +1,6 @@
 import { DddAggregate } from '@libs/ddd';
 import { Role } from '@modules/role/domain/role.entity';
+import { BadRequestException } from '@nestjs/common';
 import { AccountStatus, AccountType } from '@vooth/shared';
 import { Column, Entity, JoinColumn, OneToOne, PrimaryGeneratedColumn } from 'typeorm';
 
@@ -55,7 +56,35 @@ export class Account extends DddAggregate {
     return account;
   }
 
-  active() {
+  reject() {
+    if (this.status !== AccountStatus.PENDING) {
+      throw new BadRequestException('대기중인 계정만 거절할 수 있습니다.', {
+        cause: '대기중인 계정만 거절할 수 있습니다.',
+      });
+    }
+
+    this.status = AccountStatus.REJECTED;
+  }
+
+  active(roleId: number) {
+    if (this.status !== AccountStatus.PENDING) {
+      throw new BadRequestException('대기중인 계정만 승인할 수 있습니다.', {
+        cause: '대기중인 계정만 승인할 수 있습니다.',
+      });
+    }
+
     this.status = AccountStatus.ACTIVE;
+    this.roleId = roleId;
+  }
+
+  exit() {
+    if (this.status !== AccountStatus.ACTIVE) {
+      throw new BadRequestException('승인된 계정만 탈퇴할 수 있습니다.', {
+        cause: '승인된 계정만 탈퇴할 수 있습니다.',
+      });
+    }
+
+    this.status = AccountStatus.EXITED;
+    this.roleId = null;
   }
 }

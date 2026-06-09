@@ -39,6 +39,7 @@ pnpm + Turborepo 모노레포. `apps/` 에 3개 애플리케이션, 공유 코�
 - **API 통신 룰: axios 인스턴스(`src/lib/apiClient.ts`) + 인터셉터로 일원화한다.** 개별 API 함수에서 쿼리스트링/헤더를 수동 조립하지 않는다.
   - 배열 쿼리 파라미터는 **반복 파라미터(`?a=1&a=2`)** 로 직렬화한다 — axios `paramsSerializer` 에서 일괄 처리(브래킷 `a[]` 금지).
   - 요청 인터셉터에서 Bearer 토큰 첨부, 응답 인터셉터에서 `{ data }` 언랩 + `ApiError`(status/message) 정규화.
+- **목록 총 건수 룰: 테이블 기반 목록 조회 화면은 항상 총 건수(`총 N건`)를 표시한다.** 서버 응답 `{ items, total }` 의 `total` 을 사용하며, `<FullHeightTable>` 에서 일괄 렌더링하므로 페이지마다 따로 붙이지 않는다.
 
 ## 작업 방식 규칙
 
