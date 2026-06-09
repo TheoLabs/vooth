@@ -36,6 +36,9 @@ pnpm + Turborepo 모노레포. `apps/` 에 3개 애플리케이션, 공유 코�
 - **필터 배치 룰: 목록 필터는 검색창(`TableToolbar`) 하단의 필터 바에 둔다.** 검색창 오른쪽이나 같은 줄에 붙이지 않는다.
   - 필터 바는 `<FilterBar>`, 각 필터는 `<FilterField label="...">`(`components/FilterBar.tsx`)로 감싼다. **form-label 은 컨트롤 상단**에 온다.
   - 필터 축이 늘면 `FilterField` 를 추가하면 된다.
+- **API 통신 룰: axios 인스턴스(`src/lib/apiClient.ts`) + 인터셉터로 일원화한다.** 개별 API 함수에서 쿼리스트링/헤더를 수동 조립하지 않는다.
+  - 배열 쿼리 파라미터는 **반복 파라미터(`?a=1&a=2`)** 로 직렬화한다 — axios `paramsSerializer` 에서 일괄 처리(브래킷 `a[]` 금지).
+  - 요청 인터셉터에서 Bearer 토큰 첨부, 응답 인터셉터에서 `{ data }` 언랩 + `ApiError`(status/message) 정규화.
 
 ## 작업 방식 규칙
 

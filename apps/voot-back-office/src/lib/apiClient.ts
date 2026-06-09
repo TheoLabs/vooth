@@ -1,3 +1,4 @@
+import axios, { AxiosError } from 'axios';
 import { getAccessToken } from '../auth/token';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:3000';
@@ -7,56 +8,74 @@ interface ApiEnvelope<T> {
   data: T;
 }
 
-export class ApiError extends Error {
-  readonly status: number;
+/** core-api 에러 응답 본문 (message 는 string 또는 string[]). */
+interface ApiErrorBody {
+  message?: string | string[];
+}
 
-  constructor(status: number, message: string) {
+/**
+ * 전송 계층 공통 에러.
+ * 소비자는 `error.status` / `error.message` 만 읽는다 (ApprovalGate, RolesPage 등).
+ */
+export class ApiError extends Error {
+  readonly status: number | undefined;
+
+  constructor(status: number | undefined, message: string) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
   }
 }
 
-interface RequestOptions extends Omit<RequestInit, 'body'> {
-  body?: unknown;
+/** 백엔드 message(string | string[]) 를 단일 문자열로 정규화한다. */
+function resolveErrorMessage(error: AxiosError<ApiErrorBody>): string {
+  const message = error.response?.data?.message;
+  if (Array.isArray(message)) {
+    return message.join(', ');
+  }
+  if (typeof message === 'string' && message.length > 0) {
+    return message;
+  }
+  return error.message;
 }
 
 /**
- * 작은 fetch 래퍼.
+ * 앱 공용 axios 인스턴스.
  * - VITE_API_BASE_URL 을 base 로 사용 (기본값 http://localhost:3000)
- * - 저장된 토큰이 있으면 Authorization 헤더 부착
- * - JSON 파싱 후 { data } 봉투를 벗겨서 반환
- * - 2xx 가 아니면 의미 있는 메시지로 throw
+ * - 배열 쿼리 파라미터는 반복 파라미터(`?a=1&a=2`)로 직렬화 (브래킷 `a[]` 금지)
  */
-export async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const { body, headers, ...rest } = options;
+export const apiClient = axios.create({
+  baseURL: API_BASE_URL,
+  paramsSerializer: { indexes: null },
+});
 
-  const finalHeaders = new Headers(headers);
-  if (body !== undefined) {
-    finalHeaders.set('Content-Type', 'application/json');
-  }
-
+// 요청 인터셉터: 저장된 토큰이 있으면 Authorization 헤더 부착.
+apiClient.interceptors.request.use((config) => {
   const token = getAccessToken();
   if (token) {
-    finalHeaders.set('Authorization', `Bearer ${token}`);
+    config.headers.set('Authorization', `Bearer ${token}`);
   }
+  return config;
+});
 
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    ...rest,
-    headers: finalHeaders,
-    body: body === undefined ? undefined : JSON.stringify(body),
-  });
-
-  const text = await response.text();
-  const parsed: unknown = text ? JSON.parse(text) : null;
-
-  if (!response.ok) {
-    const message =
-      (parsed && typeof parsed === 'object' && 'message' in parsed
-        ? String((parsed as { message: unknown }).message)
-        : null) ?? `요청에 실패했습니다 (HTTP ${response.status})`;
-    throw new ApiError(response.status, message);
-  }
-
-  return (parsed as ApiEnvelope<T>)?.data;
-}
+// 응답 인터셉터:
+// - 성공 시 { data } 봉투를 벗겨 내부 payload 를 반환한다.
+// - 실패 시 status/message 를 정규화한 ApiError 로 reject 한다.
+apiClient.interceptors.response.use(
+  (response) => {
+    const envelope = response.data as ApiEnvelope<unknown> | undefined;
+    response.data = envelope?.data;
+    return response;
+  },
+  (error: unknown) => {
+    if (axios.isAxiosError(error)) {
+      const axiosError = error as AxiosError<ApiErrorBody>;
+      return Promise.reject(
+        new ApiError(axiosError.response?.status, resolveErrorMessage(axiosError)),
+      );
+    }
+    return Promise.reject(
+      new ApiError(undefined, error instanceof Error ? error.message : '요청에 실패했습니다.'),
+    );
+  },
+);

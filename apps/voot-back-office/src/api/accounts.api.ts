@@ -1,5 +1,5 @@
 import { AccountType } from '@vooth/shared';
-import { apiRequest } from '../lib/apiClient';
+import { apiClient } from '../lib/apiClient';
 import type { PaginatedResponse } from './pagination';
 
 /** 계정 상태 (백엔드 status 와 1:1 매핑) */
@@ -36,22 +36,21 @@ export interface FetchAccountsParams {
 export async function fetchAccounts(
   params: FetchAccountsParams,
 ): Promise<PaginatedResponse<AccountListItem>> {
-  const query = new URLSearchParams();
-  query.set('page', String(params.page));
-  query.set('limit', String(params.limit));
+  const hasSearch = Boolean(params.searchKey && params.searchValue);
 
-  if (params.sort) {
-    query.set('sort', params.sort);
-  }
-  if (params.order) {
-    query.set('order', params.order);
-  }
-  if (params.searchKey && params.searchValue) {
-    query.set('searchKey', params.searchKey);
-    query.set('searchValue', params.searchValue);
-  }
-
-  return apiRequest<PaginatedResponse<AccountListItem>>(
-    `/admins/accounts?${query.toString()}`,
+  const response = await apiClient.get<PaginatedResponse<AccountListItem>>(
+    '/admins/accounts',
+    {
+      params: {
+        page: params.page,
+        limit: params.limit,
+        sort: params.sort || undefined,
+        order: params.order || undefined,
+        searchKey: hasSearch ? params.searchKey : undefined,
+        searchValue: hasSearch ? params.searchValue : undefined,
+      },
+    },
   );
+
+  return response.data;
 }

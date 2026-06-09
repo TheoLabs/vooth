@@ -1,4 +1,4 @@
-import { apiRequest } from '../lib/apiClient';
+import { apiClient } from '../lib/apiClient';
 
 /** 관리자 계정 상태 도메인 (백엔드 status 와 1:1 매핑) */
 export type MeStatus = 'pending' | 'active' | 'exited';
@@ -19,5 +19,6 @@ export interface MeAccount {
 
 /** 로그인한 관리자 본인 계정을 조회한다. */
 export async function fetchMe(): Promise<MeAccount> {
-  return apiRequest<MeAccount>('/admins/me');
+  const response = await apiClient.get<MeAccount>('/admins/me');
+  return response.data;
 }

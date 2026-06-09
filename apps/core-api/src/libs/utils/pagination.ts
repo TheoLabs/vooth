@@ -1,4 +1,4 @@
-import { Type } from 'class-transformer';
+import { Exclude, Expose, Type } from 'class-transformer';
 import { IsNumber, IsOptional, IsString } from 'class-validator';
 
 export enum OrderType {
@@ -13,7 +13,7 @@ export interface PaginationOptions {
   order?: OrderType;
 }
 
-export class PaginationDto implements PaginationOptions {
+export abstract class PaginationDto implements PaginationOptions {
   @Type(() => Number)
   @IsNumber()
   @IsOptional()
@@ -31,4 +31,13 @@ export class PaginationDto implements PaginationOptions {
   @IsString()
   @IsOptional()
   order?: OrderType;
+}
+
+@Exclude()
+export abstract class ResponseDto {
+  @Expose()
+  createdAt: Date;
+
+  @Expose()
+  updatedAt: Date;
 }

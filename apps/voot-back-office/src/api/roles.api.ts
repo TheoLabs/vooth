@@ -1,5 +1,5 @@
 import { RoleType } from '@vooth/shared';
-import { apiRequest } from '../lib/apiClient';
+import { apiClient } from '../lib/apiClient';
 import type { PaginatedResponse } from './pagination';
 
 /**
@@ -30,24 +30,23 @@ export interface FetchRolesParams {
 export async function fetchRoles(
   params: FetchRolesParams,
 ): Promise<PaginatedResponse<RoleListItem>> {
-  const query = new URLSearchParams();
-  query.set('page', String(params.page));
-  query.set('limit', String(params.limit));
+  const hasSearch = Boolean(params.searchKey && params.searchValue);
 
-  if (params.sort) {
-    query.set('sort', params.sort);
-  }
-  if (params.order) {
-    query.set('order', params.order);
-  }
-  if (params.searchKey && params.searchValue) {
-    query.set('searchKey', params.searchKey);
-    query.set('searchValue', params.searchValue);
-  }
-
-  return apiRequest<PaginatedResponse<RoleListItem>>(
-    `/admins/roles?${query.toString()}`,
+  const response = await apiClient.get<PaginatedResponse<RoleListItem>>(
+    '/admins/roles',
+    {
+      params: {
+        page: params.page,
+        limit: params.limit,
+        sort: params.sort || undefined,
+        order: params.order || undefined,
+        searchKey: hasSearch ? params.searchKey : undefined,
+        searchValue: hasSearch ? params.searchValue : undefined,
+      },
+    },
   );
+
+  return response.data;
 }
 
 /** POST /admins/roles 요청 본문 (RoleCreateDto 와 1:1). */
@@ -59,5 +58,5 @@ export interface CreateRolePayload {
 
 /** 역할을 생성한다. */
 export async function createRole(payload: CreateRolePayload): Promise<void> {
-  await apiRequest('/admins/roles', { method: 'POST', body: payload });
+  await apiClient.post('/admins/roles', payload);
 }

@@ -1,30 +1,30 @@
-import { useMemo, useState } from 'react';
-import { App, Button, Select, Space, Tag, Typography } from 'antd';
+import { useState } from 'react';
+import { Alert, Select, Space, Tag, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { PermissionCategory } from '@vooth/shared';
 import {
-  permissionsMock,
   PERMISSION_CATEGORY_META,
   PERMISSION_CATEGORY_OPTIONS,
-  type Permission,
 } from '../mocks/permissions.mock';
 import { TableToolbar } from '../components/TableToolbar';
 import { FilterBar, FilterField } from '../components/FilterBar';
 import { FullHeightTable } from '../components/FullHeightTable';
-import {
-  PermissionFormModal,
-  type PermissionFormValues,
-} from '../components/PermissionFormModal';
+import { usePermissions } from '../features/permissions/usePermissions';
+import type { PermissionItem } from '../api/permissions.api';
 import '../components/DataTable.css';
 
-type SearchField = 'code' | 'name';
+type SearchField = 'code' | 'name' | 'description';
 
 const SEARCH_FIELDS: { value: SearchField; label: string }[] = [
   { value: 'code', label: '코드' },
   { value: 'name', label: '이름' },
+  { value: 'description', label: '설명' },
 ];
 
-const columns: ColumnsType<Permission> = [
+const DEFAULT_PAGE = 1;
+const DEFAULT_LIMIT = 30;
+
+const columns: ColumnsType<PermissionItem> = [
   {
     title: '코드',
     dataIndex: 'code',
@@ -61,29 +61,35 @@ const columns: ColumnsType<Permission> = [
 ];
 
 export function PermissionsPage() {
-  const { message } = App.useApp();
-
-  const [permissions, setPermissions] = useState<Permission[]>(permissionsMock);
+  const [page, setPage] = useState(DEFAULT_PAGE);
+  const [limit, setLimit] = useState(DEFAULT_LIMIT);
   const [searchField, setSearchField] = useState<SearchField>('code');
-  const [keyword, setKeyword] = useState('');
+  // 입력 중인 검색어와 실제 조회에 반영된 검색어를 분리한다.
+  const [keywordInput, setKeywordInput] = useState('');
+  const [appliedSearch, setAppliedSearch] = useState<{
+    key: SearchField;
+    value: string;
+  } | null>(null);
   // 다중 카테고리 필터 (OR). 비어 있으면 전체.
-  const [categoryFilter, setCategoryFilter] = useState<PermissionCategory[]>([]);
-  const [modalOpen, setModalOpen] = useState(false);
+  const [categories, setCategories] = useState<PermissionCategory[]>([]);
 
-  const filtered = useMemo(() => {
-    const term = keyword.trim().toLowerCase();
-    const categorySet = new Set(categoryFilter);
-    return permissions.filter((perm) => {
-      if (categorySet.size > 0 && !categorySet.has(perm.category)) return false;
-      if (term && !perm[searchField].toLowerCase().includes(term)) return false;
-      return true;
-    });
-  }, [permissions, categoryFilter, keyword, searchField]);
+  const { data, isFetching, isError, error } = usePermissions({
+    page,
+    limit,
+    searchKey: appliedSearch?.key,
+    searchValue: appliedSearch?.value,
+    categories,
+  });
 
-  const handleCreate = (values: PermissionFormValues) => {
-    setPermissions((prev) => [values, ...prev]);
-    setModalOpen(false);
-    message.success(`'${values.name}' 권한을 등록했습니다.`);
+  const submitSearch = () => {
+    const term = keywordInput.trim();
+    setPage(DEFAULT_PAGE);
+    setAppliedSearch(term ? { key: searchField, value: term } : null);
+  };
+
+  const handleCategoriesChange = (next: PermissionCategory[]) => {
+    setPage(DEFAULT_PAGE);
+    setCategories(next);
   };
 
   return (
@@ -95,17 +101,22 @@ export function PermissionsPage() {
         <Typography.Title level={3} style={{ margin: 0 }}>
           권한 관리
         </Typography.Title>
-        <Button type="primary" onClick={() => setModalOpen(true)}>
-          권한 추가
-        </Button>
       </Space>
 
       <TableToolbar<SearchField>
         fields={SEARCH_FIELDS}
         searchField={searchField}
         onSearchFieldChange={setSearchField}
-        keyword={keyword}
-        onKeywordChange={setKeyword}
+        keyword={keywordInput}
+        onKeywordChange={(value) => {
+          setKeywordInput(value);
+          // 입력을 비우면 검색을 해제한다.
+          if (value.trim() === '' && appliedSearch) {
+            setPage(DEFAULT_PAGE);
+            setAppliedSearch(null);
+          }
+        }}
+        onSearch={submitSearch}
       />
 
       <FilterBar>
@@ -116,8 +127,8 @@ export function PermissionsPage() {
             showSearch
             placeholder="전체"
             style={{ minWidth: 260, maxWidth: 420 }}
-            value={categoryFilter}
-            onChange={setCategoryFilter}
+            value={categories}
+            onChange={handleCategoriesChange}
             options={PERMISSION_CATEGORY_OPTIONS}
             optionFilterProp="label"
             maxTagCount="responsive"
@@ -125,23 +136,38 @@ export function PermissionsPage() {
         </FilterField>
       </FilterBar>
 
-      <FullHeightTable<Permission>
+      {isError && (
+        <Alert
+          type="error"
+          showIcon
+          message="권한 목록을 불러오지 못했습니다."
+          description={error?.message}
+        />
+      )}
+
+      <FullHeightTable<PermissionItem>
         className="data-table"
         rowKey="code"
         columns={columns}
-        dataSource={filtered}
+        dataSource={data?.items ?? []}
+        loading={isFetching}
         pagination={{
-          defaultPageSize: 30,
-          pageSizeOptions: [30, 50, 100],
+          current: page,
+          pageSize: limit,
+          total: data?.total ?? 0,
           showSizeChanger: true,
+          pageSizeOptions: [30, 50, 100],
         }}
-      />
-
-      <PermissionFormModal
-        open={modalOpen}
-        existingCodes={permissions.map((perm) => perm.code)}
-        onCancel={() => setModalOpen(false)}
-        onSubmit={handleCreate}
+        onChange={(pagination) => {
+          const nextLimit = pagination.pageSize ?? DEFAULT_LIMIT;
+          // 페이지 크기가 바뀌면 1페이지로 되돌린다.
+          if (nextLimit !== limit) {
+            setLimit(nextLimit);
+            setPage(DEFAULT_PAGE);
+          } else {
+            setPage(pagination.current ?? DEFAULT_PAGE);
+          }
+        }}
       />
     </div>
   );
