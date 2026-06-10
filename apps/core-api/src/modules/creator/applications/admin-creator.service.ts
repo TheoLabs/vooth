@@ -20,7 +20,7 @@ export class AdminCreatorService extends DddService {
 
   async list({ searchKey, searchValue }: { searchKey?: string; searchValue?: string }, options?: PaginationOptions) {
     const [creators, total] = await Promise.all([
-      this.creatorRepository.find({ searchKey, searchValue }, { options }),
+      this.creatorRepository.find({ searchKey, searchValue }, { options, relations: { account: true } }),
       this.creatorRepository.count({ searchKey, searchValue }),
     ]);
 
