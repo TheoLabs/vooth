@@ -93,7 +93,8 @@ export const MOCK_EPISODES: Episode[] = [
             order: 2,
             text: '누구냐! 거기 있는 게.',
             character: '아린',
-            gapBeforeMs: 400,
+            // 음수 gap → 앞 대사와 겹쳐 시작(동시 발화 예시).
+            gapBeforeMs: -1000,
             selectedRecordingId: 'rec-003',
             recordings: [rec('ep001-l2', 2, 'RECORDED', 2100)]
           }

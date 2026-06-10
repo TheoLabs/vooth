@@ -1,0 +1,493 @@
+.preview-player {
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  background: #0f172a;
+  overflow: hidden;
+}
+
+.pp-stage {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  max-height: 280px;
+  background: #0b1120;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pp-stage__image {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+.pp-stage__empty {
+  color: #64748b;
+  font-size: 14px;
+}
+
+.pp-stage__cutno {
+  position: absolute;
+  top: 10px;
+  left: 12px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #e2e8f0;
+  background: rgba(15, 23, 42, 0.6);
+  border-radius: 6px;
+  padding: 2px 8px;
+}
+
+.pp-subtitle {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 16px 20px;
+  background: linear-gradient(to top, rgba(2, 6, 23, 0.86), rgba(2, 6, 23, 0));
+}
+
+.pp-subtitle__line + .pp-subtitle__line {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(148, 163, 184, 0.25);
+}
+
+.pp-subtitle__overlap {
+  display: inline-block;
+  margin-bottom: 6px;
+  font-size: 10px;
+  font-weight: 800;
+  color: #fbbf24;
+  background: rgba(180, 83, 9, 0.35);
+  border: 1px solid #b45309;
+  border-radius: 999px;
+  padding: 1px 8px;
+}
+
+.pp-subtitle__meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.pp-subtitle__character {
+  font-size: 12px;
+  font-weight: 800;
+  color: #c4b5fd;
+}
+
+.pp-subtitle__va {
+  font-size: 11px;
+  font-weight: 600;
+  color: #93c5fd;
+}
+
+.pp-subtitle__undecided {
+  font-size: 11px;
+  font-weight: 700;
+  color: #fbbf24;
+}
+
+.pp-subtitle__silent {
+  font-size: 10px;
+  font-weight: 700;
+  color: #94a3b8;
+  border: 1px solid #334155;
+  border-radius: 999px;
+  padding: 0 6px;
+}
+
+.pp-subtitle__text {
+  margin: 0;
+  font-size: 17px;
+  line-height: 1.45;
+  font-weight: 600;
+  color: #f8fafc;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+}
+
+.pp-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  background: #111827;
+}
+
+.pp-controls__play {
+  flex: none;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  border: none;
+  background: #4f46e5;
+  color: #fff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pp-controls__play:hover {
+  background: #4338ca;
+}
+
+.pp-controls__icon {
+  font-size: 15px;
+  line-height: 1;
+}
+
+.pp-controls__time {
+  font-size: 12px;
+  color: #cbd5e1;
+  font-variant-numeric: tabular-nums;
+  min-width: 38px;
+}
+
+.pp-controls__time--total {
+  text-align: right;
+  color: #94a3b8;
+}
+
+.pp-seek {
+  position: relative;
+  flex: 1 1 auto;
+  height: 22px;
+  display: flex;
+  align-items: center;
+}
+
+.pp-seek__segments {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  gap: 2px;
+  align-items: center;
+}
+
+.pp-seek__seg {
+  height: 6px;
+  border: none;
+  border-radius: 3px;
+  background: #334155;
+  cursor: pointer;
+  padding: 0;
+}
+
+.pp-seek__seg:hover {
+  background: #475569;
+}
+
+.pp-seek__seg--current {
+  background: #6366f1;
+}
+
+.pp-seek__range {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+/* 대사 트랙 (시간축 + 파형 + 플레이헤드) */
+.pp-track {
+  padding: 10px 14px 6px;
+  background: #0b1120;
+}
+
+.pp-track__lane {
+  position: relative;
+  min-height: 52px;
+  border-radius: 8px;
+  background: #0f172a;
+  overflow: hidden;
+}
+
+.pp-track__cutbg {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+}
+
+.pp-track__cutbg--a {
+  background: rgba(99, 102, 241, 0.06);
+}
+
+.pp-track__cutbg--b {
+  background: rgba(14, 165, 233, 0.06);
+}
+
+.pp-clip {
+  position: absolute;
+  padding: 0;
+  border: 1px solid #334155;
+  border-radius: 6px;
+  background: #1e293b;
+  overflow: hidden;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  min-width: 3px;
+}
+
+.pp-clip:hover {
+  border-color: #64748b;
+}
+
+.pp-clip--active {
+  border-color: #818cf8;
+  background: #312e81;
+}
+
+.pp-clip--undecided {
+  border-style: dashed;
+  border-color: #b45309;
+  background: #1f2937;
+}
+
+.pp-clip--editing {
+  outline: 2px solid #f472b6;
+  outline-offset: -2px;
+}
+
+.pp-wave {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  padding: 0 2px;
+}
+
+.pp-wave__bar {
+  flex: 1 1 0;
+  min-width: 1px;
+  border-radius: 1px;
+  background: #475569;
+  align-self: center;
+}
+
+.pp-wave--real .pp-wave__bar {
+  background: #38bdf8;
+}
+
+.pp-wave--synth .pp-wave__bar {
+  background: #475569;
+}
+
+.pp-clip--active .pp-wave__bar {
+  background: #a5b4fc;
+}
+
+.pp-clip__label {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  padding: 2px 5px;
+  background: linear-gradient(to top, rgba(2, 6, 23, 0.85), rgba(2, 6, 23, 0));
+  font-size: 10px;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pp-clip__char {
+  color: #c4b5fd;
+  font-weight: 800;
+  flex: none;
+}
+
+.pp-clip__text {
+  color: #e2e8f0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pp-track__playhead {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: #f43f5e;
+  box-shadow: 0 0 6px rgba(244, 63, 94, 0.7);
+  pointer-events: none;
+}
+
+/* 클립 편집 패널 (성우 선택 + gap 조절) */
+.pp-editor {
+  padding: 10px 14px;
+  background: #0b1120;
+  border-top: 1px solid #1e293b;
+}
+
+.pp-editor__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.pp-editor__title {
+  font-size: 12px;
+  color: #e2e8f0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pp-editor__title strong {
+  color: #c4b5fd;
+  margin-right: 6px;
+}
+
+.pp-editor__title-text {
+  color: #cbd5e1;
+}
+
+.pp-editor__close {
+  flex: none;
+  font-size: 11px;
+  font-weight: 700;
+  color: #cbd5e1;
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 6px;
+  padding: 3px 9px;
+  cursor: pointer;
+}
+
+.pp-editor__section {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 0;
+  flex-wrap: wrap;
+}
+
+.pp-editor__label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #94a3b8;
+  min-width: 92px;
+}
+
+.pp-editor__takes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.pp-editor__empty {
+  font-size: 12px;
+  color: #64748b;
+}
+
+.pp-take {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: #e2e8f0;
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 999px;
+  padding: 3px 10px;
+  cursor: pointer;
+}
+
+.pp-take:hover {
+  border-color: #64748b;
+}
+
+.pp-take--final {
+  border-color: #34d399;
+  background: #064e3b;
+}
+
+.pp-take--clear {
+  color: #fca5a5;
+  border-color: #7f1d1d;
+  background: transparent;
+}
+
+.pp-take__name {
+  font-weight: 700;
+}
+
+.pp-take__badge {
+  font-size: 10px;
+  font-weight: 700;
+  border-radius: 999px;
+  padding: 0 6px;
+}
+
+.pp-take__dur {
+  color: #94a3b8;
+  font-variant-numeric: tabular-nums;
+}
+
+.pp-take__final {
+  color: #34d399;
+  font-weight: 800;
+}
+
+.pp-editor__gap {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pp-editor__gap-btn {
+  font-size: 11px;
+  font-weight: 700;
+  color: #e2e8f0;
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 6px;
+  padding: 3px 9px;
+  cursor: pointer;
+}
+
+.pp-editor__gap-btn:disabled {
+  color: #475569;
+  cursor: not-allowed;
+}
+
+.pp-editor__gap-val {
+  font-size: 12px;
+  font-weight: 700;
+  color: #cbd5e1;
+  font-variant-numeric: tabular-nums;
+  min-width: 52px;
+  text-align: center;
+}
+
+.pp-editor__gap-tag {
+  font-size: 10px;
+  font-weight: 800;
+  color: #fbbf24;
+  background: rgba(180, 83, 9, 0.3);
+  border: 1px solid #b45309;
+  border-radius: 999px;
+  padding: 1px 7px;
+}
+
+.pp-note {
+  margin: 0;
+  padding: 8px 14px 12px;
+  font-size: 11px;
+  line-height: 1.5;
+  color: #94a3b8;
+  background: #111827;
+}

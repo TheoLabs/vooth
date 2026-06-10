@@ -45,6 +45,15 @@ export interface Cut {
   transition?: string
 }
 
+/** 작품(웹툰) — 콘텐츠 카탈로그 단위. 회차(Episode)들을 가진다. */
+export interface Webtoon {
+  id: string
+  title: string
+  description?: string
+  /** 썸네일(CSP-safe data: URI). */
+  thumbnailUrl: string
+}
+
 /** 작품의 회차 1개 */
 export interface Episode {
   id: string

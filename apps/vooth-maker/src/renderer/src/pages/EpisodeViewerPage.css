@@ -292,6 +292,147 @@
   border-radius: 999px;
 }
 
+.ev-casting__play {
+  font-size: 11px;
+  font-weight: 600;
+  color: #334155;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 999px;
+  padding: 2px 9px;
+  cursor: pointer;
+}
+
+.ev-casting__play:hover:not(:disabled) {
+  background: #e2e8f0;
+}
+
+.ev-casting__play--disabled {
+  color: #94a3b8;
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.ev-casting__select {
+  font-size: 11px;
+  font-weight: 700;
+  color: #4f46e5;
+  background: #eef2ff;
+  border: 1px solid #c7d2fe;
+  border-radius: 999px;
+  padding: 2px 9px;
+  cursor: pointer;
+}
+
+.ev-casting__select:hover {
+  background: #e0e7ff;
+}
+
+.ev-casting__select--clear {
+  color: #b45309;
+  background: #fffbeb;
+  border-color: #fde68a;
+}
+
+.ev-casting__delete {
+  font-size: 11px;
+  font-weight: 700;
+  color: #b91c1c;
+  background: #fff;
+  border: 1px solid #fecaca;
+  border-radius: 999px;
+  padding: 2px 9px;
+  cursor: pointer;
+}
+
+.ev-casting__delete:hover {
+  background: #fee2e2;
+}
+
+.ev-header__preview {
+  margin-left: 12px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #4f46e5;
+  background: #eef2ff;
+  border: 1px solid #c7d2fe;
+  border-radius: 8px;
+  padding: 6px 12px;
+  cursor: pointer;
+}
+
+.ev-header__preview:hover {
+  background: #e0e7ff;
+}
+
+.ev-preview {
+  margin: 0 0 18px;
+}
+
+.ev-casting__select--clear:hover {
+  background: #fef3c7;
+}
+
+.ev-record {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.ev-record__start,
+.ev-record__stop {
+  font-size: 12px;
+  font-weight: 700;
+  border-radius: 999px;
+  padding: 4px 12px;
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+
+.ev-record__start {
+  color: #b91c1c;
+  background: #fee2e2;
+  border-color: #fecaca;
+}
+
+.ev-record__start:hover:not(:disabled) {
+  background: #fecaca;
+}
+
+.ev-record__start:disabled,
+.ev-record__stop:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.ev-record__stop {
+  color: #ffffff;
+  background: #dc2626;
+}
+
+.ev-record__stop:hover:not(:disabled) {
+  background: #b91c1c;
+}
+
+.ev-record__live {
+  font-size: 12px;
+  font-weight: 700;
+  color: #dc2626;
+  font-variant-numeric: tabular-nums;
+}
+
+.ev-record__error {
+  font-size: 11px;
+  font-weight: 600;
+  color: #b91c1c;
+  background: #fee2e2;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  padding: 3px 9px;
+}
+
 .ev-empty {
   display: flex;
   flex-direction: column;

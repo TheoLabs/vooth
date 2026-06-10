@@ -1,4 +1,4 @@
-import { NavLink, Outlet, useNavigate } from 'react-router-dom'
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 import { useMe } from '../features/me/useMe'
 import './AppLayout.css'
@@ -12,10 +12,19 @@ interface NavItemDef {
 }
 
 const NAV_ITEMS: NavItemDef[] = [
-  { to: '/', label: '작업 목록', icon: '🎬' },
-  { to: '/record', label: '녹음', icon: '🎙️', disabled: true },
+  { to: '/', label: '내 작업 목록', icon: '🎬' },
+  { to: '/webtoons', label: '콘텐츠', icon: '📚' },
+  { to: '/review', label: '검수', icon: '✅' },
   { to: '/settings', label: '설정', icon: '⚙️', disabled: true }
 ]
+
+/** 현재 경로에 맞는 헤더 타이틀. */
+function titleFromPath(pathname: string): string {
+  if (pathname.startsWith('/webtoons')) return '콘텐츠'
+  if (pathname.startsWith('/review')) return '검수'
+  if (pathname.startsWith('/episodes')) return '회차'
+  return '내 작업 목록'
+}
 
 /**
  * 인증·승인을 통과한 사용자가 머무는 메인 데스크톱 레이아웃.
@@ -26,6 +35,7 @@ export function AppLayout(): React.JSX.Element {
   const { user, logout } = useAuth()
   const { data: account } = useMe()
   const navigate = useNavigate()
+  const location = useLocation()
 
   const handleLogout = (): void => {
     logout()
@@ -73,7 +83,7 @@ export function AppLayout(): React.JSX.Element {
 
       <div className="app-main">
         <header className="app-header">
-          <h1 className="app-header__title">작업 목록</h1>
+          <h1 className="app-header__title">{titleFromPath(location.pathname)}</h1>
           <div className="app-header__user">
             <div className="app-header__userinfo">
               <span className="app-header__name">{displayName}</span>

@@ -4,6 +4,7 @@ import { Button, Layout, Menu, Space, Typography } from 'antd';
 import {
   DashboardOutlined,
   KeyOutlined,
+  ReadOutlined,
   SafetyCertificateOutlined,
   TeamOutlined,
 } from '@ant-design/icons';
@@ -37,10 +38,22 @@ const NAV_ITEMS = [
       },
     ],
   },
+  {
+    key: 'content-group',
+    type: 'group' as const,
+    label: '콘텐츠',
+    children: [
+      {
+        key: '/content',
+        icon: <ReadOutlined />,
+        label: <Link to="/content/webtoons">작품 관리</Link>,
+      },
+    ],
+  },
 ];
 
 // 선택 표시에 사용할 리프(실제 경로) 키 목록.
-const LEAF_KEYS = ['/accounts', '/roles', '/permissions'];
+const LEAF_KEYS = ['/accounts', '/roles', '/permissions', '/content'];
 
 export function AppLayout() {
   const { logout } = useAuth();

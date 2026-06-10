@@ -7,6 +7,30 @@
   margin-bottom: 8px;
 }
 
+.work-list__back {
+  display: inline-block;
+  margin-bottom: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #4f46e5;
+  text-decoration: none;
+}
+
+.work-list__back:hover {
+  text-decoration: underline;
+}
+
+.work-list__empty {
+  margin: 24px 0;
+  padding: 28px;
+  text-align: center;
+  font-size: 14px;
+  color: #64748b;
+  background: #f8fafc;
+  border: 1px dashed #cbd5e1;
+  border-radius: 12px;
+}
+
 .work-list__heading {
   margin: 0;
   font-size: 22px;

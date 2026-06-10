@@ -38,8 +38,9 @@ export interface EpisodeTimeline {
 
 /**
  * 회차의 컷/라인을 order 오름차순으로 순회하며 타임라인을 계산한다.
- * - 각 라인: t += gapBeforeMs → 선택된 녹음 길이(없으면 placeholder)만큼 진행.
- * - 각 컷: 라인들이 끝난 뒤 t += holdMs.
+ * - 각 라인 start = max(컷 시작, 이전 라인 끝 + gapBeforeMs).
+ *   gapBeforeMs 가 음수면 앞 라인 끝보다 일찍 시작 → **대사 겹침(overlap)** 이 발생한다.
+ * - 각 컷: 컷 안에서 가장 늦게 끝나는 라인 + holdMs 만큼 진행.
  */
 export function buildTimeline(episode: Episode): EpisodeTimeline {
   let t = 0
@@ -50,25 +51,31 @@ export function buildTimeline(episode: Episode): EpisodeTimeline {
     const cutStart = t
     const lines: LineTimeline[] = []
 
+    let prevEnd = cutStart
+    let cutMaxEnd = cutStart
+
     const orderedLines = [...cut.lines].sort((a, b) => a.order - b.order)
     for (const line of orderedLines) {
-      t += line.gapBeforeMs
+      // 음수 gap 은 앞 라인과 겹치게 한다. 단 컷 시작보다 앞서지는 않게 클램프.
+      const start = Math.max(cutStart, prevEnd + line.gapBeforeMs)
 
       const rec = line.recordings.find((r) => r.id === line.selectedRecordingId)
       const dur = rec ? rec.durationMs : DEFAULT_PLACEHOLDER_MS
-      const start = t
-      t += dur
+      const end = start + dur
 
       lines.push({
         lineId: line.id,
         recordingId: rec?.id,
         startMs: start,
-        endMs: t,
+        endMs: end,
         resolved: !!rec
       })
+
+      prevEnd = end
+      if (end > cutMaxEnd) cutMaxEnd = end
     }
 
-    t += cut.holdMs
+    t = cutMaxEnd + cut.holdMs
     cuts.push({ cutId: cut.id, startMs: cutStart, endMs: t, lines })
   }
 
