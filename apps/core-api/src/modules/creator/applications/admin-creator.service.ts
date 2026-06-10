@@ -7,6 +7,7 @@ import { Transactional } from '@libs/decorators';
 import { AccountRepository } from '@modules/account/infrastructure/account.repository';
 import { AccountStatus, AccountType } from '@vooth/shared';
 import { Creator } from '../domain/creator.entity';
+import { PaginationOptions } from '@libs/utils';
 
 @Injectable()
 export class AdminCreatorService extends DddService {
@@ -15,6 +16,15 @@ export class AdminCreatorService extends DddService {
     private readonly accountRepository: AccountRepository
   ) {
     super();
+  }
+
+  async list({ searchKey, searchValue }: { searchKey?: string; searchValue?: string }, options?: PaginationOptions) {
+    const [creators, total] = await Promise.all([
+      this.creatorRepository.find({ searchKey, searchValue }, { options }),
+      this.creatorRepository.count({ searchKey, searchValue }),
+    ]);
+
+    return { items: creators, total };
   }
 
   @EventHandler(AccountApprovedEvent, { description: '계정이 승인되면 Type에 따라서 Creator 를 생성해준다.' })
