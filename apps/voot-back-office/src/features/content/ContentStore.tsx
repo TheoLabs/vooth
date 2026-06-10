@@ -55,6 +55,8 @@ interface ContentStoreValue {
   // 회차
   createEpisode: (webtoonId: string, input: { episodeNo: number; title: string }) => void;
   updateEpisode: (id: string, patch: Partial<Pick<Episode, 'title' | 'status'>>) => void;
+  /** 해당 작품에 회차가 하나도 없을 때만 factory 결과로 시드한다(상세 진입 시 mock 표시용). */
+  ensureEpisodes: (webtoonId: string, factory: () => Episode[]) => void;
   // 컷
   addCut: (episodeId: string) => void;
   removeCut: (episodeId: string, cutId: string) => void;
@@ -180,6 +182,11 @@ function ContentProvider({ children }: { children: ReactNode }) {
     mapEpisode(id, (e) => ({ ...e, ...patch }));
   }, []);
 
+  const ensureEpisodes: ContentStoreValue['ensureEpisodes'] = useCallback((webtoonId, factory) => {
+    // 이미 회차가 있으면 시드하지 않는다(StrictMode 중복 호출에도 안전).
+    setEpisodes((prev) => (prev.some((e) => e.webtoonId === webtoonId) ? prev : [...prev, ...factory()]));
+  }, []);
+
   const addCut: ContentStoreValue['addCut'] = useCallback((episodeId) => {
     mapEpisode(episodeId, (e) => {
       const order = e.cuts.length + 1;
@@ -246,6 +253,7 @@ function ContentProvider({ children }: { children: ReactNode }) {
       removeCharacter,
       createEpisode,
       updateEpisode,
+      ensureEpisodes,
       addCut,
       removeCut,
       moveCut,
@@ -272,6 +280,7 @@ function ContentProvider({ children }: { children: ReactNode }) {
       removeCharacter,
       createEpisode,
       updateEpisode,
+      ensureEpisodes,
       addCut,
       removeCut,
       moveCut,

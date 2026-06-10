@@ -65,3 +65,13 @@ body {
   flex: 1;
   min-height: 0;
 }
+
+/* 콘텐츠 상세 썸네일: 우측 정보 높이에 맞춰 세로로 채운다. */
+.bo-detail-thumb {
+  align-self: stretch;
+  min-height: 120px;
+}
+.bo-detail-thumb .ant-image-img {
+  height: 100%;
+  object-fit: cover;
+}

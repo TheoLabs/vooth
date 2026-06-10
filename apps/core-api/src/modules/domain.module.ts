@@ -6,9 +6,10 @@ import { AuthModule } from './auth/auth.module';
 import { MeModule } from './me/me.module';
 import { ContentModule } from './content/content.module';
 import { TagModule } from './tag/tag.module';
+import { FileModule } from './file/file.module';
 
 @Module({
-  imports: [AccountModule, RoleModule, PermissionModule, AuthModule, MeModule, ContentModule, TagModule],
-  exports: [AccountModule, RoleModule, PermissionModule, AuthModule, MeModule, ContentModule, TagModule],
+  imports: [AccountModule, RoleModule, PermissionModule, AuthModule, MeModule, ContentModule, TagModule, FileModule],
+  exports: [AccountModule, RoleModule, PermissionModule, AuthModule, MeModule, ContentModule, TagModule, FileModule],
 })
 export class DomainModule {}

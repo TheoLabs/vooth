@@ -51,6 +51,16 @@ export class Content extends DddAggregate {
     return content;
   }
 
+  update(args: { thumbnailImageUrl?: string; title?: string; description?: string }) {
+    const changed = this.stripUnchanged(args);
+
+    if (!changed) {
+      return;
+    }
+
+    Object.assign(this, args);
+  }
+
   setTags(desired: Tag[]) {
     const currentIds = new Set(this.tags.map((t) => t.id));
     const desiredIds = new Set(desired.map((t) => t.id));

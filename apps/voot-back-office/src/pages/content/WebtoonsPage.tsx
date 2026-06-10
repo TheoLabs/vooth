@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Alert, Button, Form, Input, Modal, Select, Space, Tag, Tooltip, Typography, message } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { ContentStatus } from '@vooth/shared';
@@ -10,6 +11,7 @@ import { useCreateContent } from '../../features/contents/useCreateContent';
 import { useTags } from '../../features/tags/useTags';
 import { CONTENT_STATUS_META, type ContentListItem, type ContentTag } from '../../api/contents.api';
 import { TAG_COLOR_ANTD } from '../../features/content/contentTypes';
+import { ThumbnailUpload } from '../../components/ThumbnailUpload';
 import '../../components/DataTable.css';
 
 const STATUS_OPTIONS = (Object.keys(CONTENT_STATUS_META) as ContentStatus[]).map((s) => ({
@@ -30,6 +32,7 @@ function formatDate(value: string): string {
 }
 
 export function WebtoonsPage() {
+  const navigate = useNavigate();
   const [page, setPage] = useState(DEFAULT_PAGE);
   const [limit, setLimit] = useState(DEFAULT_LIMIT);
   const [keyword, setKeyword] = useState('');
@@ -191,6 +194,10 @@ export function WebtoonsPage() {
         columns={columns}
         dataSource={data?.items ?? []}
         loading={isFetching}
+        onRow={(record) => ({
+          onClick: () => navigate(`/content/contents/${record.id}`, { state: { content: record } }),
+          style: { cursor: 'pointer' },
+        })}
         pagination={{
           current: page,
           pageSize: limit,
@@ -222,7 +229,7 @@ export function WebtoonsPage() {
         cancelText="취소"
         destroyOnClose
       >
-        <Form form={form} layout="vertical" initialValues={{ thumbnailImageUrl: DEFAULT_THUMBNAIL }}>
+        <Form form={form} layout="vertical">
           <Form.Item name="title" label="제목" rules={[{ required: true, message: '제목을 입력하세요.' }]}>
             <Input placeholder="작품 제목" maxLength={200} />
           </Form.Item>
@@ -231,11 +238,10 @@ export function WebtoonsPage() {
           </Form.Item>
           <Form.Item
             name="thumbnailImageUrl"
-            label="썸네일 URL"
-            tooltip="이미지 업로드는 추후 지원 — 지금은 URL 입력."
-            rules={[{ required: true, message: '썸네일 URL을 입력하세요.' }]}
+            label="썸네일"
+            rules={[{ required: true, message: '썸네일을 업로드하세요.' }]}
           >
-            <Input placeholder="https://..." maxLength={400} />
+            <ThumbnailUpload />
           </Form.Item>
           <Form.Item name="tagIds" label="태그">
             <Select mode="multiple" allowClear placeholder="태그 선택" options={tagOptions} />

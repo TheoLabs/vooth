@@ -136,3 +136,57 @@ export const EPISODES_MOCK: Episode[] = [
     ],
   },
 ];
+
+/**
+ * 실제 콘텐츠(작품) id 에 회차 mock 이 없을 때, 상세 진입 시 시드용 샘플 회차를 만든다.
+ * id 를 prefix 로 써서 콘텐츠별로 고유하게 한다.
+ */
+export function buildSampleEpisodes(webtoonId: string): Episode[] {
+  const now = '2026-06-01T09:00:00.000Z';
+  return [
+    {
+      id: `${webtoonId}-ep1`,
+      webtoonId,
+      episodeNo: 1,
+      title: '프롤로그 - 깨어난 검',
+      status: 'OPEN',
+      updatedAt: now,
+      cuts: [
+        {
+          id: `${webtoonId}-ep1-c1`,
+          order: 1,
+          imageKey: cutPlaceholder(1),
+          holdMs: 500,
+          lines: [
+            { id: `${webtoonId}-ep1-l1`, order: 1, text: '드디어... 봉인이 풀리는구나.', gapBeforeMs: 0 },
+            { id: `${webtoonId}-ep1-l2`, order: 2, text: '누구냐! 거기 있는 게.', gapBeforeMs: 300 },
+          ],
+        },
+        {
+          id: `${webtoonId}-ep1-c2`,
+          order: 2,
+          imageKey: cutPlaceholder(2),
+          holdMs: 400,
+          lines: [{ id: `${webtoonId}-ep1-l3`, order: 1, text: '나는 너를 기다려 왔다.', gapBeforeMs: 0 }],
+        },
+      ],
+    },
+    {
+      id: `${webtoonId}-ep2`,
+      webtoonId,
+      episodeNo: 2,
+      title: '은빛 숲의 약속',
+      status: 'DRAFT',
+      updatedAt: now,
+      cuts: [
+        {
+          id: `${webtoonId}-ep2-c1`,
+          order: 1,
+          imageKey: cutPlaceholder(1),
+          holdMs: 500,
+          lines: [{ id: `${webtoonId}-ep2-l1`, order: 1, text: '숲이... 노래하고 있어.', gapBeforeMs: 0 }],
+        },
+      ],
+    },
+  ];
+}

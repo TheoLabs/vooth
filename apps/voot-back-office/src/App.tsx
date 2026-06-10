@@ -6,6 +6,7 @@ import { RolesPage } from './pages/RolesPage';
 import { PermissionsPage } from './pages/PermissionsPage';
 import { ContentLayout } from './features/content/ContentStore';
 import { WebtoonsPage } from './pages/content/WebtoonsPage';
+import { ContentDetailPage } from './pages/content/ContentDetailPage';
 import { WebtoonDetailPage } from './pages/content/WebtoonDetailPage';
 import { EpisodeEditPage } from './pages/content/EpisodeEditPage';
 import { TagsPage } from './pages/content/TagsPage';
@@ -27,6 +28,7 @@ function App() {
             <Route path="/content" element={<ContentLayout />}>
               <Route index element={<Navigate to="/content/webtoons" replace />} />
               <Route path="webtoons" element={<WebtoonsPage />} />
+              <Route path="contents/:id" element={<ContentDetailPage />} />
               <Route path="webtoons/:id" element={<WebtoonDetailPage />} />
               <Route path="episodes/:id" element={<EpisodeEditPage />} />
               <Route path="tags" element={<TagsPage />} />

@@ -54,6 +54,12 @@ export async function fetchContents(params: FetchContentsParams): Promise<Pagina
   return response.data;
 }
 
+/** 콘텐츠 상세 조회(GET /admins/contents/:id). */
+export async function fetchContent(id: number): Promise<ContentListItem> {
+  const response = await apiClient.get<ContentListItem>(`/admins/contents/${id}`);
+  return response.data;
+}
+
 export interface CreateContentPayload {
   title: string;
   description: string;
@@ -64,4 +70,16 @@ export interface CreateContentPayload {
 /** 콘텐츠 등록(POST /admins/contents). 중복 제목이면 "이미 등록된 콘텐츠입니다." 에러. */
 export async function createContent(payload: CreateContentPayload): Promise<void> {
   await apiClient.post('/admins/contents', payload);
+}
+
+export interface UpdateContentPayload {
+  title?: string;
+  description?: string;
+  thumbnailImageUrl?: string;
+  tagIds?: number[];
+}
+
+/** 콘텐츠 기본 정보 수정(PUT /admins/contents/:id). */
+export async function updateContent(id: number, payload: UpdateContentPayload): Promise<void> {
+  await apiClient.put(`/admins/contents/${id}`, payload);
 }

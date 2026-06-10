@@ -9,10 +9,19 @@ import { RequestLoggerInterceptor } from '@libs/intercepters';
 import { ContextMiddleware, UUIDMiddleware } from './middlewares';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { EventStoreModule } from '@libs/event-store';
+import { S3Module } from '@libs/s3';
 import { DomainModule } from './modules/domain.module';
 
 @Module({
-  imports: [CommonModule, ConfigsModule, DatabasesModule, EventEmitterModule.forRoot(), EventStoreModule, DomainModule],
+  imports: [
+    CommonModule,
+    ConfigsModule,
+    DatabasesModule,
+    EventEmitterModule.forRoot(),
+    EventStoreModule,
+    S3Module,
+    DomainModule,
+  ],
   controllers: [HealthController],
   providers: [
     {

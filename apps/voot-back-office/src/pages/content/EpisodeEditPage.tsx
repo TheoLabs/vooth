@@ -1,17 +1,5 @@
 import { Link, useParams } from 'react-router-dom';
-import {
-  Button,
-  Card,
-  Empty,
-  Input,
-  InputNumber,
-  Select,
-  Space,
-  Tag,
-  Tooltip,
-  Typography,
-  message,
-} from 'antd';
+import { Button, Card, Empty, Input, Select, Space, Tag, Typography, message } from 'antd';
 import { useContentStore } from '../../features/content/ContentStore';
 import {
   EPISODE_STATUS_FLOW,
@@ -28,7 +16,6 @@ export function EpisodeEditPage() {
     addCut,
     removeCut,
     moveCut,
-    updateCut,
     addLine,
     removeLine,
     moveLine,
@@ -36,9 +23,10 @@ export function EpisodeEditPage() {
   } = useContentStore();
 
   const ep = getEpisode(id);
+  // 콘텐츠 상세에서 등록한 회차는 실제 콘텐츠 id(문자열)로 스코프되어 webtoon(mock)이 없을 수 있다.
   const webtoon = ep ? getWebtoon(ep.webtoonId) : undefined;
 
-  if (!ep || !webtoon) {
+  if (!ep) {
     return (
       <div className="bo-page">
         <Typography.Text type="secondary">회차를 찾을 수 없습니다.</Typography.Text>
@@ -49,7 +37,7 @@ export function EpisodeEditPage() {
     );
   }
 
-  const characterOptions = webtoon.characters.map((c) => ({ value: c.id, label: c.name }));
+  const characterOptions = webtoon?.characters.map((c) => ({ value: c.id, label: c.name })) ?? [];
   const statusIdx = EPISODE_STATUS_FLOW.indexOf(ep.status);
   const nextStatus = EPISODE_STATUS_FLOW[statusIdx + 1];
 
@@ -73,21 +61,12 @@ export function EpisodeEditPage() {
       />
       <Select
         allowClear
-        placeholder="화자"
+        placeholder="캐릭터"
         style={{ width: 130 }}
         value={line.characterId}
         onChange={(v) => updateLine(ep.id, cut.id, line.id, { characterId: v })}
         options={characterOptions}
       />
-      <Tooltip title="앞 간격(ms). 음수=앞 대사와 겹침">
-        <InputNumber
-          value={line.gapBeforeMs}
-          step={100}
-          style={{ width: 110 }}
-          addonBefore="gap"
-          onChange={(v) => updateLine(ep.id, cut.id, line.id, { gapBeforeMs: v ?? 0 })}
-        />
-      </Tooltip>
       <Button size="small" disabled={line.order === 1} onClick={() => moveLine(ep.id, cut.id, line.id, -1)}>
         ↑
       </Button>
@@ -105,22 +84,7 @@ export function EpisodeEditPage() {
       key={cut.id}
       size="small"
       style={{ marginBottom: 12 }}
-      title={
-        <Space>
-          <span>컷 {cut.order}</span>
-          <Tooltip title="대사 종료 후 컷 유지(ms)">
-            <InputNumber
-              size="small"
-              min={0}
-              step={100}
-              value={cut.holdMs}
-              addonBefore="hold"
-              style={{ width: 130 }}
-              onChange={(v) => updateCut(ep.id, cut.id, { holdMs: v ?? 0 })}
-            />
-          </Tooltip>
-        </Space>
-      }
+      title={`컷 ${cut.order}`}
       extra={
         <Space>
           <Button size="small" disabled={cut.order === 1} onClick={() => moveCut(ep.id, cut.id, -1)}>
@@ -162,7 +126,7 @@ export function EpisodeEditPage() {
     <div className="bo-page">
       <Space align="center" style={{ width: '100%', justifyContent: 'space-between' }}>
         <Space direction="vertical" size={0}>
-          <Link to={`/content/webtoons/${ep.webtoonId}`}>← {webtoon.title} 회차 목록으로</Link>
+          <Link to={`/content/contents/${ep.webtoonId}`}>← {webtoon?.title ?? '콘텐츠'} 상세로</Link>
           <Space align="center">
             <Typography.Title level={3} style={{ margin: 0 }}>
               {ep.episodeNo}화 · {ep.title}
