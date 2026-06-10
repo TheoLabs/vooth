@@ -1,6 +1,6 @@
 import { ContextKey } from '@common/context';
 import { InternalServerErrorException } from '@nestjs/common';
-import { DddEvent, DddService } from '@libs/ddd';
+import { DddService } from '@libs/ddd';
 
 export function Transactional() {
   return function (target: DddService, propertyKey: string, descriptor: PropertyDescriptor) {
@@ -14,13 +14,13 @@ export function Transactional() {
       const context = this.context;
       // @ts-expect-error private으로 되어있어서 타입에러 발생.
       const entityManager = this.entityManager;
-      // @ts-expect-error private으로 되어있어서 타입에러 발생.
-      const eventEmitter = this.eventEmitter;
 
       if (!context || !entityManager) {
         throw new InternalServerErrorException('Context or Datasource instance is not existed.');
       }
 
+      // NOTE: 도메인 이벤트는 Repository.save() 에서 같은 트랜잭션으로 ddd_events(아웃박스)에 적재되고,
+      //       Debezium CDC → Kafka 로 전파된다. 별도 in-memory emit 경로는 두지 않는다.
       //  NOTE: 해당 방식은 무조건 transaction() 메서드가 제공하는 entityManager를 사용하여야한다. https://typeorm.io/docs/advanced-topics/transactions
       await entityManager.transaction(async (transactionEntityManager) => {
         try {
@@ -30,15 +30,6 @@ export function Transactional() {
           context.set(ContextKey.ENTITY_MANAGER, null);
         }
       });
-
-      // NOTE: DDD 이벤트를 꺼내서 Redis Queue로 넣어주기 위한 작업.
-      const dddEvents = context.get<DddEvent[]>(ContextKey.DDD_EVENTS);
-      if (dddEvents && dddEvents.length > 0) {
-        dddEvents.forEach((dddEvent) => {
-          eventEmitter.emit('ddd-event.created', dddEvent);
-        });
-      }
-      context.set(ContextKey.DDD_EVENTS, []);
 
       return result;
     };

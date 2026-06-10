@@ -3,6 +3,9 @@
 > DDD + EDA 기반. 계정/역할/권한은 [`domain-design.md`](./domain-design.md), 보이스툰 타임라인/재생은
 > [`maker-domain-design.md`](./maker-domain-design.md) 참고.
 > 본 문서는 **작품·회차·컷·대사·캐스팅·녹음** 의 애그리게이트 경계와 컬럼 설계를 정의한다.
+>
+> ⚠️ **1~10절은 초기 초안**(Webtoon/ULID/fractional position 기준)이며 실제 구현과 일부 다르다.
+> **실제 구현 현황·확정 사항은 [11절](#11-구현-현황--오늘-확정-2026-06-10) 참고.**
 
 ## 1. 바운디드 컨텍스트
 | BC | 책임 | 주 사용처 |
@@ -135,3 +138,63 @@ Recording.approve(txn1) → RecordingApproved → 핸들러 → Episode.selectFi
 ## 10. 조회(Query) 컨벤션
 - 목록 Query DTO 는 `PaginationDto` 상속, 응답은 `{ items, total }` (core-api 컨벤션).
 - 타임라인/진행률 등 파생값은 읽기모델/프로젝션에서 계산(저장 X).
+
+---
+
+## 11. 구현 현황 & 오늘 확정 (2026-06-10)
+
+> 1~10절 초안 대비 실제 구현 차이: 네이밍 **Content**(=작품), id = **auto-increment number**(ULID 아님),
+> fractional position 미적용(현재 단순). 아래가 실제 코드/결정 기준.
+
+### 11.1 구현된 모듈 (core-api)
+- **Content**(작품), **Tag**, **Character**, **File**, **`libs/s3`** — 구현됨.
+- **Creator**(성우) — 신설 결정(11.4).
+- **Recording / Episode·Cut·Line** — 아직(maker 쪽 mock 으로 UX 선행).
+
+### 11.2 Tag (태그) — N:M with Content
+- `tag { id, name, color(TagColor), usageCount }`. **Content ↔ Tag N:M** (`content_tag`, owning=Content).
+- **`TagColor` enum = `@vooth/shared`**(의미 키 RED/…/GRAY). 백엔드 `@IsEnum` 검증·저장, **렌더 색은 FE 매핑**(`TAG_COLOR_ANTD`). UI 라이브러리 비종속.
+- **usageCount = 이벤트 기반 재계산**: `ContentSetTagEvent(addedTagIds, removedTagIds)` → `@EventHandler` 가 영향 태그를 `content_tag` 기준 **COUNT 로 set**(증분 아님 → 멱등/무drift). 활성 콘텐츠(soft-delete 제외) 기준. (리포: `countTagUsage(tagId)` = `count(Content, { tags: { id } })`)
+- **태그 삭제 = 하드삭제** → `content_tag` FK `ON DELETE CASCADE` 로 연결 자동 정리(의도). FE 삭제 시 "연결 N개 작품에서 제거" 경고 + 변경 필드만 PUT.
+
+### 11.3 Character (등장인물) & 캐스팅
+- 컨트롤러 **분리**: `@Controller('admins/contents/:contentId/characters')` — Content↔Character **순환 DI 회피**(Character→Content 단방향, ContentRepository 사용). forwardRef 불필요.
+- `character { id, contentId, name, type(CharacterType: MAIN/SUB/EXTRA), color }`, uniq `(contentId, name)`, idx `contentId`.
+- **캐스팅 = Character ↔ Creator N:M** (`character_creator`, owning=Character). (성우=Creator 참조)
+- `@ManyToMany(cascade:true)` → **cascade 제거 권장**(기존 Creator attach 면 upsert 위험). join row 삭제는 **DB FK CASCADE** 소관: **하드삭제만 자동**, 소프트삭제면 앱 레벨 처리(사용중 거부 or detach 후 삭제).
+- API: **create/list 만** 구현. 수정·삭제·캐스팅 API 미구현 → FE 캐스팅은 mock.
+
+### 11.4 Creator (성우) 도메인 — 신설 결정
+- 정산 등 제작/정산 고유 개념이 붙으므로 **Creator 애그리게이트 신설**. **Account 와 1:1**(`accountId` 유니크). **name/email 복제 금지**(Account 에서 조회).
+- **생성 시점 = 계정 "승인"**(생성 아님): `Account.approve()` 시 **`AccountApproved`(accountId, type) 이벤트** 발행 → `@EventHandler` 가 `type===CREATOR` 면 Creator 생성.
+  - **멱등 필수**(승인 재호출·at-least-once): `accountId` 로 이미 있으면 skip(또는 unique).
+  - 반려/대기 계정엔 Creator 안 생김.
+- **정산 = 별도 Settlement 애그리게이트**(creatorId 참조). Creator 에 정산 로직 몰지 않음.
+- 이벤트 명: **범용 `AccountApproved`(type 포함) 추천**(다른 반응도 구독) vs 전용 `CreatorApproved` — 미확정.
+
+### 11.5 File / S3 업로드 (presigned)
+- **`libs/s3` `S3Service`**: `createPresignedPutUrl`/`createPresignedGetUrl`/`deleteObject`/`getPublicUrl`. `forcePathStyle:true`, **`requestChecksumCalculation:'WHEN_REQUIRED'`**(SDK v3 기본 CRC32 가 presigned PUT 을 400 으로 깨뜨리는 것 회피). 버킷 = **`vooth`**(LocalStack, CORS 설정).
+- **File 도메인**: `file { id, mimeType, originalName, size, key, isCommit }`. 흐름:
+  1. `POST /admins/files/presign { originalName, mimeType, size }` → File(PENDING, isCommit=false) + `{ fileId, key, uploadUrl, publicUrl }`
+  2. FE 가 `uploadUrl` 로 **S3 직접 PUT**(Content-Type = mimeType 동일해야 서명 일치)
+  3. `PUT /admins/files/:id/commit` → `isCommit=true`
+- **고아 정리(cron)** = 추후(미구현 PENDING + 오래된 것 정리).
+- FE: `useFileUpload`(presign→upload→commit, publicUrl 반환), `ThumbnailUpload`(폼 컨트롤). 콘텐츠 등록/수정 썸네일 연동.
+
+### 11.6 EDA 신뢰성 — 재시도 + DLQ
+- `EventStore` 핸들러: **바운디드 재시도 3회**(백오프 0.5s→2s) → 소진 시 **DLQ 토픽 `<topic>.dlq`** 로 메타(eventId/eventType/handler/attempts/error/원본) 전송 후 continue(파티션 head-of-line blocking 방지). 핸들러별 독립, **멱등성은 핸들러 책임**(at-least-once).
+  - 예: 메인 `dbserver1.vooth.ddd_events` → DLQ `dbserver1.vooth.ddd_events.dlq`. 브로커 `auto.create.topics.enable=true` 라 첫 전송 시 자동 생성(운영은 사전 생성 필요).
+- 핸들러는 **AsyncLocalStorage 컨텍스트** 안에서 실행(컨슈머가 `Context.run` 대신 `asyncLocalStorage.run(new Map())` 으로 열어줌 — `@Transactional` 의존).
+- DLQ 소비/알림(재처리·슬랙) = 다음 단계. (선택: 부트스트랩에서 admin `createTopics` 로 환경 무관 보장)
+
+### 11.7 프론트 룰 (CLAUDE.md › voot-back-office 컨벤션 반영)
+- **부분 수정 룰**: PUT/PATCH 는 **변경된 필드만**(원본 비교, 배열은 순서무관 집합 비교, 변경 없으면 미전송).
+- **타임스탬프 룰**: `createdAt/updatedAt` = UTC(ISO) → 화면은 **로컬 변환** 표시(`new Date(iso)` + 로컬 getter; `toISOString().slice` 금지).
+
+### 11.8 다음 할 일 (집에서 이어서)
+- [ ] Creator 도메인: 엔티티(+`accountId` unique) + 모듈 + `@EventHandler(AccountApproved)` **멱등** 생성.
+- [ ] Account 승인 로직에서 **`AccountApproved` 이벤트 발행**.
+- [ ] 캐스팅(`character_creator`) API: 연결/해제 + (선택) 명시적 `Casting` 엔티티로 승격 + 정합 이벤트.
+- [ ] Character: `cascade:true` 제거, 삭제 정책(soft 기준 사용중 거부 or detach).
+- [ ] 성우(CREATOR) 목록 조회 API → FE 캐스팅 피커 실연동(현재 mock).
+- [ ] File 고아 정리 cron, DLQ 소비/알림.

@@ -121,7 +121,9 @@ export class EventStore implements OnApplicationBootstrap, OnModuleDestroy {
   ) {
     const stack = error instanceof Error ? (error.stack ?? error.message) : String(error);
     const handlerName = `${(registration.target as { name?: string }).name ?? 'Unknown'}#${String(registration.methodKey)}`;
-    this.logger.error(`EventHandler 최종 실패 → DLQ [${record.eventType}#${String(registration.methodKey)}] - ${record.id}\n${stack}`);
+    this.logger.error(
+      `EventHandler 최종 실패 → DLQ [${record.eventType}#${String(registration.methodKey)}] - ${record.id}\n${stack}`
+    );
 
     if (!this.producer) return;
     try {
