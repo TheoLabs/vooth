@@ -3,6 +3,7 @@ import { Role } from '@modules/role/domain/role.entity';
 import { BadRequestException } from '@nestjs/common';
 import { AccountStatus, AccountType } from '@vooth/shared';
 import { Column, Entity, JoinColumn, OneToOne, PrimaryGeneratedColumn, Unique } from 'typeorm';
+import { AccountApprovedEvent } from './events';
 
 interface Ctor {
   googleSub: string;
@@ -76,6 +77,8 @@ export class Account extends DddAggregate {
 
     this.status = AccountStatus.ACTIVE;
     this.roleId = roleId;
+
+    this.publishEvent(new AccountApprovedEvent({ accountId: this.id }));
   }
 
   exit() {

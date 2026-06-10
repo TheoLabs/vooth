@@ -1,9 +1,9 @@
 import { Injectable, Logger, OnApplicationBootstrap, OnModuleDestroy } from '@nestjs/common';
 import { ModuleRef } from '@nestjs/core';
-import { Consumer, EachMessagePayload, Kafka } from 'kafkajs';
+import { Consumer, EachMessagePayload, Kafka, Producer } from 'kafkajs';
 import { ConfigsService } from '@configs';
 import { asyncLocalStorage, ContextKey } from '@common/context';
-import { EventStoreRegistry } from './event-store.registry';
+import { EventStoreRegistry, type EventHandlerRegistration } from './event-store.registry';
 
 interface DddEventRecord {
   id: string;
@@ -25,6 +25,11 @@ type Handler = Record<string | symbol, (...args: any[]) => unknown>;
 export class EventStore implements OnApplicationBootstrap, OnModuleDestroy {
   private readonly logger = new Logger(EventStore.name);
   private consumer?: Consumer;
+  private producer?: Producer;
+  private dlqTopic = '';
+
+  /** 핸들러 재시도 간 대기(ms). 길이 = 추가 재시도 횟수. (총 시도 = 1 + 길이) */
+  private static readonly RETRY_DELAYS_MS = [500, 2000];
 
   constructor(
     private readonly moduleRef: ModuleRef,
@@ -38,6 +43,8 @@ export class EventStore implements OnApplicationBootstrap, OnModuleDestroy {
     }
 
     const { clientId, brokers, groupId, topic } = this.configsService.kafka;
+    this.dlqTopic = `${topic}.dlq`;
+
     const kafka = new Kafka({ clientId, brokers });
     this.consumer = kafka.consumer({
       groupId,
@@ -46,12 +53,14 @@ export class EventStore implements OnApplicationBootstrap, OnModuleDestroy {
       rebalanceTimeout: 10000,
       maxWaitTimeInMs: 1000,
     });
+    this.producer = kafka.producer();
 
+    await this.producer.connect();
     await this.consumer.connect();
     await this.consumer.subscribe({ topic, fromBeginning: false });
     await this.consumer.run({ eachMessage: (payload) => this.handleMessage(payload) });
 
-    this.logger.log(`Kafka consumer 시작 (groupId=${groupId}) — topic: ${topic}`);
+    this.logger.log(`Kafka consumer 시작 (groupId=${groupId}) — topic: ${topic}, dlq: ${this.dlqTopic}`);
   }
 
   private async handleMessage({ message }: EachMessagePayload) {
@@ -62,20 +71,86 @@ export class EventStore implements OnApplicationBootstrap, OnModuleDestroy {
     if (!record) return;
 
     const handlers = EventStoreRegistry.getHandlers(record.eventType);
+    // 핸들러별 독립 처리(하나 실패가 다른 핸들러를 막지 않음).
     for (const registration of handlers) {
+      await this.processHandler(registration, record, raw);
+    }
+  }
+
+  /**
+   * 단일 핸들러를 바운디드 재시도로 실행하고, 모두 실패하면 DLQ 로 보낸 뒤 진행한다.
+   * (무한 재시도로 파티션이 막히지 않게 한다. 멱등성은 핸들러 책임 — at-least-once)
+   */
+  private async processHandler(registration: EventHandlerRegistration, record: DddEventRecord, raw: string) {
+    const maxAttempts = EventStore.RETRY_DELAYS_MS.length + 1;
+    const label = `${record.eventType}#${String(registration.methodKey)}`;
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
       try {
-        // @Transactional 등이 의존하는 AsyncLocalStorage 컨텍스트 스토어를 핸들러마다 연다.
-        await asyncLocalStorage.run(new Map<string, unknown>(), async () => {
-          asyncLocalStorage.getStore()?.set(ContextKey.TXID, record.traceId);
-          const instance = this.moduleRef.get<Handler>(registration.target as never, { strict: false });
-          await instance[registration.methodKey](record.payload, record);
-        });
+        await this.runHandler(registration, record);
+        return;
       } catch (error) {
-        this.logger.error(
-          `EventHandler 실행 실패 [${record.eventType}#${String(registration.methodKey)}] - ${record.id}\n${error instanceof Error ? error.stack : String(error)}`
-        );
+        const message = error instanceof Error ? error.message : String(error);
+        this.logger.warn(`EventHandler 실패(시도 ${attempt}/${maxAttempts}) [${label}] - ${record.id}: ${message}`);
+
+        if (attempt === maxAttempts) {
+          await this.sendToDlq(registration, record, raw, error, attempt);
+          return;
+        }
+        await this.sleep(EventStore.RETRY_DELAYS_MS[attempt - 1]);
       }
     }
+  }
+
+  /** @Transactional 등이 의존하는 ALS 컨텍스트 스토어를 매 시도마다 새로 열어 핸들러를 실행한다. */
+  private async runHandler(registration: EventHandlerRegistration, record: DddEventRecord) {
+    await asyncLocalStorage.run(new Map<string, unknown>(), async () => {
+      asyncLocalStorage.getStore()?.set(ContextKey.TXID, record.traceId);
+      const instance = this.moduleRef.get<Handler>(registration.target as never, { strict: false });
+      await instance[registration.methodKey](record.payload, record);
+    });
+  }
+
+  /** 재시도 소진된 메시지를 DLQ 토픽으로 보낸다(에러 메타 포함). 원본은 그대로 첨부. */
+  private async sendToDlq(
+    registration: EventHandlerRegistration,
+    record: DddEventRecord,
+    raw: string,
+    error: unknown,
+    attempts: number
+  ) {
+    const stack = error instanceof Error ? (error.stack ?? error.message) : String(error);
+    const handlerName = `${(registration.target as { name?: string }).name ?? 'Unknown'}#${String(registration.methodKey)}`;
+    this.logger.error(`EventHandler 최종 실패 → DLQ [${record.eventType}#${String(registration.methodKey)}] - ${record.id}\n${stack}`);
+
+    if (!this.producer) return;
+    try {
+      await this.producer.send({
+        topic: this.dlqTopic,
+        messages: [
+          {
+            key: record.id,
+            value: JSON.stringify({
+              eventId: record.id,
+              eventType: record.eventType,
+              handler: handlerName,
+              attempts,
+              error: error instanceof Error ? error.message : String(error),
+              failedAt: new Date().toISOString(),
+              original: raw,
+            }),
+          },
+        ],
+      });
+    } catch (dlqError) {
+      this.logger.error(
+        `DLQ 전송 실패 - ${record.id}: ${dlqError instanceof Error ? dlqError.message : String(dlqError)}`
+      );
+    }
+  }
+
+  private sleep(ms: number) {
+    return new Promise<void>((resolve) => setTimeout(resolve, ms));
   }
 
   /**
@@ -110,5 +185,6 @@ export class EventStore implements OnApplicationBootstrap, OnModuleDestroy {
 
   async onModuleDestroy() {
     await this.consumer?.disconnect();
+    await this.producer?.disconnect();
   }
 }
