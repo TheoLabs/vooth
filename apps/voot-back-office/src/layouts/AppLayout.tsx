@@ -6,6 +6,7 @@ import {
   KeyOutlined,
   ReadOutlined,
   SafetyCertificateOutlined,
+  TagsOutlined,
   TeamOutlined,
 } from '@ant-design/icons';
 import { useAuth } from '../auth/AuthContext';
@@ -44,16 +45,21 @@ const NAV_ITEMS = [
     label: '콘텐츠',
     children: [
       {
-        key: '/content',
+        key: '/content/webtoons',
         icon: <ReadOutlined />,
         label: <Link to="/content/webtoons">작품 관리</Link>,
+      },
+      {
+        key: '/content/tags',
+        icon: <TagsOutlined />,
+        label: <Link to="/content/tags">태그 관리</Link>,
       },
     ],
   },
 ];
 
-// 선택 표시에 사용할 리프(실제 경로) 키 목록.
-const LEAF_KEYS = ['/accounts', '/roles', '/permissions', '/content'];
+// 선택 표시에 사용할 리프(실제 경로) 키 목록. 더 구체적인 경로를 먼저 둔다.
+const LEAF_KEYS = ['/accounts', '/roles', '/permissions', '/content/tags', '/content/webtoons'];
 
 export function AppLayout() {
   const { logout } = useAuth();

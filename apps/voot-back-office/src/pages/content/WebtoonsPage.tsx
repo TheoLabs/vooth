@@ -1,87 +1,142 @@
 import { useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Button, Form, Input, Modal, Select, Space, Tag, Typography, message } from 'antd';
+import { Alert, Button, Form, Input, Modal, Select, Space, Tag, Tooltip, Typography, message } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
+import { ContentStatus } from '@vooth/shared';
 import { TableToolbar } from '../../components/TableToolbar';
 import { FilterBar, FilterField } from '../../components/FilterBar';
 import { FullHeightTable } from '../../components/FullHeightTable';
-import { useContentStore } from '../../features/content/ContentStore';
-import { WEBTOON_STATUS_META } from '../../features/content/contentTypes';
-import type { Webtoon, WebtoonStatus } from '../../features/content/contentTypes';
+import { useContents } from '../../features/contents/useContents';
+import { useCreateContent } from '../../features/contents/useCreateContent';
+import { useTags } from '../../features/tags/useTags';
+import { CONTENT_STATUS_META, type ContentListItem, type ContentTag } from '../../api/contents.api';
+import { TAG_COLOR_ANTD } from '../../features/content/contentTypes';
 import '../../components/DataTable.css';
 
-const STATUS_OPTIONS = (Object.keys(WEBTOON_STATUS_META) as WebtoonStatus[]).map((s) => ({
+const STATUS_OPTIONS = (Object.keys(CONTENT_STATUS_META) as ContentStatus[]).map((s) => ({
   value: s,
-  label: WEBTOON_STATUS_META[s].label,
+  label: CONTENT_STATUS_META[s].label,
 }));
+
+const DEFAULT_PAGE = 1;
+const DEFAULT_LIMIT = 30;
+/** 태그 피커가 전체 태그를 한 번에 받도록 넉넉한 limit. */
+const TAG_PICKER_LIMIT = 100;
+/** 이미지 업로드는 추후 — 등록 시 기본 placeholder 썸네일. */
+const DEFAULT_THUMBNAIL = 'https://placehold.co/480x300?text=Cover';
 
 function formatDate(value: string): string {
   const d = new Date(value);
   return Number.isNaN(d.getTime()) ? value : d.toISOString().slice(0, 10);
 }
 
-interface WebtoonRow extends Webtoon {
-  episodeCount: number;
-}
-
 export function WebtoonsPage() {
-  const navigate = useNavigate();
-  const { webtoons, episodesByWebtoon, createWebtoon } = useContentStore();
-
+  const [page, setPage] = useState(DEFAULT_PAGE);
+  const [limit, setLimit] = useState(DEFAULT_LIMIT);
   const [keyword, setKeyword] = useState('');
   const [applied, setApplied] = useState('');
-  const [statusFilter, setStatusFilter] = useState<WebtoonStatus[]>([]);
+  const [statusFilter, setStatusFilter] = useState<ContentStatus[]>([]);
+
   const [createOpen, setCreateOpen] = useState(false);
-  const [form] = Form.useForm<{ title: string; description?: string; status: WebtoonStatus }>();
+  const [form] = Form.useForm<{ title: string; description: string; thumbnailImageUrl: string; tagIds?: number[] }>();
 
-  const rows = useMemo<WebtoonRow[]>(() => {
-    return webtoons
-      .filter((w) => (applied ? w.title.includes(applied) : true))
-      .filter((w) => (statusFilter.length ? statusFilter.includes(w.status) : true))
-      .map((w) => ({ ...w, episodeCount: episodesByWebtoon(w.id).length }));
-  }, [webtoons, applied, statusFilter, episodesByWebtoon]);
+  const { data, isFetching, isError, error } = useContents({
+    page,
+    limit,
+    searchKey: applied ? 'title' : undefined,
+    searchValue: applied || undefined,
+    statuses: statusFilter,
+  });
 
-  const columns: ColumnsType<WebtoonRow> = [
+  // 등록 모달 태그 선택지(실제 태그 API).
+  const { data: tagsData } = useTags({ page: DEFAULT_PAGE, limit: TAG_PICKER_LIMIT });
+  const tagOptions = useMemo(
+    () => (tagsData?.items ?? []).map((t) => ({ value: t.id, label: t.name })),
+    [tagsData],
+  );
+
+  const createMutation = useCreateContent();
+
+  const submitSearch = () => {
+    setPage(DEFAULT_PAGE);
+    setApplied(keyword.trim());
+  };
+
+  const submitCreate = async () => {
+    const v = await form.validateFields();
+    createMutation.mutate(
+      {
+        title: v.title.trim(),
+        description: v.description.trim(),
+        thumbnailImageUrl: v.thumbnailImageUrl.trim() || DEFAULT_THUMBNAIL,
+        tagIds: v.tagIds ?? [],
+      },
+      {
+        onSuccess: () => {
+          message.success('작품이 등록되었습니다.');
+          setCreateOpen(false);
+          form.resetFields();
+        },
+        onError: (err) => message.error(err.message),
+      },
+    );
+  };
+
+  const columns: ColumnsType<ContentListItem> = [
+    {
+      title: '썸네일',
+      dataIndex: 'thumbnailImageUrl',
+      key: 'thumbnailImageUrl',
+      width: 76,
+      render: (url: string) => (
+        <img
+          src={url}
+          alt=""
+          style={{ width: 56, height: 34, objectFit: 'cover', borderRadius: 4, background: '#f0f0f0' }}
+        />
+      ),
+    },
     { title: '제목', dataIndex: 'title', key: 'title', width: 220 },
     {
       title: '설명',
       dataIndex: 'description',
       key: 'description',
       ellipsis: true,
-      render: (v?: string) => v ?? <Typography.Text type="secondary">—</Typography.Text>,
-    },
-    { title: '회차', dataIndex: 'episodeCount', key: 'episodeCount', width: 80, align: 'center' },
-    {
-      title: '등장인물',
-      dataIndex: 'characters',
-      key: 'characters',
-      width: 90,
-      align: 'center',
-      render: (_: unknown, row) => row.characters.length,
+      render: (v?: string) => v || <Typography.Text type="secondary">—</Typography.Text>,
     },
     {
       title: '상태',
       dataIndex: 'status',
       key: 'status',
       width: 100,
-      render: (s: WebtoonStatus) => <Tag color={WEBTOON_STATUS_META[s].color}>{WEBTOON_STATUS_META[s].label}</Tag>,
+      render: (s: ContentStatus) => <Tag color={CONTENT_STATUS_META[s].color}>{CONTENT_STATUS_META[s].label}</Tag>,
     },
     {
-      title: '수정일',
-      dataIndex: 'updatedAt',
-      key: 'updatedAt',
-      width: 120,
-      render: (v: string) => formatDate(v),
+      title: '태그',
+      dataIndex: 'tags',
+      key: 'tags',
+      width: 200,
+      render: (tags: ContentTag[]) => {
+        if (!tags || tags.length === 0) return <Typography.Text type="secondary">—</Typography.Text>;
+        const shown = tags.slice(0, 2);
+        const rest = tags.slice(2);
+        return (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, alignItems: 'center' }}>
+            {shown.map((t) => (
+              <Tag key={t.id} color={TAG_COLOR_ANTD[t.color]} style={{ marginInlineEnd: 0 }}>
+                {t.name}
+              </Tag>
+            ))}
+            {rest.length > 0 && (
+              <Tooltip title={rest.map((t) => t.name).join(', ')}>
+                <Tag style={{ marginInlineEnd: 0 }}>+{rest.length}</Tag>
+              </Tooltip>
+            )}
+          </div>
+        );
+      },
     },
+    { title: '수정일', dataIndex: 'updatedAt', key: 'updatedAt', width: 120, render: (v: string) => formatDate(v) },
   ];
-
-  const submitCreate = async () => {
-    const values = await form.validateFields();
-    createWebtoon({ title: values.title.trim(), description: values.description?.trim(), status: values.status });
-    message.success('작품이 등록되었습니다.');
-    setCreateOpen(false);
-    form.resetFields();
-  };
 
   return (
     <div className="bo-page">
@@ -101,41 +156,64 @@ export function WebtoonsPage() {
         keyword={keyword}
         onKeywordChange={(v) => {
           setKeyword(v);
-          if (v.trim() === '') setApplied('');
+          if (v.trim() === '' && applied) {
+            setPage(DEFAULT_PAGE);
+            setApplied('');
+          }
         }}
-        onSearch={() => setApplied(keyword.trim())}
+        onSearch={submitSearch}
       />
 
       <FilterBar>
         <FilterField label="상태">
-          <Select<WebtoonStatus[]>
+          <Select<ContentStatus[]>
             mode="multiple"
             allowClear
             placeholder="전체"
             value={statusFilter}
-            onChange={(v) => setStatusFilter(v ?? [])}
+            onChange={(v) => {
+              setPage(DEFAULT_PAGE);
+              setStatusFilter(v ?? []);
+            }}
             options={STATUS_OPTIONS}
             maxTagCount="responsive"
           />
         </FilterField>
       </FilterBar>
 
-      <FullHeightTable<WebtoonRow>
+      {isError && (
+        <Alert type="error" showIcon message="작품 목록을 불러오지 못했습니다." description={error?.message} />
+      )}
+
+      <FullHeightTable<ContentListItem>
         className="data-table"
         rowKey="id"
         columns={columns}
-        dataSource={rows}
-        onRow={(record) => ({
-          onClick: () => navigate(`/content/webtoons/${record.id}`),
-          style: { cursor: 'pointer' },
-        })}
-        pagination={{ pageSize: 30, showSizeChanger: true, pageSizeOptions: [30, 50, 100] }}
+        dataSource={data?.items ?? []}
+        loading={isFetching}
+        pagination={{
+          current: page,
+          pageSize: limit,
+          total: data?.total ?? 0,
+          showSizeChanger: true,
+          pageSizeOptions: [30, 50, 100],
+        }}
+        onChange={(pagination) => {
+          const nextLimit = pagination.pageSize ?? DEFAULT_LIMIT;
+          if (nextLimit !== limit) {
+            setLimit(nextLimit);
+            setPage(DEFAULT_PAGE);
+          } else {
+            setPage(pagination.current ?? DEFAULT_PAGE);
+          }
+        }}
       />
 
       <Modal
         title="작품 등록"
         open={createOpen}
         onOk={submitCreate}
+        confirmLoading={createMutation.isPending}
         onCancel={() => {
           setCreateOpen(false);
           form.resetFields();
@@ -144,15 +222,23 @@ export function WebtoonsPage() {
         cancelText="취소"
         destroyOnClose
       >
-        <Form form={form} layout="vertical" initialValues={{ status: 'DRAFT' as WebtoonStatus }}>
+        <Form form={form} layout="vertical" initialValues={{ thumbnailImageUrl: DEFAULT_THUMBNAIL }}>
           <Form.Item name="title" label="제목" rules={[{ required: true, message: '제목을 입력하세요.' }]}>
             <Input placeholder="작품 제목" maxLength={200} />
           </Form.Item>
-          <Form.Item name="description" label="설명">
-            <Input.TextArea placeholder="작품 설명" rows={3} maxLength={500} />
+          <Form.Item name="description" label="설명" rules={[{ required: true, message: '설명을 입력하세요.' }]}>
+            <Input.TextArea placeholder="작품 설명" rows={3} maxLength={2000} />
           </Form.Item>
-          <Form.Item name="status" label="상태">
-            <Select options={STATUS_OPTIONS} />
+          <Form.Item
+            name="thumbnailImageUrl"
+            label="썸네일 URL"
+            tooltip="이미지 업로드는 추후 지원 — 지금은 URL 입력."
+            rules={[{ required: true, message: '썸네일 URL을 입력하세요.' }]}
+          >
+            <Input placeholder="https://..." maxLength={400} />
+          </Form.Item>
+          <Form.Item name="tagIds" label="태그">
+            <Select mode="multiple" allowClear placeholder="태그 선택" options={tagOptions} />
           </Form.Item>
         </Form>
       </Modal>

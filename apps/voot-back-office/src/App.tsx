@@ -8,6 +8,7 @@ import { ContentLayout } from './features/content/ContentStore';
 import { WebtoonsPage } from './pages/content/WebtoonsPage';
 import { WebtoonDetailPage } from './pages/content/WebtoonDetailPage';
 import { EpisodeEditPage } from './pages/content/EpisodeEditPage';
+import { TagsPage } from './pages/content/TagsPage';
 import { AppLayout } from './layouts/AppLayout';
 import { ProtectedRoute } from './routes/ProtectedRoute';
 import { ApprovalGate } from './routes/ApprovalGate';
@@ -28,6 +29,7 @@ function App() {
               <Route path="webtoons" element={<WebtoonsPage />} />
               <Route path="webtoons/:id" element={<WebtoonDetailPage />} />
               <Route path="episodes/:id" element={<EpisodeEditPage />} />
+              <Route path="tags" element={<TagsPage />} />
             </Route>
           </Route>
         </Route>

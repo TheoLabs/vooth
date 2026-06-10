@@ -1,4 +1,13 @@
-import type { Episode, VoiceActor, Webtoon } from '../features/content/contentTypes';
+import { TagColor } from '@vooth/shared';
+import type { Episode, Tag, VoiceActor, Webtoon } from '../features/content/contentTypes';
+
+export const TAGS_MOCK: Tag[] = [
+  { id: 'tag-fantasy', name: '판타지', color: TagColor.PURPLE },
+  { id: 'tag-action', name: '액션', color: TagColor.RED },
+  { id: 'tag-scifi', name: 'SF', color: TagColor.INDIGO },
+  { id: 'tag-drama', name: '드라마', color: TagColor.GREEN },
+  { id: 'tag-romance', name: '로맨스', color: TagColor.MAGENTA },
+];
 
 /** CSP-safe 컷 placeholder: 인라인 data: SVG "컷 N" 회색 박스. */
 export function cutPlaceholder(order: number): string {
@@ -24,6 +33,7 @@ export const WEBTOONS_MOCK: Webtoon[] = [
     title: '달빛 기사단',
     description: '천 년의 봉인이 풀리며 시작되는 검과 정령의 판타지.',
     status: 'ACTIVE',
+    tagIds: ['tag-fantasy', 'tag-action'],
     updatedAt: '2026-05-30T09:00:00.000Z',
     characters: [
       { id: 'ch-spirit', name: '검의 정령', color: '#6366f1', castVoiceActorIds: ['va-001', 'va-002'] },
@@ -36,6 +46,7 @@ export const WEBTOONS_MOCK: Webtoon[] = [
     title: '서울 2099',
     description: '네온이 흐르는 미래 도시에서 펼쳐지는 추격극.',
     status: 'ACTIVE',
+    tagIds: ['tag-scifi', 'tag-action'],
     updatedAt: '2026-06-02T11:30:00.000Z',
     characters: [
       { id: 'ch-jin', name: '진', color: '#f59e0b', castVoiceActorIds: ['va-005'] },
@@ -47,6 +58,7 @@ export const WEBTOONS_MOCK: Webtoon[] = [
     title: '별빛 정거장',
     description: '우주 정거장에서 벌어지는 잔잔한 드라마.',
     status: 'DRAFT',
+    tagIds: ['tag-scifi', 'tag-drama'],
     updatedAt: '2026-06-05T08:00:00.000Z',
     characters: [],
   },

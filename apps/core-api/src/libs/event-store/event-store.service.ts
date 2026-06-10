@@ -2,6 +2,7 @@ import { Injectable, Logger, OnApplicationBootstrap, OnModuleDestroy } from '@ne
 import { ModuleRef } from '@nestjs/core';
 import { Consumer, EachMessagePayload, Kafka } from 'kafkajs';
 import { ConfigsService } from '@configs';
+import { asyncLocalStorage, ContextKey } from '@common/context';
 import { EventStoreRegistry } from './event-store.registry';
 
 interface DddEventRecord {
@@ -38,7 +39,13 @@ export class EventStore implements OnApplicationBootstrap, OnModuleDestroy {
 
     const { clientId, brokers, groupId, topic } = this.configsService.kafka;
     const kafka = new Kafka({ clientId, brokers });
-    this.consumer = kafka.consumer({ groupId });
+    this.consumer = kafka.consumer({
+      groupId,
+      sessionTimeout: 6000,
+      heartbeatInterval: 2000,
+      rebalanceTimeout: 10000,
+      maxWaitTimeInMs: 1000,
+    });
 
     await this.consumer.connect();
     await this.consumer.subscribe({ topic, fromBeginning: false });
@@ -57,12 +64,15 @@ export class EventStore implements OnApplicationBootstrap, OnModuleDestroy {
     const handlers = EventStoreRegistry.getHandlers(record.eventType);
     for (const registration of handlers) {
       try {
-        const instance = this.moduleRef.get<Handler>(registration.target as never, { strict: false });
-        await instance[registration.methodKey](record.payload, record);
+        // @Transactional 등이 의존하는 AsyncLocalStorage 컨텍스트 스토어를 핸들러마다 연다.
+        await asyncLocalStorage.run(new Map<string, unknown>(), async () => {
+          asyncLocalStorage.getStore()?.set(ContextKey.TXID, record.traceId);
+          const instance = this.moduleRef.get<Handler>(registration.target as never, { strict: false });
+          await instance[registration.methodKey](record.payload, record);
+        });
       } catch (error) {
         this.logger.error(
-          `EventHandler 실행 실패 [${record.eventType}#${String(registration.methodKey)}] - ${record.id}`,
-          error instanceof Error ? error.stack : String(error)
+          `EventHandler 실행 실패 [${record.eventType}#${String(registration.methodKey)}] - ${record.id}\n${error instanceof Error ? error.stack : String(error)}`
         );
       }
     }

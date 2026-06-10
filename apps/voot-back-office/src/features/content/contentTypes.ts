@@ -6,6 +6,10 @@
  * 타임라인(start/end)은 저장하지 않고 duration/gap/hold 로 유도(여기선 편집만).
  */
 
+import { TagColor } from '@vooth/shared';
+
+export { TagColor };
+
 export type WebtoonStatus = 'DRAFT' | 'ACTIVE' | 'ARCHIVED';
 export type EpisodeStatus = 'DRAFT' | 'OPEN' | 'RECORDING' | 'REVIEW' | 'PUBLISHED';
 
@@ -13,6 +17,44 @@ export interface VoiceActor {
   id: string;
   name: string;
 }
+
+/** 태그 — 작품(Webtoon)과 N:M. 색상은 공유 enum(TagColor). */
+export interface Tag {
+  id: string;
+  name: string;
+  color: TagColor;
+}
+
+/** 표시 순서용 색상 목록(공유 enum). */
+export const TAG_COLOR_VALUES = Object.values(TagColor);
+
+/** TagColor → AntD Tag color 토큰 매핑(렌더링은 프론트 책임). */
+export const TAG_COLOR_ANTD: Record<TagColor, string> = {
+  [TagColor.RED]: 'red',
+  [TagColor.ORANGE]: 'orange',
+  [TagColor.GOLD]: 'gold',
+  [TagColor.GREEN]: 'green',
+  [TagColor.CYAN]: 'cyan',
+  [TagColor.BLUE]: 'blue',
+  [TagColor.INDIGO]: 'geekblue',
+  [TagColor.PURPLE]: 'purple',
+  [TagColor.MAGENTA]: 'magenta',
+  [TagColor.GRAY]: 'default',
+};
+
+/** TagColor → 한국어 라벨. */
+export const TAG_COLOR_LABEL: Record<TagColor, string> = {
+  [TagColor.RED]: '빨강',
+  [TagColor.ORANGE]: '주황',
+  [TagColor.GOLD]: '금색',
+  [TagColor.GREEN]: '초록',
+  [TagColor.CYAN]: '청록',
+  [TagColor.BLUE]: '파랑',
+  [TagColor.INDIGO]: '남색',
+  [TagColor.PURPLE]: '보라',
+  [TagColor.MAGENTA]: '자홍',
+  [TagColor.GRAY]: '회색',
+};
 
 /** 등장인물 + 캐스팅(멀티캐스팅: 성우 여러 명). */
 export interface Character {
@@ -28,6 +70,8 @@ export interface Webtoon {
   description?: string;
   status: WebtoonStatus;
   characters: Character[];
+  /** N:M 태그 참조. */
+  tagIds: string[];
   updatedAt: string;
 }
 

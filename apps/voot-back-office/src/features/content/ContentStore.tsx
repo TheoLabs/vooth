@@ -6,11 +6,19 @@ import type {
   Cut,
   Episode,
   Line,
+  Tag,
   VoiceActor,
   Webtoon,
   WebtoonStatus,
 } from './contentTypes';
-import { EPISODES_MOCK, VOICE_ACTORS_MOCK, WEBTOONS_MOCK, cutPlaceholder } from '../../mocks/content.mock';
+import { TagColor } from '@vooth/shared';
+import {
+  EPISODES_MOCK,
+  TAGS_MOCK,
+  VOICE_ACTORS_MOCK,
+  WEBTOONS_MOCK,
+  cutPlaceholder,
+} from '../../mocks/content.mock';
 
 /**
  * 콘텐츠 관리 mock 스토어.
@@ -21,12 +29,25 @@ interface ContentStoreValue {
   webtoons: Webtoon[];
   episodes: Episode[];
   voiceActors: VoiceActor[];
+  tags: Tag[];
   getWebtoon: (id: string) => Webtoon | undefined;
   getEpisode: (id: string) => Episode | undefined;
   episodesByWebtoon: (webtoonId: string) => Episode[];
   // 작품
-  createWebtoon: (input: { title: string; description?: string; status: WebtoonStatus }) => void;
-  updateWebtoon: (id: string, patch: Partial<Pick<Webtoon, 'title' | 'description' | 'status'>>) => void;
+  createWebtoon: (input: {
+    title: string;
+    description?: string;
+    status: WebtoonStatus;
+    tagIds?: string[];
+  }) => void;
+  updateWebtoon: (
+    id: string,
+    patch: Partial<Pick<Webtoon, 'title' | 'description' | 'status' | 'tagIds'>>,
+  ) => void;
+  // 태그 (작품과 N:M)
+  createTag: (input: { name: string; color: TagColor }) => void;
+  updateTag: (id: string, patch: Partial<Pick<Tag, 'name' | 'color'>>) => void;
+  removeTag: (id: string) => void;
   // 등장인물 / 캐스팅
   addCharacter: (webtoonId: string, input: { name: string; color?: string }) => void;
   updateCharacter: (webtoonId: string, characterId: string, patch: Partial<Omit<Character, 'id'>>) => void;
@@ -69,6 +90,7 @@ function moveBy<T extends { id: string; order: number }>(items: T[], id: string,
 function ContentProvider({ children }: { children: ReactNode }) {
   const [webtoons, setWebtoons] = useState<Webtoon[]>(() => WEBTOONS_MOCK.map((w) => ({ ...w })));
   const [episodes, setEpisodes] = useState<Episode[]>(() => EPISODES_MOCK.map((e) => ({ ...e })));
+  const [tags, setTags] = useState<Tag[]>(() => TAGS_MOCK.map((t) => ({ ...t })));
 
   const getWebtoon = useCallback((id: string) => webtoons.find((w) => w.id === id), [webtoons]);
   const getEpisode = useCallback((id: string) => episodes.find((e) => e.id === id), [episodes]);
@@ -94,6 +116,7 @@ function ContentProvider({ children }: { children: ReactNode }) {
         description: input.description,
         status: input.status,
         characters: [],
+        tagIds: input.tagIds ?? [],
         updatedAt: now(),
       },
       ...prev,
@@ -102,6 +125,22 @@ function ContentProvider({ children }: { children: ReactNode }) {
 
   const updateWebtoon: ContentStoreValue['updateWebtoon'] = useCallback((id, patch) => {
     mapWebtoon(id, (w) => ({ ...w, ...patch }));
+  }, []);
+
+  const createTag: ContentStoreValue['createTag'] = useCallback((input) => {
+    setTags((prev) => [...prev, { id: newId('tag'), name: input.name, color: input.color }]);
+  }, []);
+
+  const updateTag: ContentStoreValue['updateTag'] = useCallback((id, patch) => {
+    setTags((prev) => prev.map((t) => (t.id === id ? { ...t, ...patch } : t)));
+  }, []);
+
+  const removeTag: ContentStoreValue['removeTag'] = useCallback((id) => {
+    setTags((prev) => prev.filter((t) => t.id !== id));
+    // N:M 정리: 모든 작품에서 해당 태그 참조 제거.
+    setWebtoons((prev) =>
+      prev.map((w) => (w.tagIds.includes(id) ? { ...w, tagIds: w.tagIds.filter((t) => t !== id) } : w)),
+    );
   }, []);
 
   const addCharacter: ContentStoreValue['addCharacter'] = useCallback((webtoonId, input) => {
@@ -193,11 +232,15 @@ function ContentProvider({ children }: { children: ReactNode }) {
       webtoons,
       episodes,
       voiceActors: VOICE_ACTORS_MOCK,
+      tags,
       getWebtoon,
       getEpisode,
       episodesByWebtoon,
       createWebtoon,
       updateWebtoon,
+      createTag,
+      updateTag,
+      removeTag,
       addCharacter,
       updateCharacter,
       removeCharacter,
@@ -215,11 +258,15 @@ function ContentProvider({ children }: { children: ReactNode }) {
     [
       webtoons,
       episodes,
+      tags,
       getWebtoon,
       getEpisode,
       episodesByWebtoon,
       createWebtoon,
       updateWebtoon,
+      createTag,
+      updateTag,
+      removeTag,
       addCharacter,
       updateCharacter,
       removeCharacter,
