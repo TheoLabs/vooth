@@ -5,7 +5,7 @@ import { PaginationOptions } from '@libs/utils';
 import { Transactional } from '@libs/decorators';
 import { CharacterType } from '@vooth/shared';
 import { ContentRepository } from '@modules/content/infrastructure/content.repository';
-import { Character } from '../domain/character.entityt';
+import { Character } from '../domain/character.entity';
 
 @Injectable()
 export class AdminCharacterService extends DddService {

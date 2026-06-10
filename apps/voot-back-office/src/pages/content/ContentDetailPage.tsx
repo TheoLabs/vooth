@@ -30,8 +30,12 @@ import { useUpdateContent } from '../../features/contents/useUpdateContent';
 import { useTags } from '../../features/tags/useTags';
 import { CharacterType } from '@vooth/shared';
 import { CHARACTER_TYPE_META, type CharacterListItem } from '../../api/characters.api';
+import type { CastingListItem } from '../../api/castings.api';
 import { useCharacters } from '../../features/characters/useCharacters';
 import { useCreateCharacter } from '../../features/characters/useCreateCharacter';
+import { useCastings } from '../../features/castings/useCastings';
+import { useCreateCasting } from '../../features/castings/useCreateCasting';
+import { useCreators } from '../../features/creators/useCreators';
 import { useContentStore } from '../../features/content/ContentStore';
 import { buildSampleEpisodes } from '../../mocks/content.mock';
 import { EPISODE_STATUS_META, TAG_COLOR_ANTD } from '../../features/content/contentTypes';
@@ -43,12 +47,6 @@ const CHARACTER_COLORS = ['#6366f1', '#ec4899', '#0ea5e9', '#f59e0b', '#14b8a6',
 const CHARACTER_TYPE_OPTIONS = (Object.keys(CHARACTER_TYPE_META) as CharacterType[]).map((t) => ({
   value: t,
   label: CHARACTER_TYPE_META[t].label,
-}));
-
-/** 캐스팅용 mock 성우 목록(캐스팅 API 전까지). */
-const VOICE_ACTOR_OPTIONS = ['김하늘', '박서준', '이도윤', '최유나', '정해인'].map((name) => ({
-  value: name,
-  label: name,
 }));
 
 /** ColorPicker 값(문자열 또는 Color 객체)을 hex 문자열로 정규화. */
@@ -204,21 +202,62 @@ export function ContentDetailPage() {
     );
   };
 
-  // 캐스팅 (mock, 로컬 상태): characterId → 성우 이름[]
-  const [casting, setCasting] = useState<Record<number, string[]>>({});
+  // 캐스팅 (API): 캐릭터 ↔ 크리에이터(성우) 연결
+  const { data: castingsData } = useCastings(Number(id));
+  const castings: CastingListItem[] = useMemo(() => castingsData?.items ?? [], [castingsData]);
+  const createCastingMutation = useCreateCasting();
+
+  // characterId → 해당 캐릭터의 캐스팅[]
+  const castingsByCharacter = useMemo(() => {
+    return castings.reduce<Record<number, CastingListItem[]>>((acc, c) => {
+      (acc[c.characterId] ??= []).push(c);
+      return acc;
+    }, {});
+  }, [castings]);
+
+  // 크리에이터(성우) 피커 옵션
+  const { data: creatorsData } = useCreators();
+  const creatorOptions = useMemo(
+    () => (creatorsData?.items ?? []).map((c) => ({ value: c.id, label: c.account.name })),
+    [creatorsData],
+  );
+
   const [castingTarget, setCastingTarget] = useState<CharacterListItem | null>(null);
-  const [castValue, setCastValue] = useState<string[]>([]);
+  // 백엔드는 생성만 지원(삭제 없음) → 모달은 "신규 추가할 creatorId[]" 만 다룬다.
+  const [castValue, setCastValue] = useState<number[]>([]);
+
+  const existingCast = castingTarget ? (castingsByCharacter[castingTarget.id] ?? []) : [];
+  const existingCreatorIds = new Set(existingCast.map((c) => c.creatorId));
+  // 이미 캐스팅된 성우는 추가 후보에서 제외(중복 캐스팅 에러 방지).
+  const addableCreatorOptions = creatorOptions.filter((o) => !existingCreatorIds.has(o.value));
 
   const openCasting = (ch: CharacterListItem) => {
     setCastingTarget(ch);
-    setCastValue(casting[ch.id] ?? []);
+    setCastValue([]);
   };
 
-  const saveCasting = () => {
+  const saveCasting = async () => {
     if (!castingTarget) return;
-    setCasting((prev) => ({ ...prev, [castingTarget.id]: castValue }));
-    message.success('캐스팅이 저장되었습니다.');
-    setCastingTarget(null);
+    if (castValue.length === 0) {
+      message.info('추가할 성우를 선택하세요.');
+      return;
+    }
+    try {
+      // 선택한 성우마다 캐스팅 생성(중복은 후보에서 이미 제외됨).
+      await Promise.all(
+        castValue.map((creatorId) =>
+          createCastingMutation.mutateAsync({
+            contentId: Number(id),
+            payload: { characterId: castingTarget.id, creatorId },
+          }),
+        ),
+      );
+      message.success('캐스팅이 추가되었습니다.');
+      setCastingTarget(null);
+      setCastValue([]);
+    } catch (err) {
+      message.error(err instanceof Error ? err.message : '캐스팅 추가에 실패했습니다.');
+    }
   };
 
   // 등장인물 전체 보기 Drawer (검색·유형 필터·페이지네이션 — 클라이언트 측)
@@ -259,13 +298,13 @@ export function ContentDetailPage() {
       title: '캐스팅',
       key: 'cast',
       render: (_: unknown, ch) => {
-        const cast = casting[ch.id] ?? [];
+        const cast = castingsByCharacter[ch.id] ?? [];
         return cast.length === 0 ? (
           <Typography.Text type="secondary">—</Typography.Text>
         ) : (
           <Space size={[4, 4]} wrap>
-            {cast.map((name) => (
-              <Tag key={name}>{name}</Tag>
+            {cast.map((c) => (
+              <Tag key={c.id}>{c.creator.account.name}</Tag>
             ))}
           </Space>
         );
@@ -523,22 +562,40 @@ export function ContentDetailPage() {
         title={castingTarget ? `${castingTarget.name} 캐스팅` : '캐스팅'}
         open={castingTarget !== null}
         onOk={saveCasting}
-        onCancel={() => setCastingTarget(null)}
-        okText="저장"
+        confirmLoading={createCastingMutation.isPending}
+        onCancel={() => {
+          setCastingTarget(null);
+          setCastValue([]);
+        }}
+        okText="추가"
         cancelText="취소"
         destroyOnClose
       >
+        {existingCast.length > 0 && (
+          <div style={{ marginBottom: 12 }}>
+            <Typography.Text type="secondary">현재 캐스팅</Typography.Text>
+            <div style={{ marginTop: 4 }}>
+              <Space size={[4, 4]} wrap>
+                {existingCast.map((c) => (
+                  <Tag key={c.id}>{c.creator.account.name}</Tag>
+                ))}
+              </Space>
+            </div>
+          </div>
+        )}
         <Typography.Paragraph type="secondary" style={{ marginTop: 0 }}>
-          이 캐릭터를 연기할 성우를 선택하세요. (멀티캐스팅 가능)
+          이 캐릭터를 연기할 성우를 추가하세요. (멀티캐스팅 가능)
         </Typography.Paragraph>
         <Select
           mode="multiple"
           allowClear
-          placeholder="성우 선택"
+          placeholder="추가할 성우 선택"
           style={{ width: '100%' }}
           value={castValue}
           onChange={(v) => setCastValue(v)}
-          options={VOICE_ACTOR_OPTIONS}
+          options={addableCreatorOptions}
+          optionFilterProp="label"
+          notFoundContent="추가할 수 있는 성우가 없습니다."
         />
       </Modal>
 

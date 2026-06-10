@@ -1,6 +1,6 @@
 import { DddRepository } from '@libs/ddd';
 import { Injectable } from '@nestjs/common';
-import { Character } from '../domain/character.entityt';
+import { Character } from '../domain/character.entity';
 import { checkInValue, convertOptions, stripUndefined, TypeormRelationOptions } from '@libs/utils';
 import { CharacterType } from '@vooth/shared';
 

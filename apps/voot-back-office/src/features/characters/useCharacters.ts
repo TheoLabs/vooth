@@ -7,7 +7,8 @@ import { ApiError } from '../../lib/apiClient';
 export function useCharacters(contentId: number) {
   return useQuery<PaginatedResponse<CharacterListItem>, ApiError>({
     queryKey: ['characters', contentId],
-    queryFn: () => fetchCharacters(contentId, { page: 1, limit: 100 }),
+    // type DESC = sub > main > extra → 조연이 맨 위로 온다.
+    queryFn: () => fetchCharacters(contentId, { page: 1, limit: 100, sort: 'type', order: 'DESC' }),
     enabled: Number.isFinite(contentId),
     retry: false,
   });

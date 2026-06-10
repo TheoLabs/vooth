@@ -9,6 +9,7 @@ import { TagModule } from './tag/tag.module';
 import { FileModule } from './file/file.module';
 import { CharacterModule } from './character/character.module';
 import { CreatorModule } from './creator/creator.module';
+import { CastingModule } from '@modules/casting/casting.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { CreatorModule } from './creator/creator.module';
     FileModule,
     CharacterModule,
     CreatorModule,
+    CastingModule,
   ],
   exports: [
     AccountModule,
@@ -34,6 +36,7 @@ import { CreatorModule } from './creator/creator.module';
     FileModule,
     CharacterModule,
     CreatorModule,
+    CastingModule,
   ],
 })
 export class DomainModule {}

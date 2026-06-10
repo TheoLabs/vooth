@@ -20,6 +20,20 @@ const COLOR_OPTIONS = TAG_COLOR_VALUES.map((c) => ({
   label: <AntTag color={TAG_COLOR_ANTD[c]}>{TAG_COLOR_LABEL[c]}</AntTag>,
 }));
 
+/** 사용량 막대 채우기용 실제 CSS 색(antd preset 이름은 배경색으로 직접 못 써서 hex 로 매핑). */
+const TAG_COLOR_HEX: Record<TagColor, string> = {
+  [TagColor.RED]: '#f5222d',
+  [TagColor.ORANGE]: '#fa8c16',
+  [TagColor.GOLD]: '#faad14',
+  [TagColor.GREEN]: '#52c41a',
+  [TagColor.CYAN]: '#13c2c2',
+  [TagColor.BLUE]: '#1677ff',
+  [TagColor.INDIGO]: '#2f54eb',
+  [TagColor.PURPLE]: '#722ed1',
+  [TagColor.MAGENTA]: '#eb2f96',
+  [TagColor.GRAY]: '#8c8c8c',
+};
+
 const DEFAULT_PAGE = 1;
 const DEFAULT_LIMIT = 30;
 
@@ -43,6 +57,10 @@ export function TagsPage() {
     sort: sort?.field,
     order: sort?.order,
   });
+
+  const items = data?.items ?? [];
+  // 막대 채움 비율의 기준 = 현재 페이지 데이터의 최대 사용량.
+  const maxUsage = items.reduce((m, t) => Math.max(m, t.usageCount), 0);
 
   /** 현재 정렬 상태를 AntD 컬럼 sortOrder 로 변환. */
   const sortOrderOf = (field: 'name' | 'usageCount') =>
@@ -134,10 +152,45 @@ export function TagsPage() {
       title: '사용 작품 수',
       dataIndex: 'usageCount',
       key: 'usageCount',
-      width: 130,
-      align: 'center',
+      width: 220,
       sorter: true,
       sortOrder: sortOrderOf('usageCount'),
+      render: (count: number, row) => {
+        const ratio = maxUsage > 0 ? Math.round((count / maxUsage) * 100) : 0;
+        return (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }} title={`${count}개 작품`}>
+            <div
+              style={{
+                flex: 1,
+                height: 8,
+                background: '#f0f0f0',
+                borderRadius: 4,
+                overflow: 'hidden',
+              }}
+            >
+              <div
+                style={{
+                  width: `${ratio}%`,
+                  height: '100%',
+                  background: TAG_COLOR_HEX[row.color],
+                  borderRadius: 4,
+                  transition: 'width 0.3s ease',
+                }}
+              />
+            </div>
+            <span
+              style={{
+                minWidth: 28,
+                textAlign: 'right',
+                fontVariantNumeric: 'tabular-nums',
+                color: '#595959',
+              }}
+            >
+              {count}
+            </span>
+          </div>
+        );
+      },
     },
     {
       title: '액션',
@@ -212,7 +265,7 @@ export function TagsPage() {
         className="data-table"
         rowKey="id"
         columns={columns}
-        dataSource={data?.items ?? []}
+        dataSource={items}
         loading={isFetching}
         pagination={{
           current: page,

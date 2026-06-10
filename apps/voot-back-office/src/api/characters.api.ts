@@ -23,11 +23,18 @@ export const CHARACTER_TYPE_META: Record<CharacterType, { label: string; color: 
 /** 콘텐츠의 등장인물 목록 조회. */
 export async function fetchCharacters(
   contentId: number,
-  params: { page: number; limit: number },
+  params: { page: number; limit: number; sort?: string; order?: 'ASC' | 'DESC' },
 ): Promise<PaginatedResponse<CharacterListItem>> {
   const response = await apiClient.get<PaginatedResponse<CharacterListItem>>(
     `/admins/contents/${contentId}/characters`,
-    { params: { page: params.page, limit: params.limit } },
+    {
+      params: {
+        page: params.page,
+        limit: params.limit,
+        sort: params.sort || undefined,
+        order: params.order || undefined,
+      },
+    },
   );
   return response.data;
 }
