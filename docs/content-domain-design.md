@@ -253,3 +253,80 @@ Recording.approve(txn1) → RecordingApproved → 핸들러 → Episode.selectFi
 - [ ] (cut/line 폴리시) 조회 서버 정렬(`ORDER BY position`), `EpisodeScriptUploaded` 이벤트, 드래그 정렬 UX.
 - [ ] 타임라인 컬럼(`cut.holdMs`/`line.gapBeforeMs`/`transition`) — 타임라인/플레이어 붙일 때.
 - [ ] File 고아 정리 cron, DLQ 소비/알림.
+
+---
+
+## 13. Recording 도메인 설계 (멀티캐스팅)
+
+> **별도 애그리게이트**(line·creator를 id로 소프트 참조, 대량·독립 생성).
+> 이전 §2/§4 의 recording 스케치와 §12 의 `line.selectedRecordingId` 가정을 **이 절이 갱신**한다.
+
+### 13.1 모델 — 멀티캐스팅 + 성우별 채택
+한 **대사(Line)** 를 **여러 성우가 각자 녹음**하고, **채택은 (Line × 성우)별로 1개**.
+```
+Line (대사)
+ └─ 캐스팅된 성우 A, B, C …        (character ↔ creator N:M = 멀티캐스팅)
+     각 성우마다 Recording 여러 take
+       (Line, 성우)별 "채택본" 1개
+```
+- 채택은 **(lineId, creatorId) 단위 1개** → 라인 하나에 **성우 수만큼 채택본**.
+- 재생/타임라인은 **성우(캐스트) 단위**: "이 성우 버전" = 그 성우의 라인별 채택본을 이어 재생.
+- → **라인당 단일 최종 take 가정(`line.selectedRecordingId`) 폐기.**
+
+### 13.2 Recording (take 그 자체)
+| 컬럼 | 타입 | null | MVP | 비고 |
+|---|---|---|---|---|
+| `lineId` | int(소프트참조) | N | ✅ | idx |
+| `episodeId` | int(비정규화) | N | ✅ | `(episodeId,status)` idx |
+| `creatorId` | int(소프트참조) | N | ✅ | 성우. idx |
+| `audioKey` | varchar(512) | N | ✅ | 원본 오디오 S3 키 |
+| `durationMs` | int | N | ✅ | **타임라인 길이 원천**(line/cut엔 미저장) |
+| `status` | smallint(enum) | N | ✅ | RECORDED→REVIEW→APPROVED/REJECTED |
+| `take` | int | N=1 | ⏳ | (line,creator)별 테이크 번호 |
+| `rejectReason` | varchar(500) | Y | ⏳ | 반려 사유 |
+| `reviewerId`/`reviewedAt` | int/datetime | Y | ⏳ | 검수 추적 |
+| `mimeType`/`fileSize`/`waveformKey` | varchar/int/varchar | Y | ⏳ | 포맷/크기/파형UI |
+- idx: `(lineId, creatorId)`, `(episodeId, status)`.
+- **`isSelected` 안 둠** — 채택은 `LineTake`가 단일 출처.
+
+### 13.3 LineTake (채택) — (line × creator) → recording
+| 컬럼 | 타입 | null | 비고 |
+|---|---|---|---|
+| `lineId` | int | N | idx |
+| `creatorId` | int | N | 성우 |
+| `recordingId` | int | N | 채택된 take |
+| `episodeId` | int | N | 비정규화(조회) |
+- **UNIQUE (lineId, creatorId)** ← "라인×성우당 채택 1개" 불변식을 스키마로 강제.
+- 채택 변경 = 그 행의 `recordingId` 만 update(형제 플립 불필요, 이전 자동 해제).
+- "이 라인에서 이 성우 채택본?" = 1행 조회.
+
+### 13.4 상태 enum (shared, 숫자 enum)
+```ts
+export enum RecordingStatus {
+  RECORDED = 10,   // 성우 제출
+  REVIEW = 20,     // 검수 대기
+  APPROVED = 30,   // 검수 통과(채택 가능)
+  REJECTED = 40,   // 반려(재녹음)
+}
+```
++ `RECORDING_STATUS_TRANSITIONS`/`canTransitionRecording` (EpisodeStatus 패턴).
+
+### 13.5 채택 흐름 / 불변식
+- 채택 = `LineTake` upsert(`lineId,creatorId` → recordingId). **APPROVED take만** 채택 가능.
+- 캐스팅 검증: `recording.creatorId` 가 그 line 의 character 에 **캐스팅된 성우**인지(casting 조회).
+- 소프트 참조(lineId/creatorId) — 하드 FK 로 다른 애그리게이트(Episode 내부 Line, Creator) 안 묶음. 커맨드 시 존재/소속 검증.
+- 멀티테이크 허용: 같은 (lineId, creatorId)에 Recording 여럿.
+
+### 13.6 이벤트 (사가)
+- `RecordingSubmitted`(RECORDED) → 검수 큐/대시보드.
+- `RecordingApproved` / `RecordingRejected`.
+- `TakeSelected`(lineId, creatorId, recordingId) → 캐스트별 타임라인/완성도 갱신.
+- (선택) 어떤 성우 캐스트의 **모든 라인 채택 완료** → 그 캐스트 "완성"/Episode 전이 트리거.
+
+### 13.7 타임라인 (캐스트별 유도, 저장 X)
+선택 성우의 라인별 **LineTake → Recording.durationMs** + `line.gapBeforeMs` + `cut.holdMs` 로 start/end 계산.
+
+### 13.8 MVP vs 추후
+- **MVP**: Recording(`lineId/episodeId/creatorId/audioKey/durationMs/status`) 제출·조회.
+- **검수**: `rejectReason/reviewerId/reviewedAt`, 상태 전이, `LineTake` 채택(+ APPROVED 가드).
+- **UX/인코딩**: `take/waveformKey/mimeType/fileSize`, 추후 `encodedAudioKey`(인코딩 별도 서버 로드맵과 연결).

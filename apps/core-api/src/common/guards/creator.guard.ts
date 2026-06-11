@@ -6,6 +6,7 @@ import { AccountStatus, AccountType } from '@vooth/shared';
 import { TokenService } from '@common/jwt';
 import { Context, ContextKey } from '@common/context';
 import { Account } from '@modules/account/domain/account.entity';
+import { Creator } from '@modules/creator/domain/creator.entity';
 
 @Injectable()
 export class CreatorGuard implements CanActivate {
@@ -45,8 +46,15 @@ export class CreatorGuard implements CanActivate {
       throw new ForbiddenException('아직 관리자 승인을 받지 못한 계정입니다.');
     }
 
+    const creator = await this.dataSource.getRepository(Creator).findOne({ where: { accountId: account.id } });
+
+    if (!creator) {
+      throw new ForbiddenException('존재하지 않는 크리에이터입니다.');
+    }
+
     this.context.set(ContextKey.ROLE, account.role);
     this.context.set(ContextKey.ACCOUNT, account);
+    this.context.set(ContextKey.CREATOR, creator);
     return true;
   }
 

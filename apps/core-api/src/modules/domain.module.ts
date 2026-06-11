@@ -11,6 +11,7 @@ import { CharacterModule } from './character/character.module';
 import { CreatorModule } from './creator/creator.module';
 import { CastingModule } from '@modules/casting/casting.module';
 import { EpisodeModule } from './episode/episode.module';
+import { RecordingModule } from './recording/recording.module';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { EpisodeModule } from './episode/episode.module';
     CreatorModule,
     CastingModule,
     EpisodeModule,
+    RecordingModule,
   ],
   exports: [
     AccountModule,
@@ -40,6 +42,7 @@ import { EpisodeModule } from './episode/episode.module';
     CreatorModule,
     CastingModule,
     EpisodeModule,
+    RecordingModule,
   ],
 })
 export class DomainModule {}

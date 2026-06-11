@@ -7,7 +7,7 @@ export enum ContextKey {
   TXID = 'txId',
   ACCOUNT = 'admin',
   USER = 'user',
-  CLIENT = 'client',
+  CREATOR = 'creator',
   ROLE = 'role',
   // NOTE: 추후 필요한 경우 추가.
 }
