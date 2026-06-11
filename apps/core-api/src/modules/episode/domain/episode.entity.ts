@@ -1,6 +1,9 @@
 import { DddAggregate } from '@libs/ddd';
-import { Column, Entity, Index, PrimaryGeneratedColumn } from 'typeorm';
-import { EpisodeStatus } from '@vooth/shared';
+import { Column, Entity, Index, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
+import { canTransitionEpisode, EpisodeStatus } from '@vooth/shared';
+import { Cut } from './cut.entity';
+import { Line } from './line.entity';
+import { BadRequestException } from '@nestjs/common';
 
 type Ctor = {
   contentId: number;
@@ -23,9 +26,12 @@ export class Episode extends DddAggregate {
   @Column()
   chapter: number;
 
-  // 정렬 가능한 숫자 enum(편집중 10 … 발행 60) → smallint 로 저장.
   @Column({ type: 'smallint' })
   status: EpisodeStatus;
+
+  // 스크립트 재업로드 시 교체된(빠진) 컷은 삭제한다(고아 제거). 하위 라인은 Cut.lines 가 정리.
+  @OneToMany(() => Cut, (cut) => cut.episode, { cascade: true, orphanedRowAction: 'delete' })
+  cuts: Cut[];
 
   private constructor(args: Ctor) {
     super();
@@ -35,6 +41,7 @@ export class Episode extends DddAggregate {
       this.title = args.title;
       this.status = EpisodeStatus.DRAFT;
       this.chapter = args.chapter;
+      this.cuts = [];
     }
   }
 
@@ -42,7 +49,7 @@ export class Episode extends DddAggregate {
     return new Episode(args);
   }
 
-  update(args: { title?: string; chapter?: number; status?: EpisodeStatus }) {
+  update(args: { title?: string; chapter?: number }) {
     const changed = this.stripUnchanged(args);
 
     if (!changed) {
@@ -50,5 +57,79 @@ export class Episode extends DddAggregate {
     }
 
     Object.assign(this, changed);
+  }
+
+  /** 상태 전이. 허용된 전이(반려 포함)만 가능. 같은 상태면 no-op. */
+  transitionTo(next: EpisodeStatus) {
+    if (this.status === next) {
+      return;
+    }
+
+    if (!canTransitionEpisode(this.status, next)) {
+      throw new BadRequestException('허용되지 않는 상태 전이입니다.', {
+        cause: '허용되지 않는 상태 전이입니다.',
+      });
+    }
+
+    this.status = next;
+  }
+
+  uploadCut({
+    cutItems,
+  }: {
+    cutItems: {
+      id?: number;
+      position: number;
+      imageUrl: string;
+      lineItems: { id?: number; characterId: number; position: number; script: string }[];
+    }[];
+  }) {
+    if (this.status !== EpisodeStatus.DRAFT) {
+      throw new BadRequestException('편집 중인 상태에서만 수정이 가능합니다.', {
+        cause: '편집 중인 상태에서만 수정이 가능합니다.',
+      });
+    }
+
+    // id 로 기존 컷/대사를 매칭해 upsert 한다.
+    // - id 있고 매칭 → update(변경분만, id 유지), id 없거나 미매칭 → 신규 insert.
+    // - payload 에 없는 기존 컷/대사 → this.cuts 재할당 + orphanedRowAction 으로 삭제.
+    const existingCuts = this.cuts ?? [];
+
+    this.cuts = cutItems.map((cutItem) => {
+      const existingCut = cutItem.id != null ? existingCuts.find((c) => c.id === cutItem.id) : undefined;
+
+      const cut =
+        existingCut ??
+        Cut.of({ episodeId: this.id, position: cutItem.position, imageUrl: cutItem.imageUrl });
+
+      if (existingCut) {
+        existingCut.update({ position: cutItem.position, imageUrl: cutItem.imageUrl });
+      }
+
+      const existingLines = existingCut?.lines ?? [];
+
+      const lines = cutItem.lineItems.map((lineItem) => {
+        const existingLine = lineItem.id != null ? existingLines.find((l) => l.id === lineItem.id) : undefined;
+
+        if (existingLine) {
+          existingLine.update({
+            characterId: lineItem.characterId,
+            position: lineItem.position,
+            script: lineItem.script,
+          });
+          return existingLine;
+        }
+
+        return Line.of({
+          episodeId: this.id,
+          characterId: lineItem.characterId,
+          position: lineItem.position,
+          script: lineItem.script,
+        });
+      });
+
+      cut.setLines(lines);
+      return cut;
+    });
   }
 }

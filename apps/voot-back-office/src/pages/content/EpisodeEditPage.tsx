@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import {
   Alert,
@@ -21,24 +21,42 @@ import {
 import { EpisodeStatus, EPISODE_STATUS_TRANSITIONS } from '@vooth/shared';
 import { useEpisode } from '../../features/episodes/useEpisodes';
 import { useUpdateEpisode } from '../../features/episodes/useUpdateEpisode';
+import { useUploadScript } from '../../features/episodes/useUploadScript';
 import { useCharacters } from '../../features/characters/useCharacters';
-import { EPISODE_STATUS_META, type UpdateEpisodePayload } from '../../api/episodes.api';
+import { EPISODE_STATUS_META, type UpdateEpisodePayload, type UploadScriptPayload } from '../../api/episodes.api';
 import { SectionCard } from '../../components/SectionCard';
 import { ThumbnailUpload } from '../../components/ThumbnailUpload';
 
-/** 컷/대사 편집기 로컬 모델(저장 API 전까지 화면 상태). */
+/** 컷/대사 편집기 로컬 모델. id=로컬 React key, serverId=DB id(있으면 upsert, 없으면 신규). */
 interface DraftLine {
   id: string;
+  serverId?: number;
   text: string;
   characterId?: number;
 }
 interface DraftCut {
   id: string;
+  serverId?: number;
   imageUrl?: string;
   lines: DraftLine[];
 }
 
 const uid = () => crypto.randomUUID();
+
+/** 변경 감지용 시그니처(로컬 key 제외, 순서·내용·serverId 반영). */
+function scriptSignature(cuts: DraftCut[]): string {
+  return JSON.stringify(
+    cuts.map((cut) => ({
+      serverId: cut.serverId ?? null,
+      imageUrl: cut.imageUrl ?? null,
+      lines: cut.lines.map((l) => ({
+        serverId: l.serverId ?? null,
+        text: l.text,
+        characterId: l.characterId ?? null,
+      })),
+    })),
+  );
+}
 
 /**
  * 회차 상세/수정. 기본 정보(제목/회차)는 수정 모달, 상태는 기본 정보 카드 내 허용 전이 버튼.
@@ -62,6 +80,29 @@ export function EpisodeEditPage() {
 
   // 컷/대사 (로컬 상태)
   const [cuts, setCuts] = useState<DraftCut[]>([]);
+  // 로드/저장 시점의 스냅샷(시그니처). 현재 상태와 다르면 dirty.
+  const [baseline, setBaseline] = useState('');
+  const uploadScriptMutation = useUploadScript();
+
+  // 상세에서 받은 컷/대사를 에디터 초기값으로 로드(회차 진입 시 1회, position 순 정렬).
+  useEffect(() => {
+    if (!episode?.cuts) return;
+    const sortedCuts = [...episode.cuts].sort((a, b) => a.position - b.position);
+    const draft: DraftCut[] = sortedCuts.map((cut) => ({
+      id: uid(),
+      serverId: cut.id,
+      imageUrl: cut.imageUrl,
+      lines: [...cut.lines]
+        .sort((a, b) => a.position - b.position)
+        .map((line) => ({ id: uid(), serverId: line.id, text: line.script, characterId: line.characterId })),
+    }));
+    setCuts(draft);
+    setBaseline(scriptSignature(draft));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [episode?.id]);
+
+  // 변경 여부(컷/대사가 로드/저장 시점과 다른가).
+  const isDirty = useMemo(() => scriptSignature(cuts) !== baseline, [cuts, baseline]);
 
   const statusMeta = episode ? EPISODE_STATUS_META[episode.status] : undefined;
   const statusTag = episode ? (
@@ -162,6 +203,52 @@ export function EpisodeEditPage() {
       }),
     );
 
+  // 스크립트 저장: 화면 순서대로 position(index+1) 부여 후 통째 업로드(교체).
+  const handleSaveScript = () => {
+    for (const [ci, cut] of cuts.entries()) {
+      if (!cut.imageUrl) {
+        message.error(`컷 ${ci + 1}: 이미지를 업로드하세요.`);
+        return;
+      }
+      for (const [li, line] of cut.lines.entries()) {
+        if (line.characterId == null) {
+          message.error(`컷 ${ci + 1} · 대사 ${li + 1}: 캐릭터를 선택하세요.`);
+          return;
+        }
+        if (!line.text.trim()) {
+          message.error(`컷 ${ci + 1} · 대사 ${li + 1}: 대사를 입력하세요.`);
+          return;
+        }
+      }
+    }
+
+    const payload: UploadScriptPayload = {
+      cutItems: cuts.map((cut, ci) => ({
+        id: cut.serverId,
+        imageUrl: cut.imageUrl as string,
+        position: ci + 1,
+        lineItems: cut.lines.map((line, li) => ({
+          id: line.serverId,
+          characterId: line.characterId as number,
+          script: line.text.trim(),
+          position: li + 1,
+        })),
+      })),
+    };
+
+    const savedSignature = scriptSignature(cuts);
+    uploadScriptMutation.mutate(
+      { contentId: cid, episodeId: eid, payload },
+      {
+        onSuccess: () => {
+          message.success('스크립트가 저장되었습니다.');
+          setBaseline(savedSignature);
+        },
+        onError: (err) => message.error(err.message),
+      },
+    );
+  };
+
   return (
     <div style={{ height: '100%', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 16 }}>
       <Space align="center">
@@ -211,13 +298,24 @@ export function EpisodeEditPage() {
       <SectionCard
         title="컷 & 대사"
         extra={
-          <Button size="small" type="primary" onClick={addCut}>
-            + 컷 추가
-          </Button>
+          <Space>
+            <Button size="small" onClick={addCut}>
+              + 컷 추가
+            </Button>
+            <Button
+              size="small"
+              type="primary"
+              loading={uploadScriptMutation.isPending}
+              disabled={!isDirty}
+              onClick={handleSaveScript}
+            >
+              저장
+            </Button>
+          </Space>
         }
       >
         <Typography.Paragraph type="secondary" style={{ marginTop: 0, fontSize: 12 }}>
-          * 컷/대사는 아직 저장 API가 없어 화면에서만 편집됩니다(추후 연동).
+          * 저장하면 현재 화면의 컷/대사 순서대로 전체 교체됩니다(편집중 상태에서만 가능).
         </Typography.Paragraph>
 
         {cuts.length === 0 ? (

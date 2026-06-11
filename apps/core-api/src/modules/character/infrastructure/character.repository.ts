@@ -9,12 +9,12 @@ export class CharacterRepository extends DddRepository<Character> {
   entityClass = Character;
 
   async find(
-    conditions: { id?: number; contentId?: number; name?: string; types?: CharacterType[] },
+    conditions: { ids?: number[]; contentId?: number; name?: string; types?: CharacterType[] },
     options?: TypeormRelationOptions<Character>
   ) {
     return this.entityManager.find(this.entityClass, {
       where: stripUndefined({
-        id: conditions.id,
+        id: checkInValue(conditions.ids),
         contentId: conditions.contentId,
         name: conditions.name,
         type: checkInValue(conditions.types),
@@ -23,10 +23,10 @@ export class CharacterRepository extends DddRepository<Character> {
     });
   }
 
-  async count(conditions: { id?: number; contentId?: number; name?: string; types?: CharacterType[] }) {
+  async count(conditions: { ids?: number[]; contentId?: number; name?: string; types?: CharacterType[] }) {
     return this.entityManager.count(this.entityClass, {
       where: stripUndefined({
-        id: conditions.id,
+        id: checkInValue(conditions.ids),
         contentId: conditions.contentId,
         name: conditions.name,
         type: checkInValue(conditions.types),

@@ -50,10 +50,12 @@ modules/<domain>/
 | **DddAggregate** | `libs/ddd/ddd-aggregate.ts` | 애그리게이트 루트 베이스. 공통 컬럼(`createdAt/updatedAt`, `createdBy/updatedBy`(select:false), **`deletedAt`=소프트삭제**), `publishEvent()/getPublishedEvents()`, `setTraceId()`, `stripUnchanged()`(변경분만), `toInstance(dto)` |
 | **DddEvent** | `libs/ddd/ddd-event.ts` | `@Entity('ddd_events')` = **아웃박스 테이블**. `eventType = constructor.name`, `payload`(JSON text), `eventStatus(PENDING/PROCESSED/FAILED)`, `traceId`, `occurredAt`. `fromEvent()`로 직렬화 |
 | **DddRepository<T>** | `libs/ddd/ddd-repository.ts` | `entityManager` = **Context의 tx 매니저 ?? DataSource.manager**. `save()` = 엔티티 저장 + **이벤트 아웃박스 저장(같은 트랜잭션)**. `softRemove()` |
-| **DddService** | `libs/ddd/ddd-service.ts` | `entityManager`/`context`/`eventEmitter` 주입(private). 서비스 베이스 |
+| **DddService** | `libs/ddd/ddd-service.ts` | `entityManager`/`context` 주입(private). 서비스 베이스 |
 | **@Transactional** | `libs/decorators/transactional.decorator.ts` | 트랜잭션 경계 + Context에 tx 매니저 주입 |
 | **Context** | `common/context/context.service.ts` | AsyncLocalStorage 기반 요청/실행 컨텍스트 |
 | **@EventHandler** | `libs/decorators/event-handler.decorator.ts` | 이벤트 핸들러 등록(클래스명 키) |
+| **TraceIdSubscriber** | `databases/typeorm/subscribers/trace-id.subscriber.ts` | 모든 DddAggregate 의 `createdBy/updatedBy`를 traceId(Context TXID)로 채움. **cascade 로 생성/수정되는 하위 엔티티(컷·대사 등)** 의 감사 컬럼 누락 보완 |
+| **decimalTransformer** | `libs/utils/orm.ts` | DECIMAL 컬럼(예: `position`)을 number 로 정규화(mysql 은 문자열 반환) |
 
 ## 4. 트랜잭션 & 컨텍스트 (AsyncLocalStorage)
 - `Context`는 `AsyncLocalStorage<Map>` 위에 키-값(`ContextKey`: `ENTITY_MANAGER`, `DDD_EVENTS`, `TXID`, `ACCOUNT`, `ROLE`, …).
@@ -66,8 +68,8 @@ modules/<domain>/
     context.set(ENTITY_MANAGER, txEm)   // 이후 Repository가 이 tx 매니저 사용
     await 원본메서드()
   }) // commit/rollback
-  → 커밋 후 context의 DDD_EVENTS 를 eventEmitter.emit('ddd-event.created', …)
   ```
+  도메인 이벤트 전파는 `Repository.save()` 의 아웃박스 적재(같은 트랜잭션)뿐 — 별도 in-memory emit 경로는 없다.
 - `DddRepository.entityManager`는 `context.get(ENTITY_MANAGER) || datasource.manager` → 트랜잭션 안이면 자동으로 tx 매니저, 밖이면 기본 매니저(조회 등).
 
 ## 5. 트랜잭셔널 아웃박스
@@ -121,7 +123,7 @@ ddd_events(INSERT) → Debezium(connectors/mysql.json) → Kafka topic: dbserver
 - (프론트) 부분 수정 = 변경 필드만, 타임스탬프 = UTC 저장 → 로컬 표시.
 
 ## 11. 알아둘 점 / 한계
-- `@Transactional`이 커밋 후 `eventEmitter.emit('ddd-event.created')` 하지만 **현재 `@OnEvent` 리스너는 없음** — 실제 전파는 **아웃박스(ddd_events) → CDC** 경로. (인메모리 훅은 추후/외부용)
+- 도메인 이벤트 전파는 **아웃박스(ddd_events) → CDC → Kafka** 단일 경로. (과거의 `eventEmitter.emit('ddd-event.created')` in-memory 훅은 **제거됨** — 구독자 없는 죽은 코드였음)
 - 컨슈머 신뢰성은 재시도+DLQ까지. **DLQ 소비/알림(재처리·슬랙)** 은 다음 단계.
 - 멱등성은 각 핸들러가 보장해야 함(프레임워크가 강제 X).
 - `ddd_events.eventStatus(PENDING/PROCESSED/FAILED)`/`scheduledAt` 컬럼은 있으나, 상태 갱신/지연 재처리는 아직 적극 활용 X(향후 아웃박스 상태추적/스케줄 재처리 여지).

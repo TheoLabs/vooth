@@ -1,5 +1,5 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
-import { fetchEpisode, fetchEpisodes, type EpisodeListItem } from '../../api/episodes.api';
+import { fetchEpisode, fetchEpisodes, type EpisodeDetail, type EpisodeListItem } from '../../api/episodes.api';
 import type { PaginatedResponse } from '../../api/pagination';
 import { ApiError } from '../../lib/apiClient';
 import type { EpisodeStatus } from '@vooth/shared';
@@ -39,9 +39,9 @@ export function useEpisodes(
   });
 }
 
-/** 회차 상세 조회. */
+/** 회차 상세 조회(cuts/lines 포함). */
 export function useEpisode(contentId: number, episodeId: number) {
-  return useQuery<EpisodeListItem, ApiError>({
+  return useQuery<EpisodeDetail, ApiError>({
     queryKey: ['episode', contentId, episodeId],
     queryFn: () => fetchEpisode(contentId, episodeId),
     enabled: Number.isFinite(contentId) && Number.isFinite(episodeId),

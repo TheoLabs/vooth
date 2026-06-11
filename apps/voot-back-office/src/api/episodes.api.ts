@@ -64,9 +64,28 @@ export async function fetchEpisodes(
   return response.data;
 }
 
-/** 회차 상세 조회(GET /admins/contents/:contentId/episodes/:id). */
-export async function fetchEpisode(contentId: number, episodeId: number): Promise<EpisodeListItem> {
-  const response = await apiClient.get<EpisodeListItem>(
+/** 상세 조회 응답의 대사. */
+export interface EpisodeLine {
+  id: number;
+  characterId: number;
+  script: string;
+  position: number;
+}
+/** 상세 조회 응답의 컷(+대사). */
+export interface EpisodeCut {
+  id: number;
+  position: number;
+  imageUrl: string;
+  lines: EpisodeLine[];
+}
+/** 회차 상세(기본 정보 + 컷/대사). */
+export interface EpisodeDetail extends EpisodeListItem {
+  cuts: EpisodeCut[];
+}
+
+/** 회차 상세 조회(GET /admins/contents/:contentId/episodes/:id). cuts/lines 포함. */
+export async function fetchEpisode(contentId: number, episodeId: number): Promise<EpisodeDetail> {
+  const response = await apiClient.get<EpisodeDetail>(
     `/admins/contents/${contentId}/episodes/${episodeId}`,
   );
   return response.data;
@@ -95,4 +114,29 @@ export async function updateEpisode(
   payload: UpdateEpisodePayload,
 ): Promise<void> {
   await apiClient.put(`/admins/contents/${contentId}/episodes/${episodeId}`, payload);
+}
+
+/** 회차 스크립트(컷+대사) 업로드. id 있으면 기존 행 upsert, 없으면 신규. position 은 화면 순서대로 프론트에서 부여. */
+export interface UploadScriptLineItem {
+  id?: number;
+  characterId: number;
+  script: string;
+  position: number;
+}
+export interface UploadScriptCutItem {
+  id?: number;
+  imageUrl: string;
+  position: number;
+  lineItems: UploadScriptLineItem[];
+}
+export interface UploadScriptPayload {
+  cutItems: UploadScriptCutItem[];
+}
+
+export async function uploadScript(
+  contentId: number,
+  episodeId: number,
+  payload: UploadScriptPayload,
+): Promise<void> {
+  await apiClient.put(`/admins/contents/${contentId}/episodes/${episodeId}/script`, payload);
 }

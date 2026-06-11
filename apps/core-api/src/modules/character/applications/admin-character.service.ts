@@ -34,9 +34,9 @@ export class AdminCharacterService extends DddService {
       throw new BadRequestException('존재하지 않는 콘텐츠입니다.', { cause: '존재하지 않는 콘텐츠입니다.' });
     }
 
-    const [exisitingCharacter] = await this.characterRepository.find({ contentId, name });
+    const [existingCharacter] = await this.characterRepository.find({ contentId, name });
 
-    if (exisitingCharacter) {
+    if (existingCharacter) {
       throw new BadRequestException('이미 등록된 캐릭터입니다.', { cause: '이미 등록된 캐릭터입니다.' });
     }
 

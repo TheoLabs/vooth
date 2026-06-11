@@ -7,29 +7,31 @@ import { Episode } from '../domain/episode.entity';
 import { PaginationOptions } from '@libs/utils';
 import { EpisodeResponseDto } from '../presentation/dto';
 import { EpisodeStatus } from '@vooth/shared';
+import { CharacterRepository } from '@modules/character/infrastructure/character.repository';
 
 @Injectable()
 export class AdminEpisodeService extends DddService {
   constructor(
     private readonly episodeRepository: EpisodeRepository,
-    private readonly contentRepository: ContentRepository
+    private readonly contentRepository: ContentRepository,
+    private readonly characterRepository: CharacterRepository
   ) {
     super();
   }
 
   @Transactional()
   async create({ contentId, title, chapter }: { contentId: number; title: string; chapter: number }) {
-    const [exisitingContent] = await this.contentRepository.find({ id: contentId });
+    const [existingContent] = await this.contentRepository.find({ id: contentId });
 
-    if (!exisitingContent) {
+    if (!existingContent) {
       throw new BadRequestException('존재하지 않는 콘텐츠입니다.', {
         cause: '존재하지 않는 콘텐츠입니다.',
       });
     }
 
-    const [exisitingEpisode] = await this.episodeRepository.find({ contentId, chapter });
+    const [existingEpisode] = await this.episodeRepository.find({ contentId, chapter });
 
-    if (exisitingEpisode) {
+    if (existingEpisode) {
       throw new BadRequestException('이미 등록된 회차입니다.', { cause: '이미 등록된 회차입니다.' });
     }
 
@@ -60,7 +62,7 @@ export class AdminEpisodeService extends DddService {
   }
 
   async retrieve({ contentId, id }: { contentId: number; id: number }) {
-    const [episode] = await this.episodeRepository.find({ contentId, id });
+    const [episode] = await this.episodeRepository.find({ contentId, id }, { relations: { cuts: { lines: true } } });
 
     if (!episode) {
       throw new BadRequestException('존재하지 않는 회차입니다.', {
@@ -100,7 +102,49 @@ export class AdminEpisodeService extends DddService {
       }
     }
 
-    episode.update({ title, chapter, status });
+    // 상태 변경은 허용 전이만(반려 포함). 기본 정보는 별도 수정.
+    if (status !== undefined) {
+      episode.transitionTo(status);
+    }
+    episode.update({ title, chapter });
+
+    await this.episodeRepository.save([episode]);
+  }
+
+  @Transactional()
+  async uploadScript({
+    id,
+    contentId,
+    cutItems,
+  }: {
+    id: number;
+    contentId: number;
+    cutItems: {
+      id?: number;
+      position: number;
+      imageUrl: string;
+      lineItems: { id?: number; characterId: number; script: string; position: number }[];
+    }[];
+  }) {
+    const [episode] = await this.episodeRepository.find({ id, contentId }, { relations: { cuts: { lines: true } } });
+
+    if (!episode) {
+      throw new BadRequestException('존재하지 않는 회차입니다.', {
+        cause: '존재하지 않는 회차입니다.',
+      });
+    }
+    const characterIds = new Set(cutItems.flatMap((cut) => cut.lineItems.map((line) => line.characterId)));
+
+    const characters = await this.characterRepository.find({ ids: [...characterIds], contentId });
+
+    if (characters.length !== characterIds.size) {
+      throw new BadRequestException('존재하지 않는 캐릭터입니다.', {
+        cause: '존재하지 않는 캐릭터입니다.',
+      });
+    }
+
+    episode.uploadCut({ cutItems });
+
     await this.episodeRepository.save([episode]);
   }
 }

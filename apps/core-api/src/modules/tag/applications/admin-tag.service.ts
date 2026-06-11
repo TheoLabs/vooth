@@ -17,9 +17,9 @@ export class AdminTagService extends DddService {
 
   @Transactional()
   async create({ name, color }: { name: string; color: TagColor }) {
-    const [exisitingTag] = await this.tagRepository.find({ name });
+    const [existingTag] = await this.tagRepository.find({ name });
 
-    if (exisitingTag) {
+    if (existingTag) {
       throw new BadRequestException('이미 등록된 태그입니다.', { cause: '이미 등록된 태그입니다.' });
     }
 
@@ -46,8 +46,8 @@ export class AdminTagService extends DddService {
     }
 
     if (name) {
-      const [exisitingTag] = await this.tagRepository.find({ name });
-      if (exisitingTag) {
+      const [existingTag] = await this.tagRepository.find({ name });
+      if (existingTag) {
         throw new BadRequestException('이미 등록된 태그입니다.', { cause: '이미 등록된 태그입니다.' });
       }
     }

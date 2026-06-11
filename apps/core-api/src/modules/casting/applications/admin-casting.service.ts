@@ -35,7 +35,7 @@ export class AdminCastingService extends DddService {
   @Transactional()
   async create({ characterId, creatorId, contentId }: { characterId: number; creatorId: number; contentId: number }) {
     const [[character], [creator], [content]] = await Promise.all([
-      this.characterRepository.find({ id: characterId }),
+      this.characterRepository.find({ ids: [characterId] }),
       this.creatorRepository.find({ id: creatorId }),
       this.contentRepository.find({ id: contentId }),
     ]);

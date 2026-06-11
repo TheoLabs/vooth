@@ -28,9 +28,9 @@ export class AdminContentService extends DddService {
     description: string;
     tagIds: number[];
   }) {
-    const [exisitingContent] = await this.contentRepository.find({ title });
+    const [existingContent] = await this.contentRepository.find({ title });
 
-    if (exisitingContent) {
+    if (existingContent) {
       throw new BadRequestException('이미 등록된 콘텐츠입니다.', { cause: '이미 등록된 콘텐츠입니다.' });
     }
 
@@ -98,9 +98,9 @@ export class AdminContentService extends DddService {
     }
 
     if (title) {
-      const [exisitingContent] = await this.contentRepository.find({ title });
+      const [existingContent] = await this.contentRepository.find({ title });
 
-      if (exisitingContent) {
+      if (existingContent) {
         throw new BadRequestException('이미 등록된 콘텐츠입니다.', { cause: '이미 등록된 콘텐츠입니다.' });
       }
     }

@@ -3,6 +3,7 @@ import { TypeOrmModule as NestTypeOrmModule } from '@nestjs/typeorm';
 import { ConfigsService } from '@configs';
 import entities from './entities';
 import { DataSource } from 'typeorm';
+import { TraceIdSubscriber } from './subscribers/trace-id.subscriber';
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { DataSource } from 'typeorm';
       }),
     }),
   ],
+  providers: [TraceIdSubscriber],
 })
 export class TypeOrmModule implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(TypeOrmModule.name);

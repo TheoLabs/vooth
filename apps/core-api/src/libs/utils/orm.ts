@@ -1,6 +1,16 @@
-import { FindOptionsRelations } from 'typeorm';
+import { FindOptionsRelations, ValueTransformer } from 'typeorm';
 import { LessThan, MoreThanOrEqual, And, Like, In } from 'typeorm';
 import { PaginationOptions } from './pagination';
+
+/**
+ * DECIMAL 컬럼 transformer.
+ * mysql 드라이버는 DECIMAL 을 정밀도 보존을 위해 "문자열"로 돌려주므로, 엔티티에서 number 로 정규화한다.
+ * 사용: `@Column({ type: 'decimal', precision: 20, scale: 10, transformer: decimalTransformer })`
+ */
+export const decimalTransformer: ValueTransformer = {
+  to: (value?: number | null) => value,
+  from: (value?: string | null) => (value == null ? value : Number(value)),
+};
 
 export interface TypeormRelationOptions<T> {
   relations?: FindOptionsRelations<T>;

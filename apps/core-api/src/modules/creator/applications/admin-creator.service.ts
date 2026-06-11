@@ -32,7 +32,7 @@ export class AdminCreatorService extends DddService {
   async handleAccountApprovedEvent(event: AccountApprovedEvent) {
     const { accountId } = event;
 
-    const [[account], [exisitingCreator]] = await Promise.all([
+    const [[account], [existingCreator]] = await Promise.all([
       this.accountRepository.find({
         ids: [accountId],
         types: [AccountType.CREATOR],
@@ -43,7 +43,7 @@ export class AdminCreatorService extends DddService {
       }),
     ]);
 
-    if (account && !exisitingCreator) {
+    if (account && !existingCreator) {
       const creator = Creator.of({ accountId });
       await this.creatorRepository.save([creator]);
     }

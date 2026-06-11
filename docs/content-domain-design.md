@@ -198,3 +198,58 @@ Recording.approve(txn1) → RecordingApproved → 핸들러 → Episode.selectFi
 - [ ] Character: `cascade:true` 제거, 삭제 정책(soft 기준 사용중 거부 or detach).
 - [ ] 성우(CREATOR) 목록 조회 API → FE 캐스팅 피커 실연동(현재 mock).
 - [ ] File 고아 정리 cron, DLQ 소비/알림.
+
+---
+
+## 12. 구현 현황 (2026-06-11)
+
+> §11(2026-06-10) 이후 진행분. 이전 "다음 할 일" 상당수 완료.
+
+### 12.1 모듈/엔드포인트 맵 (core-api admin 표면)
+| 모듈 | 엔드포인트 |
+|---|---|
+| account | `GET` 목록, `PUT :id/approve`·`reject`·`exit` |
+| role/permission | role CRUD, permission 목록 |
+| content | `POST`/`GET`/`GET :id`/`PUT :id` |
+| tag | CRUD (+ usageCount 이벤트 재계산) |
+| character | `POST`/`GET` (콘텐츠 하위) |
+| casting | `POST`/`GET`/`DELETE :id` (콘텐츠 하위) |
+| episode | `POST`/`GET`/`GET :id`/`PUT :id`/`PUT :id/script` |
+| creator | `GET` 목록 |
+| file | `POST presign`/`PUT :id/commit` |
+
+### 12.2 Episode → Cut → Line (스크립트 애그리게이트)
+- **계층**: Episode(루트) → **Cut**(`episodeId`, `position`, `imageUrl`) → **Line**(`cutId`, `episodeId`(비정규화), `characterId`, `position`, `script`). 모두 Episode 애그리게이트 내부 엔티티.
+- **순서 `position`** = `decimal(20,10)` + **`decimalTransformer`**(mysql DECIMAL=문자열 → number). 저장 시 FE가 화면 순서대로 `index+1` 부여.
+- **연쇄 삭제**: `Episode.cuts`/`Cut.lines` `@OneToMany({ cascade, orphanedRowAction: 'delete' })` + FK `onDelete: 'CASCADE'`(line→cut, cut→episode) → 교체/삭제 시 하위 자동 정리.
+- **스크립트 저장 `PUT :id/script`** → `episode.uploadCut(cutItems)`:
+  - **DRAFT 상태에서만** 허용(`assertEditable` 성격의 가드).
+  - **id 기반 upsert(reconcile)**: cut/line `id` 매칭 → 변경분만 update(**id·createdAt 유지**), 미매칭/무id → 신규, payload에 없는 기존 → orphan 삭제. (전체 교체 X → 녹음이 `lineId` 참조해도 안전)
+  - **캐릭터 검증**: lineItem.characterId 가 **이 콘텐츠의 캐릭터인지**(존재+소속) 확인.
+  - 중첩 검증 DTO(`@ValidateNested`+`@Type`), cut/line `id?` 옵셔널.
+- **상세 응답에 cuts/lines 포함**: `EpisodeResponseDto`에 `CutResponseDto`/`LineResponseDto`(@Expose+@Type), retrieve가 `relations: { cuts: { lines: true } }` 로드. (목록은 미로드 → 가벼움)
+- **FE 에디터**(EpisodeEditPage): 컷/대사 추가·삭제·순서·이미지(presign)·캐릭터 지정, 기존 스크립트 로드(position 정렬), 저장(검증+position 부여), **변경 없으면 저장 비활성**, `serverId`로 upsert.
+
+### 12.3 상태 enum & 전이
+- **`EpisodeStatus` = `@vooth/shared` 숫자 enum**: DRAFT 10 · READY 20 · RECORDING 30 · REVIEW 40 · APPROVED 50 · PUBLISHED 60. 컬럼 `smallint`.
+- **`EPISODE_STATUS_TRANSITIONS`/`canTransitionEpisode`**(shared) — 허용 전이 화이트리스트, **반려**(REVIEW→RECORDING) 포함.
+- **서버 전이 검증**: `episode.transitionTo(next)` 가 `canTransitionEpisode` 로 검증(임의 점프 차단). `update`의 status는 이 메서드 경유. FE는 허용 전이 버튼만 노출.
+- **`CharacterType` 도 숫자 enum**(MAIN 10 / SUB 20 / EXTRA 30, smallint) — 정렬용.
+
+### 12.4 캐스팅 / Creator (완료)
+- **Casting** = Character ↔ Creator N:M(콘텐츠 하위). create/list/delete API + FE(삭제 경고 다이얼로그, 캐릭터별 캐스팅).
+- **Creator 도메인 완료**: Account 1:1(`accountId`). **`AccountApproved` 이벤트 → `@EventHandler` 가 CREATOR+ACTIVE & Creator 없을 때만 생성**(멱등). 캐스팅 피커는 실제 Creator 목록 사용.
+
+### 12.5 감사 컬럼 보완 — TraceIdSubscriber
+- **`createdBy/updatedBy`**: `DddRepository.save`의 `setTraceId`는 최상위 엔티티만 → cascade 하위(컷·대사)는 누락.
+- **`TraceIdSubscriber`**(TypeORM EntitySubscriber, `databases/typeorm/subscribers`)가 모든 DddAggregate insert/update 직전에 traceId(Context TXID)로 일괄 채움. TypeOrmModule provider 등록(생성자에서 `dataSource.subscribers.push`).
+
+### 12.6 EDA 정리
+- `@Transactional`의 **in-memory `eventEmitter` 경로 제거** → 전파는 아웃박스→CDC 단일화(architecture.md 참고).
+
+### 12.7 다음 할 일
+- [ ] **Recording 도메인**(vooth-maker 핵심): line별 녹음 제출 → 검수 → 최종 take 선택(`line.selectedRecordingId`). Recording AR(lineId·creatorId·audioKey·durationMs·status) + 제출/승인/반려 이벤트.
+- [ ] **Settlement(정산)** 도메인(creatorId 참조, 별도 AR).
+- [ ] (cut/line 폴리시) 조회 서버 정렬(`ORDER BY position`), `EpisodeScriptUploaded` 이벤트, 드래그 정렬 UX.
+- [ ] 타임라인 컬럼(`cut.holdMs`/`line.gapBeforeMs`/`transition`) — 타임라인/플레이어 붙일 때.
+- [ ] File 고아 정리 cron, DLQ 소비/알림.

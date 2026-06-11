@@ -1,1 +1,1 @@
-export * from './conent-set-tag-event';
+export * from './content-set-tag-event';

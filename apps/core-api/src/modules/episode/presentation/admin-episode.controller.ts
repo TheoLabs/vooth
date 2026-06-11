@@ -1,7 +1,7 @@
 import { AdminGuard } from '@common/guards';
 import { Body, Controller, Get, Param, ParseIntPipe, Post, UseGuards, Query, Put } from '@nestjs/common';
 import { AdminEpisodeService } from '../applications/admin-episode.service';
-import { EpisodeCreateDto, EpisodeQueryDto, EpisodeUpdateDto } from './dto';
+import { EpisodeCreateDto, EpisodeQueryDto, EpisodeScriptUploadDto, EpisodeUpdateDto } from './dto';
 
 @Controller('admins/contents/:contentId/episodes')
 @UseGuards(AdminGuard)
@@ -56,5 +56,20 @@ export class AdminEpisodeController {
 
     // 4. Send response
     return { data };
+  }
+
+  @Put(':id/script')
+  async uploadScript(
+    @Param('contentId', ParseIntPipe) contentId: number,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: EpisodeScriptUploadDto
+  ) {
+    // 1. Destructure body, params, query
+    // 2. Get context
+    // 3. Get result
+    await this.adminEpisodeService.uploadScript({ id, contentId, cutItems: body.cutItems });
+
+    // 4. Send response
+    return { data: {} };
   }
 }
