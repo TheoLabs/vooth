@@ -1,5 +1,5 @@
 import { DddService } from '@libs/ddd';
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { RecordingRepository } from '../infrastructure/recording.repository';
 import { Transactional } from '@libs/decorators';
 import { Creator } from '@modules/creator/domain/creator.entity';
@@ -32,5 +32,11 @@ export class CreatorRecordingService extends DddService {
     durationMs: number;
     take: number;
     phase?: RecordingPhase;
-  }) {}
+  }) {
+    const [line] = await this.episodeRepository.findLines({ id: lineId, episodeId });
+
+    if (!line) {
+      throw new BadRequestException('등록되지 않은 대사입니다.', { cause: '등록되지 않은 대사입니다.' });
+    }
+  }
 }
