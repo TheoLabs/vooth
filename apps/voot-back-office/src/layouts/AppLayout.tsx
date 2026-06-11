@@ -104,11 +104,29 @@ export function AppLayout() {
   }, [location.pathname]);
 
   const breadcrumbItems = useMemo(() => {
-    const rule = BREADCRUMB_RULES.find((r) => r.test.test(location.pathname));
+    // 이동 가능한 크럼은 링크색(파란색)으로 표시해 클릭 가능함을 알린다.
+    const crumbLink = (to: string, label: string) => (
+      <Link to={to} style={{ color: '#1677ff' }}>
+        {label}
+      </Link>
+    );
+
+    const path = location.pathname;
+    // 회차 상세: /content/contents/:contentId/episodes/:id → 콘텐츠 상세로 링크.
+    const epMatch = path.match(/^\/content\/contents\/(\d+)\/episodes\//);
+    if (epMatch) {
+      return [
+        { title: '콘텐츠' },
+        { title: crumbLink('/content/webtoons', '작품 관리') },
+        { title: crumbLink(`/content/contents/${epMatch[1]}`, '콘텐츠 상세') },
+        { title: '회차 상세' },
+      ];
+    }
+    const rule = BREADCRUMB_RULES.find((r) => r.test.test(path));
     const trail = rule?.trail ?? [{ title: '대시보드' }];
     return trail.map((t, i) => ({
-      // 마지막(현재 페이지)은 일반 텍스트, 그 외 to 가 있으면 링크.
-      title: t.to && i < trail.length - 1 ? <Link to={t.to}>{t.title}</Link> : t.title,
+      // 마지막(현재 페이지)은 일반 텍스트, 그 외 to 가 있으면 링크(파란색).
+      title: t.to && i < trail.length - 1 ? crumbLink(t.to, t.title) : t.title,
     }));
   }, [location.pathname]);
 
@@ -155,11 +173,11 @@ export function AppLayout() {
             <Button onClick={logout}>로그아웃</Button>
           </Space>
         </Header>
-        <div style={{ padding: '12px 24px 0', background: '#fff' }}>
-          <Breadcrumb items={breadcrumbItems} />
-        </div>
         <Content className="bo-content">
-          <Outlet />
+          <Breadcrumb items={breadcrumbItems} style={{ marginBottom: 16 }} />
+          <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+            <Outlet />
+          </div>
         </Content>
       </Layout>
     </Layout>

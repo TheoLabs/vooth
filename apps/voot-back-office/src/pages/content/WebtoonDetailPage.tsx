@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import {
   Button,
   Card,
@@ -69,9 +69,6 @@ export function WebtoonDetailPage() {
     return (
       <div className="bo-page">
         <Typography.Text type="secondary">작품을 찾을 수 없습니다.</Typography.Text>
-        <div>
-          <Link to="/content/webtoons">← 작품 목록으로</Link>
-        </div>
       </div>
     );
   }
@@ -123,16 +120,13 @@ export function WebtoonDetailPage() {
   return (
     <div className="bo-page">
       <Space align="center" style={{ width: '100%', justifyContent: 'space-between' }}>
-        <Space direction="vertical" size={0}>
-          <Link to="/content/webtoons">← 작품 목록으로</Link>
-          <Space align="center">
-            <Typography.Title level={3} style={{ margin: 0 }}>
-              {webtoon.title}
-            </Typography.Title>
-            <Tag color={WEBTOON_STATUS_META[webtoon.status].color}>
-              {WEBTOON_STATUS_META[webtoon.status].label}
-            </Tag>
-          </Space>
+        <Space align="center">
+          <Typography.Title level={3} style={{ margin: 0 }}>
+            {webtoon.title}
+          </Typography.Title>
+          <Tag color={WEBTOON_STATUS_META[webtoon.status].color}>
+            {WEBTOON_STATUS_META[webtoon.status].label}
+          </Tag>
         </Space>
         <Button onClick={openEdit}>작품 수정</Button>
       </Space>

@@ -2,6 +2,7 @@ import { DddRepository } from '@libs/ddd';
 import { Injectable } from '@nestjs/common';
 import { Episode } from '../domain/episode.entity';
 import { checkInValue, checkLikeValue, convertOptions, stripUndefined, TypeormRelationOptions } from '@libs/utils';
+import { EpisodeStatus } from '@vooth/shared';
 
 @Injectable()
 export class EpisodeRepository extends DddRepository<Episode> {
@@ -12,7 +13,7 @@ export class EpisodeRepository extends DddRepository<Episode> {
       id?: number;
       contentId?: number;
       chapter?: number;
-      statuses?: string[];
+      statuses?: EpisodeStatus[];
       searchKey?: string;
       searchValue?: string;
     },
@@ -34,7 +35,7 @@ export class EpisodeRepository extends DddRepository<Episode> {
     id?: number;
     contentId?: number;
     chapter?: number;
-    statuses?: string[];
+    statuses?: EpisodeStatus[];
     searchKey?: string;
     searchValue?: string;
   }) {

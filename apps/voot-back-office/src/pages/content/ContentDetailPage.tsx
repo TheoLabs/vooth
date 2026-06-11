@@ -1,12 +1,12 @@
 import { useMemo, useState } from 'react';
-import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import {
   Alert,
   App,
   Button,
-  Card,
   ColorPicker,
   Descriptions,
+  Divider,
   Drawer,
   Form,
   Image,
@@ -24,6 +24,7 @@ import {
 import type { ColumnsType } from 'antd/es/table';
 import { TableToolbar } from '../../components/TableToolbar';
 import { FilterBar, FilterField } from '../../components/FilterBar';
+import { SectionCard } from '../../components/SectionCard';
 import { ThumbnailUpload } from '../../components/ThumbnailUpload';
 import { CONTENT_STATUS_META, type ContentListItem, type UpdateContentPayload } from '../../api/contents.api';
 import { useContent } from '../../features/contents/useContent';
@@ -41,12 +42,14 @@ import { useDeleteCasting } from '../../features/castings/useDeleteCasting';
 import { useCreators } from '../../features/creators/useCreators';
 import { useEpisodes } from '../../features/episodes/useEpisodes';
 import { useCreateEpisode } from '../../features/episodes/useCreateEpisode';
-import type { EpisodeListItem } from '../../api/episodes.api';
-import { EPISODE_STATUS_META, TAG_COLOR_ANTD } from '../../features/content/contentTypes';
-import type { EpisodeStatus } from '../../features/content/contentTypes';
+import { EPISODE_STATUS_META, EPISODE_STATUS_OPTIONS, type EpisodeListItem } from '../../api/episodes.api';
+import type { EpisodeStatus } from '@vooth/shared';
+import { TAG_COLOR_ANTD } from '../../features/content/contentTypes';
 
 /** 캐릭터 색상 프리셋/기본값. */
 const CHARACTER_COLORS = ['#6366f1', '#ec4899', '#0ea5e9', '#f59e0b', '#14b8a6', '#a855f7'];
+
+const EPISODE_PAGE_SIZE = 10;
 
 // CharacterType 은 숫자 enum 이라 Object.keys 는 문자열 키를 주므로, 숫자 값만 추린다.
 const CHARACTER_TYPE_OPTIONS = (Object.values(CharacterType).filter((v): v is CharacterType => typeof v === 'number')).map(
@@ -82,11 +85,26 @@ export function ContentDetailPage() {
   const initialContent = (location.state as { content?: ContentListItem } | null)?.content;
   const { data: content, isLoading, isError, error } = useContent(Number(id), initialContent);
 
-  // 회차 (API)
-  const { data: episodesData } = useEpisodes(Number(id));
+  // 회차 (API) — 제목 검색은 서버(searchKey/searchValue), 페이지네이션은 화면(클라).
+  const [keyword, setKeyword] = useState('');
+  const [episodeSearch, setEpisodeSearch] = useState('');
+  const [epStatusFilter, setEpStatusFilter] = useState<EpisodeStatus[]>([]);
+  const [epSort, setEpSort] = useState<{ field: 'chapter' | 'title' | 'status'; order: 'ASC' | 'DESC' } | null>(null);
+  const [epPage, setEpPage] = useState(1);
+  const { data: episodesData } = useEpisodes(Number(id), {
+    page: epPage,
+    limit: EPISODE_PAGE_SIZE,
+    searchValue: episodeSearch,
+    statuses: epStatusFilter,
+    sort: epSort?.field,
+    order: epSort?.order,
+  });
   const createEpisodeMutation = useCreateEpisode();
 
-  const [keyword, setKeyword] = useState('');
+  /** 현재 정렬 상태를 AntD 컬럼 sortOrder 로 변환. */
+  const epSortOrderOf = (field: 'chapter' | 'title' | 'status') =>
+    epSort?.field === field ? (epSort.order === 'ASC' ? ('ascend' as const) : ('descend' as const)) : null;
+
   const [epOpen, setEpOpen] = useState(false);
   const [epForm] = Form.useForm<{ chapter: number; title: string }>();
 
@@ -153,13 +171,8 @@ export function ContentDetailPage() {
 
   const episodes = useMemo<EpisodeListItem[]>(() => episodesData?.items ?? [], [episodesData]);
 
-  const filteredEpisodes = useMemo(
-    () => episodes.filter((e) => (keyword ? e.title.includes(keyword.trim()) : true)),
-    [episodes, keyword],
-  );
-
-  // 다음 회차 번호 = 현재 최대 chapter + 1.
-  const nextChapter = episodes.reduce((max, e) => Math.max(max, e.chapter), 0) + 1;
+  // 다음 회차 번호 = 전체 회차 수 + 1(서버 페이지네이션이라 전체 기준은 total 사용).
+  const nextChapter = (episodesData?.total ?? 0) + 1;
 
   const submitEpisode = async () => {
     const v = await epForm.validateFields();
@@ -362,16 +375,25 @@ export function ContentDetailPage() {
   ];
 
   const episodeColumns: ColumnsType<EpisodeListItem> = [
-    { title: '회차', dataIndex: 'chapter', key: 'chapter', width: 80, render: (n: number) => `${n}화` },
-    { title: '제목', dataIndex: 'title', key: 'title' },
+    {
+      title: '회차',
+      dataIndex: 'chapter',
+      key: 'chapter',
+      width: 80,
+      sorter: true,
+      sortOrder: epSortOrderOf('chapter'),
+      render: (n: number) => `${n}화`,
+    },
+    { title: '제목', dataIndex: 'title', key: 'title', sorter: true, sortOrder: epSortOrderOf('title') },
     {
       title: '상태',
       dataIndex: 'status',
       key: 'status',
       width: 110,
-      render: (s: string) => {
-        // 서버 status 는 소문자(예: 'draft') → 메타 키(대문자)로 매핑.
-        const meta = EPISODE_STATUS_META[s.toUpperCase() as EpisodeStatus];
+      sorter: true,
+      sortOrder: epSortOrderOf('status'),
+      render: (s: EpisodeStatus) => {
+        const meta = EPISODE_STATUS_META[s];
         return meta ? <Tag color={meta.color}>{meta.label}</Tag> : <Tag>{s}</Tag>;
       },
     },
@@ -382,12 +404,9 @@ export function ContentDetailPage() {
 
   return (
     <div className="bo-page">
-      <Space direction="vertical" size={0} style={{ marginBottom: 8 }}>
-        <Link to="/content/webtoons">← 작품 목록으로</Link>
-        <Typography.Title level={4} style={{ margin: 0 }}>
-          콘텐츠 상세
-        </Typography.Title>
-      </Space>
+      <Typography.Title level={4} style={{ margin: '0 0 8px' }}>
+        콘텐츠 상세
+      </Typography.Title>
 
       {isError && (
         <Alert type="error" showIcon message="콘텐츠를 불러오지 못했습니다." description={error?.message} />
@@ -396,16 +415,7 @@ export function ContentDetailPage() {
 
       {/* 기본 정보(좌) + 등장인물·캐스팅(우) flex 배치 */}
       <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'flex-start' }}>
-        <Card
-          size="small"
-          title="기본 정보"
-          style={{ flex: '2 1 440px' }}
-          extra={
-            <Button size="small" onClick={openEdit} disabled={!content}>
-              수정
-            </Button>
-          }
-        >
+        <SectionCard title="기본 정보" onEdit={openEdit} editDisabled={!content} style={{ flex: '2 1 440px' }}>
           {/* 썸네일 묶음 + 정보 묶음을 카드 안에서 flex */}
           <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'stretch' }}>
             <Image
@@ -445,10 +455,9 @@ export function ContentDetailPage() {
               <Descriptions.Item label="수정일">{formatDateTime(content?.updatedAt)}</Descriptions.Item>
             </Descriptions>
           </div>
-        </Card>
+        </SectionCard>
 
-        <Card
-          size="small"
+        <SectionCard
           title="등장인물 & 캐스팅"
           extra={
             <Space>
@@ -484,12 +493,14 @@ export function ContentDetailPage() {
               </Button>
             )}
           </Space>
-        </Card>
+        </SectionCard>
       </div>
 
-      <Space align="center" style={{ width: '100%', justifyContent: 'space-between', marginTop: 16 }}>
+      <Divider style={{ margin: '20px 0 12px' }} />
+
+      <Space align="center" style={{ width: '100%', justifyContent: 'space-between' }}>
         <Typography.Title level={5} style={{ margin: 0 }}>
-          회차 <Typography.Text type="secondary">(mock)</Typography.Text>
+          회차 <Typography.Text type="secondary">({episodesData?.total ?? 0})</Typography.Text>
         </Typography.Title>
         <Button type="primary" onClick={() => setEpOpen(true)}>
           회차 등록
@@ -503,17 +514,50 @@ export function ContentDetailPage() {
           onSearchFieldChange={() => undefined}
           keyword={keyword}
           onKeywordChange={setKeyword}
-          onSearch={(v) => setKeyword(v)}
+          onSearch={(v) => {
+            setEpisodeSearch(v);
+            setEpPage(1);
+          }}
+          right={
+            <Select<EpisodeStatus[]>
+              mode="multiple"
+              allowClear
+              placeholder="상태 필터"
+              style={{ minWidth: 200 }}
+              value={epStatusFilter}
+              onChange={(v) => {
+                setEpStatusFilter(v ?? []);
+                setEpPage(1);
+              }}
+              options={EPISODE_STATUS_OPTIONS}
+              maxTagCount="responsive"
+            />
+          }
         />
 
         <Table<EpisodeListItem>
           rowKey="id"
           size="small"
           columns={episodeColumns}
-          dataSource={filteredEpisodes}
-          pagination={false}
+          dataSource={episodes}
+          pagination={{
+            current: epPage,
+            pageSize: EPISODE_PAGE_SIZE,
+            total: episodesData?.total ?? 0,
+            showSizeChanger: false,
+          }}
+          onChange={(pagination, _filters, sorter) => {
+            // 단일 정렬만 사용. 해제 시 정렬 없음.
+            const s = Array.isArray(sorter) ? sorter[0] : sorter;
+            if (s && s.order && (s.field === 'chapter' || s.field === 'title' || s.field === 'status')) {
+              setEpSort({ field: s.field, order: s.order === 'ascend' ? 'ASC' : 'DESC' });
+            } else {
+              setEpSort(null);
+            }
+            setEpPage(pagination.current ?? 1);
+          }}
           onRow={(record) => ({
-            onClick: () => navigate(`/content/episodes/${record.id}`),
+            onClick: () => navigate(`/content/contents/${id}/episodes/${record.id}`),
             style: { cursor: 'pointer' },
           })}
           style={{ marginTop: 8 }}

@@ -1,5 +1,6 @@
 import { ToArray } from '@libs/decorators';
 import { PaginationDto } from '@libs/utils';
+import { EpisodeStatus } from '@vooth/shared';
 import { IsOptional, IsString } from 'class-validator';
 
 export class EpisodeQueryDto extends PaginationDto {
@@ -13,5 +14,5 @@ export class EpisodeQueryDto extends PaginationDto {
 
   @ToArray()
   @IsOptional()
-  statuses?: string[];
+  statuses?: EpisodeStatus[];
 }
