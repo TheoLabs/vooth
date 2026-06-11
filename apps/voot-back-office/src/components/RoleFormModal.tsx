@@ -88,6 +88,7 @@ export function RoleFormModal({
       cancelText="취소"
       confirmLoading={submitting}
       destroyOnHidden
+      maskClosable={false}
       width={560}
     >
       <Form

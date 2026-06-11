@@ -12,6 +12,7 @@ export class AdminCreatorController {
   async list(@Query() query: CreatorQueryDto) {
     // 1. Destructure body, params, query
     const { searchKey, searchValue, ...options } = query;
+
     // 2. Get context
     // 3. Get result
     const data = await this.adminCreatorSerivce.list({ searchKey, searchValue }, options);

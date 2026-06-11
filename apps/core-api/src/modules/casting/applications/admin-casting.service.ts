@@ -65,4 +65,17 @@ export class AdminCastingService extends DddService {
 
     return this.castingRepository.save([casting]);
   }
+
+  @Transactional()
+  async remove({ id }: { id: number }) {
+    const [casting] = await this.castingRepository.find({ id });
+
+    if (!casting) {
+      throw new BadRequestException('존재하지 않는 캐스팅입니다.', {
+        cause: '존재하지 않는 캐스팅입니다.',
+      });
+    }
+
+    await this.castingRepository.softRemove([casting]);
+  }
 }

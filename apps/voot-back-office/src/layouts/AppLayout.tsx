@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { Link, Outlet, useLocation } from 'react-router-dom';
-import { Button, Layout, Menu, Space, Typography } from 'antd';
+import { Breadcrumb, Button, Layout, Menu, Space, Typography } from 'antd';
 import {
   DashboardOutlined,
   KeyOutlined,
@@ -58,8 +58,40 @@ const NAV_ITEMS = [
   },
 ];
 
-// 선택 표시에 사용할 리프(실제 경로) 키 목록. 더 구체적인 경로를 먼저 둔다.
-const LEAF_KEYS = ['/accounts', '/roles', '/permissions', '/content/tags', '/content/webtoons'];
+// pathname 접두사 → 강조할 메뉴 키. 상세/편집 경로(예: /content/contents/:id)도
+// 해당 메뉴(작품 관리)로 매핑한다. 더 구체적인 경로를 먼저 둔다.
+const MENU_KEY_BY_PREFIX: [string, string][] = [
+  ['/accounts', '/accounts'],
+  ['/roles', '/roles'],
+  ['/permissions', '/permissions'],
+  ['/content/tags', '/content/tags'],
+  ['/content/webtoons', '/content/webtoons'],
+  ['/content/contents', '/content/webtoons'],
+  ['/content/episodes', '/content/webtoons'],
+];
+
+// 경로별 Breadcrumb(메뉴 깊이). 더 구체적인 규칙을 먼저 둔다. to 가 있으면 링크.
+const BREADCRUMB_RULES: { test: RegExp; trail: { title: string; to?: string }[] }[] = [
+  { test: /^\/$/, trail: [{ title: '대시보드' }] },
+  { test: /^\/accounts/, trail: [{ title: '계정' }, { title: '계정 관리' }] },
+  { test: /^\/roles/, trail: [{ title: '계정' }, { title: '역할 관리' }] },
+  { test: /^\/permissions/, trail: [{ title: '계정' }, { title: '권한 관리' }] },
+  { test: /^\/content\/tags/, trail: [{ title: '콘텐츠' }, { title: '태그 관리' }] },
+  {
+    test: /^\/content\/contents\//,
+    trail: [{ title: '콘텐츠' }, { title: '작품 관리', to: '/content/webtoons' }, { title: '콘텐츠 상세' }],
+  },
+  {
+    test: /^\/content\/webtoons\//,
+    trail: [{ title: '콘텐츠' }, { title: '작품 관리', to: '/content/webtoons' }, { title: '작품 상세' }],
+  },
+  {
+    test: /^\/content\/episodes\//,
+    trail: [{ title: '콘텐츠' }, { title: '작품 관리', to: '/content/webtoons' }, { title: '회차 편집' }],
+  },
+  { test: /^\/content\/webtoons/, trail: [{ title: '콘텐츠' }, { title: '작품 관리' }] },
+  { test: /^\/content/, trail: [{ title: '콘텐츠' }, { title: '작품 관리', to: '/content/webtoons' }] },
+];
 
 export function AppLayout() {
   const { logout } = useAuth();
@@ -67,8 +99,17 @@ export function AppLayout() {
   const location = useLocation();
 
   const selectedKey = useMemo(() => {
-    const match = LEAF_KEYS.find((key) => location.pathname.startsWith(key));
-    return match ?? '/';
+    const match = MENU_KEY_BY_PREFIX.find(([prefix]) => location.pathname.startsWith(prefix));
+    return match?.[1] ?? '/';
+  }, [location.pathname]);
+
+  const breadcrumbItems = useMemo(() => {
+    const rule = BREADCRUMB_RULES.find((r) => r.test.test(location.pathname));
+    const trail = rule?.trail ?? [{ title: '대시보드' }];
+    return trail.map((t, i) => ({
+      // 마지막(현재 페이지)은 일반 텍스트, 그 외 to 가 있으면 링크.
+      title: t.to && i < trail.length - 1 ? <Link to={t.to}>{t.title}</Link> : t.title,
+    }));
   }, [location.pathname]);
 
   return (
@@ -114,6 +155,9 @@ export function AppLayout() {
             <Button onClick={logout}>로그아웃</Button>
           </Space>
         </Header>
+        <div style={{ padding: '12px 24px 0', background: '#fff' }}>
+          <Breadcrumb items={breadcrumbItems} />
+        </div>
         <Content className="bo-content">
           <Outlet />
         </Content>

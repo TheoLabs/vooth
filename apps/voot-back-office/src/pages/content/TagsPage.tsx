@@ -311,6 +311,7 @@ export function TagsPage() {
         okText={editing ? '저장' : '등록'}
         cancelText="취소"
         destroyOnClose
+        maskClosable={false}
       >
         <Form form={form} layout="vertical">
           <Form.Item name="name" label="태그명" rules={[{ required: true, message: '태그명을 입력하세요.' }]}>

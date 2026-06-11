@@ -22,7 +22,8 @@ export class Character extends DddAggregate {
   @Column()
   name: string;
 
-  @Column({ type: 'enum', enum: CharacterType })
+  // 정렬 가능한 숫자 enum(주연 10 < 조연 20 < 단역 30) → smallint 로 저장.
+  @Column({ type: 'smallint' })
   type: CharacterType;
 
   @Column()

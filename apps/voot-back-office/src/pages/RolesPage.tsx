@@ -486,6 +486,7 @@ export function RolesPage() {
         open={selectedRole !== null}
         onClose={closeDrawer}
         destroyOnClose
+        maskClosable={false}
         extra={
           selectedRole &&
           (isEditing ? (

@@ -1,7 +1,7 @@
 import { AdminGuard } from '@common/guards';
 import { AdminCastingService } from '@modules/casting/applications/admin-casting.service';
 import { CastingCreateDto, CastingQueryDto } from '@modules/casting/presentation/dto';
-import { Body, Controller, Get, Param, ParseIntPipe, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, ParseIntPipe, Post, Query, UseGuards } from '@nestjs/common';
 
 @Controller('admins/contents/:contentId/castings')
 @UseGuards(AdminGuard)
@@ -30,5 +30,16 @@ export class AdminCastingController {
 
     // 4. Send response
     return { data };
+  }
+
+  @Delete(':id')
+  async remove(@Param('id', ParseIntPipe) id: number) {
+    // 1. Destructure body, params, query
+    // 2. Get context
+    // 3. Get result
+    await this.adminCastingService.remove({ id });
+
+    // 4. Send response
+    return { data: {} };
   }
 }

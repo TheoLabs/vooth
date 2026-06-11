@@ -208,6 +208,7 @@ export function WebtoonDetailPage() {
         okText="저장"
         cancelText="취소"
         destroyOnClose
+        maskClosable={false}
       >
         <Form form={editForm} layout="vertical">
           <Form.Item name="title" label="제목" rules={[{ required: true, message: '제목을 입력하세요.' }]}>
@@ -233,6 +234,7 @@ export function WebtoonDetailPage() {
         okText="등록"
         cancelText="취소"
         destroyOnClose
+        maskClosable={false}
       >
         <Form form={epForm} layout="vertical" initialValues={{ episodeNo: nextEpisodeNo }}>
           <Form.Item name="episodeNo" label="회차 번호" rules={[{ required: true, message: '회차 번호를 입력하세요.' }]}>

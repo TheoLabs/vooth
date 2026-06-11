@@ -45,3 +45,8 @@ export interface CreateCastingPayload {
 export async function createCasting(contentId: number, payload: CreateCastingPayload): Promise<void> {
   await apiClient.post(`/admins/contents/${contentId}/castings`, payload);
 }
+
+/** 캐스팅 삭제(DELETE /admins/contents/:contentId/castings/:id). */
+export async function deleteCasting(contentId: number, castingId: number): Promise<void> {
+  await apiClient.delete(`/admins/contents/${contentId}/castings/${castingId}`);
+}

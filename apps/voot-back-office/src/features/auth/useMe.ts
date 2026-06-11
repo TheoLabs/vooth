@@ -26,5 +26,9 @@ export function useMe() {
     staleTime: Infinity,
     refetchOnWindowFocus: false,
     refetchOnMount: false,
+    // 승인 대기(403)면 쿼리가 "에러 + data 없음" 상태라 refetchOnMount 가 아니라
+    // retryOnMount(기본 true) 가 지배 → 옵저버 마운트마다 /admins/me 재요청(무한 루프).
+    // 끄면 에러 상태에서 마운트 재페치를 막는다(다시 확인 버튼/invalidate 는 동작).
+    retryOnMount: false,
   });
 }

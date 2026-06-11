@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import {
   Alert,
+  App,
   Button,
   Card,
   ColorPicker,
@@ -33,21 +34,24 @@ import { CHARACTER_TYPE_META, type CharacterListItem } from '../../api/character
 import type { CastingListItem } from '../../api/castings.api';
 import { useCharacters } from '../../features/characters/useCharacters';
 import { useCreateCharacter } from '../../features/characters/useCreateCharacter';
+import { ExclamationCircleFilled } from '@ant-design/icons';
 import { useCastings } from '../../features/castings/useCastings';
 import { useCreateCasting } from '../../features/castings/useCreateCasting';
+import { useDeleteCasting } from '../../features/castings/useDeleteCasting';
 import { useCreators } from '../../features/creators/useCreators';
-import { useContentStore } from '../../features/content/ContentStore';
-import { buildSampleEpisodes } from '../../mocks/content.mock';
+import { useEpisodes } from '../../features/episodes/useEpisodes';
+import { useCreateEpisode } from '../../features/episodes/useCreateEpisode';
+import type { EpisodeListItem } from '../../api/episodes.api';
 import { EPISODE_STATUS_META, TAG_COLOR_ANTD } from '../../features/content/contentTypes';
-import type { Episode, EpisodeStatus } from '../../features/content/contentTypes';
+import type { EpisodeStatus } from '../../features/content/contentTypes';
 
 /** 캐릭터 색상 프리셋/기본값. */
 const CHARACTER_COLORS = ['#6366f1', '#ec4899', '#0ea5e9', '#f59e0b', '#14b8a6', '#a855f7'];
 
-const CHARACTER_TYPE_OPTIONS = (Object.keys(CHARACTER_TYPE_META) as CharacterType[]).map((t) => ({
-  value: t,
-  label: CHARACTER_TYPE_META[t].label,
-}));
+// CharacterType 은 숫자 enum 이라 Object.keys 는 문자열 키를 주므로, 숫자 값만 추린다.
+const CHARACTER_TYPE_OPTIONS = (Object.values(CharacterType).filter((v): v is CharacterType => typeof v === 'number')).map(
+  (t) => ({ value: t, label: CHARACTER_TYPE_META[t].label }),
+);
 
 /** ColorPicker 값(문자열 또는 Color 객체)을 hex 문자열로 정규화. */
 function toHex(color: unknown): string {
@@ -56,11 +60,6 @@ function toHex(color: unknown): string {
     return (color as { toHexString: () => string }).toHexString();
   }
   return CHARACTER_COLORS[0];
-}
-
-interface EpisodeRow extends Episode {
-  cutCount: number;
-  lineCount: number;
 }
 
 /**
@@ -83,23 +82,20 @@ export function ContentDetailPage() {
   const initialContent = (location.state as { content?: ContentListItem } | null)?.content;
   const { data: content, isLoading, isError, error } = useContent(Number(id), initialContent);
 
-  // 회차는 콘텐츠 id 로 스코프된 mock 스토어(ContentStore)에서 관리한다(등록/편집 유지).
-  const { episodesByWebtoon, createEpisode, ensureEpisodes } = useContentStore();
-
-  // 이 콘텐츠에 회차가 없으면 mock 샘플 회차를 한 번 시드한다.
-  useEffect(() => {
-    ensureEpisodes(id, () => buildSampleEpisodes(id));
-  }, [id, ensureEpisodes]);
+  // 회차 (API)
+  const { data: episodesData } = useEpisodes(Number(id));
+  const createEpisodeMutation = useCreateEpisode();
 
   const [keyword, setKeyword] = useState('');
   const [epOpen, setEpOpen] = useState(false);
-  const [epForm] = Form.useForm<{ episodeNo: number; title: string }>();
+  const [epForm] = Form.useForm<{ chapter: number; title: string }>();
 
   // 기본 정보 수정
   const updateMutation = useUpdateContent();
-  const { data: tagsData } = useTags({ page: 1, limit: 100 });
-  const tagOptions = useMemo(() => (tagsData?.items ?? []).map((t) => ({ value: t.id, label: t.name })), [tagsData]);
   const [editOpen, setEditOpen] = useState(false);
+  // 태그 선택지는 수정 모달을 열 때만 조회한다.
+  const { data: tagsData } = useTags({ page: 1, limit: 100 }, { enabled: editOpen });
+  const tagOptions = useMemo(() => (tagsData?.items ?? []).map((t) => ({ value: t.id, label: t.name })), [tagsData]);
   const [editForm] = Form.useForm<{
     title: string;
     description: string;
@@ -155,33 +151,37 @@ export function ContentDetailPage() {
     );
   };
 
-  const episodes = useMemo<EpisodeRow[]>(
-    () =>
-      episodesByWebtoon(id).map((e) => ({
-        ...e,
-        cutCount: e.cuts.length,
-        lineCount: e.cuts.reduce((s, c) => s + c.lines.length, 0),
-      })),
-    [episodesByWebtoon, id],
-  );
+  const episodes = useMemo<EpisodeListItem[]>(() => episodesData?.items ?? [], [episodesData]);
 
   const filteredEpisodes = useMemo(
     () => episodes.filter((e) => (keyword ? e.title.includes(keyword.trim()) : true)),
     [episodes, keyword],
   );
 
-  const nextEpisodeNo = (episodes.at(-1)?.episodeNo ?? 0) + 1;
+  // 다음 회차 번호 = 현재 최대 chapter + 1.
+  const nextChapter = episodes.reduce((max, e) => Math.max(max, e.chapter), 0) + 1;
 
   const submitEpisode = async () => {
     const v = await epForm.validateFields();
-    createEpisode(id, { episodeNo: v.episodeNo, title: v.title.trim() });
-    message.success('회차가 등록되었습니다.');
-    setEpOpen(false);
-    epForm.resetFields();
+    createEpisodeMutation.mutate(
+      { contentId: Number(id), payload: { title: v.title.trim(), chapter: v.chapter } },
+      {
+        onSuccess: () => {
+          message.success('회차가 등록되었습니다.');
+          setEpOpen(false);
+          epForm.resetFields();
+        },
+        onError: (err) => message.error(err.message),
+      },
+    );
   };
 
-  // 등장인물 (API)
-  const { data: charactersData } = useCharacters(Number(id));
+  // 등장인물 (API) — 정렬은 서버(sort/order)로 쏜다. 기본 type ASC.
+  const [charSort, setCharSort] = useState<{ field: 'name' | 'type'; order: 'ASC' | 'DESC' }>({
+    field: 'type',
+    order: 'ASC',
+  });
+  const { data: charactersData } = useCharacters(Number(id), { sort: charSort.field, order: charSort.order });
   const characters: CharacterListItem[] = charactersData?.items ?? [];
   const createCharacterMutation = useCreateCharacter();
   const [charOpen, setCharOpen] = useState(false);
@@ -202,8 +202,11 @@ export function ContentDetailPage() {
     );
   };
 
-  // 캐스팅 (API): 캐릭터 ↔ 크리에이터(성우) 연결
-  const { data: castingsData } = useCastings(Number(id));
+  // 등장인물 전체 보기 Drawer 상태 — 캐스팅/성우는 이 Drawer 를 열 때만 조회한다.
+  const [charDrawerOpen, setCharDrawerOpen] = useState(false);
+
+  // 캐스팅 (API): 캐릭터 ↔ 크리에이터(성우) 연결 — Drawer 열 때만 로드.
+  const { data: castingsData } = useCastings(Number(id), { enabled: charDrawerOpen });
   const castings: CastingListItem[] = useMemo(() => castingsData?.items ?? [], [castingsData]);
   const createCastingMutation = useCreateCasting();
 
@@ -215,8 +218,8 @@ export function ContentDetailPage() {
     }, {});
   }, [castings]);
 
-  // 크리에이터(성우) 피커 옵션
-  const { data: creatorsData } = useCreators();
+  // 크리에이터(성우) 피커 옵션 — Drawer 열 때만 로드.
+  const { data: creatorsData } = useCreators({ enabled: charDrawerOpen });
   const creatorOptions = useMemo(
     () => (creatorsData?.items ?? []).map((c) => ({ value: c.id, label: c.account.name })),
     [creatorsData],
@@ -260,8 +263,31 @@ export function ContentDetailPage() {
     }
   };
 
+  // 캐스팅 삭제 (API + 경고 다이얼로그)
+  const { modal } = App.useApp();
+  const deleteCastingMutation = useDeleteCasting();
+  const confirmDeleteCasting = (ch: CharacterListItem, casting: CastingListItem) => {
+    modal.confirm({
+      title: '캐스팅을 삭제할까요?',
+      icon: <ExclamationCircleFilled style={{ color: '#ff4d4f' }} />,
+      content: `${ch.name} 의 성우 "${casting.creator.account.name}" 캐스팅이 제거됩니다. 이 작업은 되돌릴 수 없습니다.`,
+      okText: '삭제',
+      cancelText: '취소',
+      okButtonProps: { danger: true },
+      onOk: () =>
+        deleteCastingMutation
+          .mutateAsync({ contentId: Number(id), castingId: casting.id })
+          .then(() => {
+            message.success('캐스팅이 삭제되었습니다.');
+          })
+          .catch((err) => {
+            message.error(err instanceof Error ? err.message : '삭제에 실패했습니다.');
+            throw err; // 실패 시 다이얼로그 유지
+          }),
+    });
+  };
+
   // 등장인물 전체 보기 Drawer (검색·유형 필터·페이지네이션 — 클라이언트 측)
-  const [charDrawerOpen, setCharDrawerOpen] = useState(false);
   const [charKeyword, setCharKeyword] = useState('');
   const [charTypeFilter, setCharTypeFilter] = useState<CharacterType[]>([]);
 
@@ -278,6 +304,8 @@ export function ContentDetailPage() {
       title: '이름',
       dataIndex: 'name',
       key: 'name',
+      sorter: true,
+      sortOrder: charSort.field === 'name' ? (charSort.order === 'ASC' ? 'ascend' : 'descend') : null,
       render: (name: string, ch) => (
         <Space align="center">
           <span style={{ width: 12, height: 12, borderRadius: '50%', background: ch.color, display: 'inline-block' }} />
@@ -292,6 +320,8 @@ export function ContentDetailPage() {
       dataIndex: 'type',
       key: 'type',
       width: 90,
+      sorter: true,
+      sortOrder: charSort.field === 'type' ? (charSort.order === 'ASC' ? 'ascend' : 'descend') : null,
       render: (t: CharacterType) => <Tag color={CHARACTER_TYPE_META[t].color}>{CHARACTER_TYPE_META[t].label}</Tag>,
     },
     {
@@ -304,7 +334,16 @@ export function ContentDetailPage() {
         ) : (
           <Space size={[4, 4]} wrap>
             {cast.map((c) => (
-              <Tag key={c.id}>{c.creator.account.name}</Tag>
+              <Tag
+                key={c.id}
+                closable
+                onClose={(e) => {
+                  e.preventDefault(); // 자동 제거 막고 확인 다이얼로그 후 삭제
+                  confirmDeleteCasting(ch, c);
+                }}
+              >
+                {c.creator.account.name}
+              </Tag>
             ))}
           </Space>
         );
@@ -322,18 +361,23 @@ export function ContentDetailPage() {
     },
   ];
 
-  const episodeColumns: ColumnsType<EpisodeRow> = [
-    { title: '회차', dataIndex: 'episodeNo', key: 'episodeNo', width: 80, render: (n: number) => `${n}화` },
+  const episodeColumns: ColumnsType<EpisodeListItem> = [
+    { title: '회차', dataIndex: 'chapter', key: 'chapter', width: 80, render: (n: number) => `${n}화` },
     { title: '제목', dataIndex: 'title', key: 'title' },
     {
       title: '상태',
       dataIndex: 'status',
       key: 'status',
       width: 110,
-      render: (s: EpisodeStatus) => <Tag color={EPISODE_STATUS_META[s].color}>{EPISODE_STATUS_META[s].label}</Tag>,
+      render: (s: string) => {
+        // 서버 status 는 소문자(예: 'draft') → 메타 키(대문자)로 매핑.
+        const meta = EPISODE_STATUS_META[s.toUpperCase() as EpisodeStatus];
+        return meta ? <Tag color={meta.color}>{meta.label}</Tag> : <Tag>{s}</Tag>;
+      },
     },
-    { title: '컷', dataIndex: 'cutCount', key: 'cutCount', width: 70, align: 'center' },
-    { title: '대사', dataIndex: 'lineCount', key: 'lineCount', width: 70, align: 'center' },
+    // 컷/대사 수는 아직 API 미제공 → 플레이스홀더(추후 maker 연동).
+    { title: '컷', key: 'cutCount', width: 70, align: 'center', render: () => '—' },
+    { title: '대사', key: 'lineCount', width: 70, align: 'center', render: () => '—' },
   ];
 
   return (
@@ -462,7 +506,7 @@ export function ContentDetailPage() {
           onSearch={(v) => setKeyword(v)}
         />
 
-        <Table<EpisodeRow>
+        <Table<EpisodeListItem>
           rowKey="id"
           size="small"
           columns={episodeColumns}
@@ -480,6 +524,7 @@ export function ContentDetailPage() {
         title="회차 등록"
         open={epOpen}
         onOk={submitEpisode}
+        confirmLoading={createEpisodeMutation.isPending}
         onCancel={() => {
           setEpOpen(false);
           epForm.resetFields();
@@ -487,10 +532,11 @@ export function ContentDetailPage() {
         okText="등록"
         cancelText="취소"
         destroyOnClose
+        maskClosable={false}
       >
-        <Form form={epForm} layout="vertical" initialValues={{ episodeNo: nextEpisodeNo }}>
+        <Form form={epForm} layout="vertical" initialValues={{ chapter: nextChapter }}>
           <Form.Item
-            name="episodeNo"
+            name="chapter"
             label="회차 번호"
             rules={[{ required: true, message: '회차 번호를 입력하세요.' }]}
           >
@@ -511,6 +557,7 @@ export function ContentDetailPage() {
         okText="저장"
         cancelText="취소"
         destroyOnClose
+        maskClosable={false}
       >
         <Form form={editForm} layout="vertical">
           <Form.Item name="title" label="제목" rules={[{ required: true, message: '제목을 입력하세요.' }]}>
@@ -540,6 +587,7 @@ export function ContentDetailPage() {
         okText="추가"
         cancelText="취소"
         destroyOnClose
+        maskClosable={false}
       >
         <Form
           form={charForm}
@@ -570,6 +618,7 @@ export function ContentDetailPage() {
         okText="추가"
         cancelText="취소"
         destroyOnClose
+        maskClosable={false}
       >
         {existingCast.length > 0 && (
           <div style={{ marginBottom: 12 }}>
@@ -604,6 +653,7 @@ export function ContentDetailPage() {
         width={680}
         open={charDrawerOpen}
         onClose={() => setCharDrawerOpen(false)}
+        maskClosable={false}
         extra={
           <Button type="primary" onClick={() => setCharOpen(true)}>
             캐릭터 추가
@@ -639,6 +689,15 @@ export function ContentDetailPage() {
           dataSource={filteredCharacters}
           pagination={{ pageSize: 10, showSizeChanger: false }}
           style={{ marginTop: 8 }}
+          onChange={(_pagination, _filters, sorter) => {
+            // 단일 정렬만 사용. 정렬 해제 시 기본(type ASC)으로 되돌린다.
+            const s = Array.isArray(sorter) ? sorter[0] : sorter;
+            if (s && s.order && (s.field === 'name' || s.field === 'type')) {
+              setCharSort({ field: s.field, order: s.order === 'ascend' ? 'ASC' : 'DESC' });
+            } else {
+              setCharSort({ field: 'type', order: 'ASC' });
+            }
+          }}
         />
       </Drawer>
     </div>

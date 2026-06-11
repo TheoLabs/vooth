@@ -367,6 +367,7 @@ export function AccountsPage() {
         open={selectedAccount !== null}
         onClose={closeDrawer}
         destroyOnClose
+        maskClosable={false}
       >
         {selectedAccount && (
           <Space direction="vertical" size="large" style={{ width: '100%' }}>

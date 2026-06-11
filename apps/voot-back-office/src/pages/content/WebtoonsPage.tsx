@@ -228,6 +228,7 @@ export function WebtoonsPage() {
         okText="등록"
         cancelText="취소"
         destroyOnClose
+        maskClosable={false}
       >
         <Form form={form} layout="vertical">
           <Form.Item name="title" label="제목" rules={[{ required: true, message: '제목을 입력하세요.' }]}>

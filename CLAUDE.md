@@ -42,6 +42,7 @@ pnpm + Turborepo 모노레포. `apps/` 에 3개 애플리케이션, 공유 코�
 - **목록 총 건수 룰: 테이블 기반 목록 조회 화면은 항상 총 건수(`총 N건`)를 표시한다.** 서버 응답 `{ items, total }` 의 `total` 을 사용하며, `<FullHeightTable>` 에서 일괄 렌더링하므로 페이지마다 따로 붙이지 않는다.
 - **부분 수정 룰: 수정(PUT/PATCH) 요청은 변경된 필드만 보낸다.** 폼 제출 시 원본과 비교해 **달라진 필드만** 페이로드에 포함하고, 바뀐 게 없으면 요청을 보내지 않는다(예: `변경된 내용이 없습니다.` 안내 후 종료). 배열(예: `tagIds`)은 순서 무관 집합 비교로 변경 여부를 판단한다. (적용 예: 태그 수정, 콘텐츠 기본 정보 수정)
 - **타임스탬프 룰: 서버의 `createdAt`/`updatedAt` 등은 항상 UTC(ISO) 기준이다.** 화면에는 **로컬 타임존으로 변환해 표시**한다(`new Date(iso)` 로 파싱 후 `getFullYear/getHours…` 등 로컬 getter 사용). `toISOString().slice(...)` 로 그대로 잘라 쓰면 UTC 날짜가 노출되니 주의.
+- **다이얼로그 닫힘 룰: 모든 `<Modal>`/`<Drawer>` 는 `maskClosable={false}` 로 둔다.** 바깥(mask) 클릭으로 실수로 닫히지 않게 하고, 닫기는 X/취소/확인 버튼으로만. (antd `ConfigProvider` 가 `maskClosable` 전역 설정을 지원하지 않아 컴포넌트마다 prop 으로 지정한다.)
 
 ## 작업 방식 규칙
 
