@@ -1,0 +1,40 @@
+.as {
+  position: relative;
+  width: 100%;
+  background: #0f172a;
+  border-radius: 10px;
+  overflow: hidden;
+  user-select: none;
+  touch-action: none;
+}
+.as__img {
+  display: block;
+  width: 100%;
+}
+.as__marker {
+  position: absolute;
+  left: 0;
+  right: 0;
+  transform: translateY(-50%);
+  height: 18px;
+  display: flex;
+  align-items: center;
+  cursor: ns-resize;
+}
+.as__badge {
+  width: 20px;
+  height: 18px;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  flex: 0 0 auto;
+}
+.as__line {
+  flex: 1;
+  height: 2px;
+  opacity: 0.85;
+}

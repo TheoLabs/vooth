@@ -23,9 +23,14 @@ import { useEpisode } from '../../features/episodes/useEpisodes';
 import { useUpdateEpisode } from '../../features/episodes/useUpdateEpisode';
 import { useUploadScript } from '../../features/episodes/useUploadScript';
 import { useCharacters } from '../../features/characters/useCharacters';
-import { EPISODE_STATUS_META, type UpdateEpisodePayload, type UploadScriptPayload } from '../../api/episodes.api';
+import {
+  EPISODE_STATUS_META,
+  type CropBox,
+  type UpdateEpisodePayload,
+  type UploadScriptPayload,
+} from '../../api/episodes.api';
 import { SectionCard } from '../../components/SectionCard';
-import { ThumbnailUpload } from '../../components/ThumbnailUpload';
+import { CropImageField } from '../../components/CropImageField';
 
 /** 컷/대사 편집기 로컬 모델. id=로컬 React key, serverId=DB id(있으면 upsert, 없으면 신규). */
 interface DraftLine {
@@ -33,11 +38,21 @@ interface DraftLine {
   serverId?: number;
   text: string;
   characterId?: number;
+  /** 연출용: 컷 내 세로 위치(0~1). 미지정이면 표시/렌더 측 균등 분배. */
+  anchorY?: number;
+  /** 연출용: 이 대사 앞 간격(ms, 페이싱). */
+  gapBeforeMs?: number;
 }
 interface DraftCut {
   id: string;
   serverId?: number;
+  // imageUrl=원본. cropBox=표시용 16:10 영역(저장 모델 B). imageWidth/Height=원본 크기.
   imageUrl?: string;
+  imageWidth?: number;
+  imageHeight?: number;
+  cropBox?: CropBox;
+  /** 연출용: 컷 끝 머무는 시간(ms). */
+  holdMs?: number;
   lines: DraftLine[];
 }
 
@@ -56,10 +71,16 @@ function scriptSignature(cuts: DraftCut[]): string {
     cuts.map((cut) => ({
       serverId: cut.serverId ?? null,
       imageUrl: cut.imageUrl ?? null,
+      imageWidth: cut.imageWidth ?? null,
+      imageHeight: cut.imageHeight ?? null,
+      cropBox: cut.cropBox ?? null,
+      holdMs: cut.holdMs ?? null,
       lines: cut.lines.map((l) => ({
         serverId: l.serverId ?? null,
         text: l.text,
         characterId: l.characterId ?? null,
+        anchorY: l.anchorY ?? null,
+        gapBeforeMs: l.gapBeforeMs ?? null,
       })),
     })),
   );
@@ -99,9 +120,20 @@ export function EpisodeEditPage() {
       id: uid(),
       serverId: cut.id,
       imageUrl: cut.imageUrl,
+      imageWidth: cut.imageWidth ?? undefined,
+      imageHeight: cut.imageHeight ?? undefined,
+      cropBox: cut.cropBox ?? undefined,
+      holdMs: cut.holdMs ?? undefined,
       lines: [...cut.lines]
         .sort((a, b) => a.position - b.position)
-        .map((line) => ({ id: uid(), serverId: line.id, text: line.script, characterId: line.characterId })),
+        .map((line) => ({
+          id: uid(),
+          serverId: line.id,
+          text: line.script,
+          characterId: line.characterId,
+          anchorY: line.anchorY ?? undefined,
+          gapBeforeMs: line.gapBeforeMs ?? undefined,
+        })),
     }));
     setCuts(draft);
     setBaseline(scriptSignature(draft));
@@ -238,12 +270,18 @@ export function EpisodeEditPage() {
       cutItems: cuts.map((cut, ci) => ({
         id: cut.serverId,
         imageUrl: cut.imageUrl as string,
+        imageWidth: cut.imageWidth,
+        imageHeight: cut.imageHeight,
+        cropBox: cut.cropBox,
+        holdMs: cut.holdMs,
         position: ci + 1,
         lineItems: cut.lines.map((line, li) => ({
           id: line.serverId,
           characterId: line.characterId as number,
           script: line.text.trim(),
           position: li + 1,
+          anchorY: line.anchorY,
+          gapBeforeMs: line.gapBeforeMs,
         })),
       })),
     };
@@ -337,7 +375,26 @@ export function EpisodeEditPage() {
                 }
               >
                 <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'flex-start' }}>
-                  <ThumbnailUpload value={cut.imageUrl} onChange={(url) => updateCut(cut.id, { imageUrl: url })} />
+                  <CropImageField
+                    value={
+                      cut.imageUrl
+                        ? {
+                            imageUrl: cut.imageUrl,
+                            imageWidth: cut.imageWidth,
+                            imageHeight: cut.imageHeight,
+                            cropBox: cut.cropBox,
+                          }
+                        : null
+                    }
+                    onChange={(v) =>
+                      updateCut(cut.id, {
+                        imageUrl: v.imageUrl,
+                        imageWidth: v.imageWidth,
+                        imageHeight: v.imageHeight,
+                        cropBox: v.cropBox,
+                      })
+                    }
+                  />
 
                   <div style={{ flex: '1 1 320px', minWidth: 280 }}>
                     <Space direction="vertical" size="small" style={{ width: '100%' }}>
@@ -433,6 +490,7 @@ export function EpisodeEditPage() {
           </Form.Item>
         </Form>
       </Modal>
+
     </div>
   );
 }

@@ -68,18 +68,31 @@ export async function fetchEpisodes(
   return response.data;
 }
 
-/** 상세 조회 응답의 대사. */
+/** 상세 조회 응답의 대사. anchorY=컷 내 세로 위치(0~1), gapBeforeMs=앞 간격(연출용). */
 export interface EpisodeLine {
   id: number;
   characterId: number;
   script: string;
   position: number;
+  anchorY: number | null;
+  gapBeforeMs: number | null;
 }
-/** 상세 조회 응답의 컷(+대사). */
+/** 표시용 정규화 크롭 박스(0~1). 원본에서 16:10 등으로 보여줄 영역. */
+export interface CropBox {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+/** 상세 조회 응답의 컷(+대사). imageUrl=원본, cropBox=표시 영역. */
 export interface EpisodeCut {
   id: number;
   position: number;
   imageUrl: string;
+  imageWidth: number | null;
+  imageHeight: number | null;
+  cropBox: CropBox | null;
+  holdMs: number | null;
   lines: EpisodeLine[];
 }
 /** 회차 상세(기본 정보 + 컷/대사). */
@@ -126,10 +139,16 @@ export interface UploadScriptLineItem {
   characterId: number;
   script: string;
   position: number;
+  anchorY?: number;
+  gapBeforeMs?: number;
 }
 export interface UploadScriptCutItem {
   id?: number;
   imageUrl: string;
+  imageWidth?: number;
+  imageHeight?: number;
+  cropBox?: CropBox;
+  holdMs?: number;
   position: number;
   lineItems: UploadScriptLineItem[];
 }

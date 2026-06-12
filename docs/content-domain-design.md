@@ -363,3 +363,94 @@ PUBLISHED ⇄  ARCHIVED         (수동 양방향)
 
 ### FE (back-office 콘텐츠 상세)
 - "상태 & 발행" 카드: 현재 상태 + **허용 수동 전이 버튼** + **발행 예정 날짜(DatePicker)**. 날짜 설정/해제로 SCHEDULED 자동 전이를 트리거.
+
+## 15. 영상화 / 연출 (Composition & Render) 설계 (2026-06-12)
+
+웹툰식 **연속 세로 스크롤 영상**을 만들기 위한 설계. 핵심은 **3계층 분리**다.
+
+| 계층 | 의미 | 소유 | 비고 |
+|---|---|---|---|
+| **소스(Source)** | 컷/대사/녹음 — 진실 공급원 | Episode·Cut·Line·Recording | 이미 존재 |
+| **연출(Direction)** | 표현 방법(위치·페이싱·전환) | 소스 엔티티의 연출 필드(+필요 시 Composition) | anchorY 등 |
+| **산출물(Render)** | 실제 mp4 | Render 잡(별도 AR) | 인코딩 서비스가 생성 |
+
+원칙: **컷/회차 길이는 저장하지 않고 녹음 `durationMs`에서 유도**한다. 저장하는 건 사람이 정하는 연출값과 영상 산출물뿐.
+
+### 15.1 이미 확정된 것 (1~3단계)
+- **Cut.imageUrl = 원본**, **Cut.imageWidth/imageHeight**(연속 캔버스용), **Cut.cropBox**(표시용 16:10 = focal, 저장 모델 B). 16:10 별도 파일 미저장 — 표시는 원본+박스 CSS 유도.
+- **Line.anchorY**(0~1, nullable): 그 대사가 "발화되는 지점"의 컷 내 세로 위치. back-office에서 마커 드래그로 저작, 미지정이면 균등 분배 폴백.
+- **채택**: `LineTake`(§13.3, (line × creator) → recording). 렌더 오디오·길이는 채택 take 기준.
+
+### 15.2 연속 스크롤 모델 (anchorY 소비)
+컷 원본을 **실제 높이(imageHeight)** 비율로 세로로 이어 붙인 하나의 캔버스를 스크롤한다.
+
+- 렌더 폭 `W`로 정규화 → 컷 i의 렌더 높이 `Hi = W * imageHeight_i / imageWidth_i`, 캔버스 상단 오프셋 `top_i = Σ_{j<i} Hj`, 총 높이 `Htotal = Σ Hi`.
+- 라인 L(컷 i)의 **앵커 픽셀** = `top_i + anchorY_L * Hi`.
+- **타임라인**: 라인을 순서대로 이어 붙임. 라인 길이 = 채택 take `durationMs`(+ 앞 `gapBeforeMs`), 컷 끝에 `holdMs`. → 각 라인 시작 시각 `s_L`.
+- **스크롤 키프레임**: 시각 `s_L`에 `scrollCenter = anchorPixel_L` (뷰포트 중앙에 앵커가 오게 `scrollY = anchorPixel_L - viewportH/2`).
+- 키프레임 사이는 **이징 보간** → 라인에 머무는 동안 천천히/정지, 다음 앵커로 스르륵. `scrollY`는 `[0, Htotal - viewportH]`로 클램프.
+
+> 현재 maker `ScrollPreview`는 "컷 통째 hold → 다음 컷"의 단순화 버전. 이 모델로 올리면 **대사 단위(anchorY) 스크롤**이 된다. 길이는 지금도 `durationMs`에서 유도 중이라 그대로 재사용.
+
+### 15.3 연출 필드 — 어디에 둘까 (MVP: 엔티티에 직접)
+LineLayout 같은 별도 레이어 없이, `position`/`anchorY`처럼 **소스 엔티티에 연출 필드를 직접** 둔다(YAGNI). 멀티 연출 버전이 실제로 필요해지면 그때 Composition 스냅샷으로 추출.
+
+- **Line**: `anchorY`(완료), `gapBeforeMs`(앞 간격/겹침, 페이싱) — 추가 예정.
+- **Cut**: `holdMs`(마지막 대사 뒤 머무는 시간) — 추가 예정. (전환 효과 `transition`은 슬라이드 모드용이라 연속 스크롤 MVP엔 불필요.)
+- **에피소드 전역 렌더 설정**(폭/fps/scrollMode/easing/viewport)은 **장기 저장보다 Render 요청 파라미터**로 보는 게 깔끔 → Render 잡 스냅샷에 포함.
+
+### 15.4 Render 도메인 (신설 AR) — 산출물
+영상 mp4를 굽는 무거운 작업. core-api는 **잡과 결과만** 들고, 실제 렌더는 **별도 인코딩 서비스**가 한다(메모리의 *알림·인코딩 분리 로드맵*과 정합).
+
+```
+Render (AR)
+  id
+  episodeId
+  status            // QUEUED → RENDERING → DONE / FAILED
+  params (json)     // { width, fps, scrollMode, easing, viewportRatio } 요청 스냅샷
+  source (json)     // 채택/타임라인 스냅샷(렌더 재현용): line별 recordingId·durationMs·anchorY·gap, cut별 hold
+  outputUrl?        // 완료 시 mp4 (S3)
+  durationMs?       // 산출 영상 길이
+  error?            // 실패 사유
+```
+
+- `source` 스냅샷을 박아두는 이유: 렌더 시점의 채택/대본을 **불변 캡처** → 이후 소스가 바뀌어도 그 영상은 재현 가능, 인코딩 서비스가 core-api를 역참조하지 않아도 됨.
+
+### 15.5 EDA 흐름 (렌더)
+```
+[back-office 연출자] 렌더 요청
+  → core-api: Render(QUEUED) 저장 + RenderRequested(source 스냅샷) outbox
+  → Kafka → [인코딩 서비스] 소비: ffmpeg/Remotion 으로 캔버스 스크롤 + 오디오 합성 → S3 업로드
+  → RenderCompleted{ renderId, outputUrl, durationMs } (or RenderFailed{ reason })
+  → core-api 소비: Render(DONE/FAILED) 갱신
+```
+- 오디오 합성 = **채택 take 오디오를 순서대로 concat** + 라인 `gapBeforeMs` 무음 + 컷 `holdMs` 무음. 총 길이 = 스크롤 타임라인 길이(일치 보장).
+- core-api는 진실 공급원, 인코딩 서비스는 소비자(역방향 호출 없음).
+
+### 15.6 화면 분리 — 녹음 ↔ 연출
+역할·시점·도메인 계층이 달라 **분리**한다(공통 ScrollPreview만 공유).
+
+| 작업 | 앱 | 행위자 | 내용 |
+|---|---|---|---|
+| **녹음** | vooth-maker | 성우 | 컷/대사별 take 녹음·제출. ScrollPreview는 **읽기전용**(내 take가 어떻게 얹히나) |
+| **연출** | voot-back-office | 연출자/관리자 | 채택(LineTake) + anchorY/gap/hold + 전역 렌더 설정 + **편집형 ScrollPreview** + 렌더 요청 |
+
+### 15.7 저장 vs 유도 경계
+| 항목 | 처리 |
+|---|---|
+| 컷/회차 **길이** | 저장 X — 채택 take `durationMs`에서 유도 |
+| 컷 원본 **크기(w/h)**, **cropBox** | 저장(Cut) |
+| 라인 **anchorY**, **gapBeforeMs** | 저장(Line) |
+| 컷 **holdMs** | 저장(Cut) |
+| **채택**(line×creator→recording) | 저장(LineTake) |
+| 전역 렌더 설정(폭/fps/scrollMode) | Render 잡 파라미터(요청 스냅샷) |
+| **mp4 산출물** | 저장(Render.outputUrl, 인코딩 서비스 생성) |
+
+### 15.8 MVP vs 추후
+- **MVP**: Line.`gapBeforeMs` + Cut.`holdMs` 추가 → maker/연출 **ScrollPreview를 anchorY 기반 연속 스크롤로 업그레이드**(클라 미리보기, mp4 없음). 실제 영상감을 먼저 확정.
+- **추후**: Render AR + 인코딩 서비스(ffmpeg/Remotion) + 연출 페이지(채택·전역설정·렌더 요청). 슬라이드/전환 모드, 가로형 영상(=cropBox 재사용)도 이 단계.
+
+### 15.9 미해결/결정 필요
+- `viewportH`(미리보기/렌더 세로 가시 영역) 기준값 — 렌더 폭 대비 비율로 둘지(예 16:10), 별도 설정할지.
+- 키프레임 이징 종류(선형/smoothstep)와 컷 진입 시 "스크롤 vs 컷전환" 기본 모드.
+- 채택이 안 된 라인의 렌더 처리(placeholder 무음 + 균등 길이 vs 렌더 차단).

@@ -7,7 +7,12 @@
  */
 
 import type { EpisodeListItem } from '../api/episodes.api'
+import { defaultCropBox } from '../lib/cropBox'
 import { RecordingStatus, type Cut, type Line, type Recording, type RecordingEpisode } from '../types/recording-domain'
+
+/** mock 컷 원본 크기(세로형 — cropBox 로 16:10 을 잘라내는 걸 보여주기 위함). */
+const CUT_W = 720
+const CUT_H = 1080
 
 /** characterId → 이름 (실제로는 character 조회로 채워진다). */
 export const MOCK_CHARACTERS: Record<number, string> = {
@@ -39,7 +44,13 @@ const SEED_CREATORS = [
 ]
 
 function cutPlaceholder(index: number): string {
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="640" height="360" viewBox="0 0 640 360"><rect width="640" height="360" fill="#e2e8f0"/><rect x="1" y="1" width="638" height="358" fill="none" stroke="#cbd5e1" stroke-width="2"/><text x="320" y="190" font-family="sans-serif" font-size="40" font-weight="700" fill="#94a3b8" text-anchor="middle">컷 ${index}</text></svg>`
+  // 세로형 패널 + 중앙에 16:10 영역 가이드(점선)를 그려, cropBox 가 그 영역을 잘라냄을 보여준다.
+  const box = defaultCropBox(CUT_W, CUT_H)
+  const bx = Math.round(box.x * CUT_W)
+  const by = Math.round(box.y * CUT_H)
+  const bw = Math.round(box.w * CUT_W)
+  const bh = Math.round(box.h * CUT_H)
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${CUT_W}" height="${CUT_H}" viewBox="0 0 ${CUT_W} ${CUT_H}"><rect width="${CUT_W}" height="${CUT_H}" fill="#e2e8f0"/><rect x="1" y="1" width="${CUT_W - 2}" height="${CUT_H - 2}" fill="none" stroke="#cbd5e1" stroke-width="2"/><rect x="${bx}" y="${by}" width="${bw}" height="${bh}" fill="#cbd5e1" opacity="0.5"/><rect x="${bx}" y="${by}" width="${bw}" height="${bh}" fill="none" stroke="#64748b" stroke-width="3" stroke-dasharray="10 8"/><text x="${CUT_W / 2}" y="${CUT_H / 2}" font-family="sans-serif" font-size="64" font-weight="800" fill="#94a3b8" text-anchor="middle">컷 ${index}</text></svg>`
   return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`
 }
 
@@ -113,6 +124,9 @@ export function buildRecordingEpisode(item: EpisodeListItem, contentTitle: strin
       episodeId: item.id,
       position: (ci + 1) * 10,
       imageUrl: cutPlaceholder(ci + 1),
+      imageWidth: CUT_W,
+      imageHeight: CUT_H,
+      cropBox: defaultCropBox(CUT_W, CUT_H),
       lines
     }
   })

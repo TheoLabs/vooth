@@ -123,7 +123,18 @@ export class AdminEpisodeService extends DddService {
       id?: number;
       position: number;
       imageUrl: string;
-      lineItems: { id?: number; characterId: number; script: string; position: number }[];
+      imageWidth?: number;
+      imageHeight?: number;
+      cropBox?: { x: number; y: number; w: number; h: number };
+      holdMs?: number;
+      lineItems: {
+        id?: number;
+        characterId: number;
+        script: string;
+        position: number;
+        anchorY?: number;
+        gapBeforeMs?: number;
+      }[];
     }[];
   }) {
     const [episode] = await this.episodeRepository.find({ id, contentId }, { relations: { cuts: { lines: true } } });

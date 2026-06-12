@@ -15,6 +15,12 @@ export class LineResponseDto {
 
   @Expose()
   position: number;
+
+  @Expose()
+  anchorY: number | null;
+
+  @Expose()
+  gapBeforeMs: number | null;
 }
 
 @Exclude()
@@ -27,6 +33,18 @@ export class CutResponseDto {
 
   @Expose()
   imageUrl: string;
+
+  @Expose()
+  imageWidth: number | null;
+
+  @Expose()
+  imageHeight: number | null;
+
+  @Expose()
+  cropBox: { x: number; y: number; w: number; h: number } | null;
+
+  @Expose()
+  holdMs: number | null;
 
   @Expose()
   @Type(() => LineResponseDto)

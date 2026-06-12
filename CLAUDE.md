@@ -1,12 +1,15 @@
 # CLAUDE.md
 
-pnpm + Turborepo 모노레포. `apps/` 에 3개 애플리케이션, 공유 코드는 `packages/`.
+pnpm + Turborepo 모노레포. `apps/` 에 4개 애플리케이션, 공유 코드는 `packages/`.
 
 | 앱 | 스택 | 비고 |
 |----|------|------|
 | `apps/core-api` | NestJS 11 | 백엔드 API |
-| `apps/vooth-maker` | React 19 + TS + Vite + Electron | 사내 보이스툰 제작 데스크톱 앱 |
-| `apps/voot-back-office` | React 19 + TS + Vite | 사내 백오피스 웹 |
+| `apps/vooth-maker` | React 19 + TS + Vite + Electron | 성우 **녹음** 데스크톱 앱 |
+| `apps/vooth-tool` | React 19 + TS + Vite + Electron | **연출·제작** 데스크톱 앱(anchorY/gap/hold 연출, 채택, 연속 스크롤 미리보기, 렌더) |
+| `apps/voot-back-office` | React 19 + TS + Vite | 사내 백오피스 웹(콘텐츠·컷/대사 **등록**·관리). 연출 UI는 두지 않음 |
+
+> 화면 경계: back-office=등록/관리, vooth-tool=연출/제작, vooth-maker=녹음. 데이터 모델(anchorY/gap/hold/cropBox)은 core-api에 둔다. 상세는 `docs/content-domain-design.md` §15.
 
 ## 작업 권한 규칙 (중요)
 
@@ -15,7 +18,7 @@ pnpm + Turborepo 모노레포. `apps/` 에 3개 애플리케이션, 공유 코�
   - 이 디렉토리의 코드를 작성/수정하기 전에는 **반드시 사용자에게 먼저 허락을 받는다.**
   - 질문 답변, 코드 설명, 리뷰, 분석은 허락 없이 해도 되지만, **파일 편집은 명시적 승인 없이 하지 않는다.**
 
-- **`apps/vooth-maker`, `apps/voot-back-office` (프론트엔드) — 자율 진행.**
+- **`apps/vooth-maker`, `apps/vooth-tool`, `apps/voot-back-office` (프론트엔드) — 자율 진행.**
   - 구현 방향과 세부 사항은 Claude가 스스로 판단해서 진행한다.
   - 매번 허락을 받을 필요 없이 작업하되, 큰 구조 변경이나 의존성 추가는 결과를 명확히 보고한다.
 
@@ -46,10 +49,11 @@ pnpm + Turborepo 모노레포. `apps/` 에 3개 애플리케이션, 공유 코�
 
 ## 작업 방식 규칙
 
-- **`apps/vooth-maker` 와 `apps/voot-back-office` 는 항상 서로 다른 에이전트로 작업한다.**
-  - 두 앱과 관련된 작업이 함께 들어오면, 각 앱마다 별도의 서브에이전트를 띄워 **병렬로** 진행한다 (한 에이전트가 두 앱을 같이 건드리지 않는다).
-  - 각 에이전트는 자기 앱 디렉토리 밖(특히 다른 프론트 앱, core-api)을 수정하지 않는다.
+- **프론트 앱(`apps/vooth-maker`, `apps/vooth-tool`, `apps/voot-back-office`)은 항상 서로 다른 에이전트로 작업한다.**
+  - 여러 앱과 관련된 작업이 함께 들어오면, 각 앱마다 별도의 서브에이전트를 띄워 **병렬로** 진행한다 (한 에이전트가 둘 이상을 같이 건드리지 않는다).
+  - 각 에이전트는 자기 앱 디렉토리 밖(다른 프론트 앱, core-api)을 수정하지 않는다.
   - 한쪽 앱만 작업하는 경우에는 해당 앱 에이전트 하나만 띄우면 된다.
+  - 단, `packages/` 공유 코드 추출처럼 본질적으로 여러 앱에 걸치는 작업은 예외로 한 에이전트가 진행할 수 있다.
 
 ## 명령어
 

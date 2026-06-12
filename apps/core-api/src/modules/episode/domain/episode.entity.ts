@@ -1,7 +1,7 @@
 import { DddAggregate } from '@libs/ddd';
 import { Column, Entity, Index, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
 import { canTransitionEpisode, EpisodeStatus } from '@vooth/shared';
-import { Cut } from './cut.entity';
+import { Cut, type CropBox } from './cut.entity';
 import { Line } from './line.entity';
 import { BadRequestException } from '@nestjs/common';
 
@@ -89,7 +89,18 @@ export class Episode extends DddAggregate {
       id?: number;
       position: number;
       imageUrl: string;
-      lineItems: { id?: number; characterId: number; position: number; script: string }[];
+      imageWidth?: number;
+      imageHeight?: number;
+      cropBox?: CropBox;
+      holdMs?: number;
+      lineItems: {
+        id?: number;
+        characterId: number;
+        position: number;
+        script: string;
+        anchorY?: number;
+        gapBeforeMs?: number;
+      }[];
     }[];
   }) {
     // if (this.status !== EpisodeStatus.DRAFT) {
@@ -106,10 +117,27 @@ export class Episode extends DddAggregate {
     this.cuts = cutItems.map((cutItem) => {
       const existingCut = cutItem.id != null ? existingCuts.find((c) => c.id === cutItem.id) : undefined;
 
-      const cut = existingCut ?? Cut.of({ episodeId: this.id, position: cutItem.position, imageUrl: cutItem.imageUrl });
+      const cut =
+        existingCut ??
+        Cut.of({
+          episodeId: this.id,
+          position: cutItem.position,
+          imageUrl: cutItem.imageUrl,
+          imageWidth: cutItem.imageWidth,
+          imageHeight: cutItem.imageHeight,
+          cropBox: cutItem.cropBox,
+          holdMs: cutItem.holdMs,
+        });
 
       if (existingCut) {
-        existingCut.update({ position: cutItem.position, imageUrl: cutItem.imageUrl });
+        existingCut.update({
+          position: cutItem.position,
+          imageUrl: cutItem.imageUrl,
+          imageWidth: cutItem.imageWidth,
+          imageHeight: cutItem.imageHeight,
+          cropBox: cutItem.cropBox,
+          holdMs: cutItem.holdMs,
+        });
       }
 
       const existingLines = existingCut?.lines ?? [];
@@ -122,6 +150,8 @@ export class Episode extends DddAggregate {
             characterId: lineItem.characterId,
             position: lineItem.position,
             script: lineItem.script,
+            anchorY: lineItem.anchorY,
+            gapBeforeMs: lineItem.gapBeforeMs,
           });
           return existingLine;
         }
@@ -131,6 +161,8 @@ export class Episode extends DddAggregate {
           characterId: lineItem.characterId,
           position: lineItem.position,
           script: lineItem.script,
+          anchorY: lineItem.anchorY,
+          gapBeforeMs: lineItem.gapBeforeMs,
         });
       });
 

@@ -13,6 +13,7 @@ import {
   type Recording
 } from '../types/recording-domain'
 import { deriveCutDuration } from '../lib/recording-timeline'
+import { CropFrame } from '../components/CropFrame'
 import { ScrollPreview } from '../features/preview/ScrollPreview'
 import { formatMs } from '../lib/timeline'
 import './RecordingPage.css'
@@ -282,7 +283,8 @@ function CutSection({
   return (
     <section className="rp-cut">
       <div className="rp-cut__image-wrap">
-        <img className="rp-cut__image" src={cut.imageUrl} alt={`컷 ${index}`} />
+        {/* 컷 표시 프레임: 원본 + cropBox 로 16:10 유도(저장 모델 B). */}
+        <CropFrame src={cut.imageUrl} cropBox={cut.cropBox} alt={`컷 ${index}`} />
         <span className="rp-cut__order">컷 {index}</span>
         <span className="rp-cut__dur" title="대사별 대표 take 의 길이 합으로 계산">
           {formatMs(ms)}
