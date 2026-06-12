@@ -5,6 +5,7 @@ import {
   App,
   Button,
   ColorPicker,
+  DatePicker,
   Descriptions,
   Divider,
   Drawer,
@@ -30,7 +31,9 @@ import { CONTENT_STATUS_META, type ContentListItem, type UpdateContentPayload } 
 import { useContent } from '../../features/contents/useContent';
 import { useUpdateContent } from '../../features/contents/useUpdateContent';
 import { useTags } from '../../features/tags/useTags';
-import { CharacterType } from '@vooth/shared';
+import dayjs from 'dayjs';
+import { CharacterType, ContentStatus } from '@vooth/shared';
+import { useUpdateContentStatus } from '../../features/contents/useUpdateContentStatus';
 import { CHARACTER_TYPE_META, type CharacterListItem } from '../../api/characters.api';
 import type { CastingListItem } from '../../api/castings.api';
 import { useCharacters } from '../../features/characters/useCharacters';
@@ -50,6 +53,17 @@ import { TAG_COLOR_ANTD } from '../../features/content/contentTypes';
 const CHARACTER_COLORS = ['#6366f1', '#ec4899', '#0ea5e9', '#f59e0b', '#14b8a6', '#a855f7'];
 
 const EPISODE_PAGE_SIZE = 10;
+
+/** 콘텐츠 상태의 수동 전이 버튼(자동 전이 SCHEDULED/PUBLISHED 는 날짜/스케줄러가 처리하므로 제외). */
+const MANUAL_CONTENT_TRANSITIONS: Partial<
+  Record<ContentStatus, { to: ContentStatus; label: string; danger?: boolean }[]>
+> = {
+  [ContentStatus.PENDING]: [{ to: ContentStatus.RECORDING, label: '녹음 대기로' }],
+  [ContentStatus.RECORDING]: [{ to: ContentStatus.PENDING, label: '편집중으로' }],
+  [ContentStatus.SCHEDULED]: [{ to: ContentStatus.RECORDING, label: '예약 취소', danger: true }],
+  [ContentStatus.PUBLISHED]: [{ to: ContentStatus.ARCHIVED, label: '아카이브로', danger: true }],
+  [ContentStatus.ARCHIVED]: [{ to: ContentStatus.PUBLISHED, label: '발행으로' }],
+};
 
 // CharacterType 은 숫자 enum 이라 Object.keys 는 문자열 키를 주므로, 숫자 값만 추린다.
 const CHARACTER_TYPE_OPTIONS = (Object.values(CharacterType).filter((v): v is CharacterType => typeof v === 'number')).map(
@@ -110,6 +124,29 @@ export function ContentDetailPage() {
 
   // 기본 정보 수정
   const updateMutation = useUpdateContent();
+
+  // 상태 전이 / 발행 예약
+  const statusMutation = useUpdateContentStatus();
+  const transitionStatus = (to: ContentStatus) => {
+    if (!content) return;
+    statusMutation.mutate(
+      { id: content.id, status: to },
+      {
+        onSuccess: () => message.success(`상태가 "${CONTENT_STATUS_META[to].label}"(으)로 변경되었습니다.`),
+        onError: (err) => message.error(err.message),
+      },
+    );
+  };
+  const setSchedule = (iso: string | null) => {
+    if (!content) return;
+    updateMutation.mutate(
+      { id: content.id, payload: { scheduledPublishAt: iso } },
+      {
+        onSuccess: () => message.success(iso ? '발행 예정일이 설정되었습니다.' : '예약이 해제되었습니다.'),
+        onError: (err) => message.error(err.message),
+      },
+    );
+  };
   const [editOpen, setEditOpen] = useState(false);
   // 태그 선택지는 수정 모달을 열 때만 조회한다.
   const { data: tagsData } = useTags({ page: 1, limit: 100 }, { enabled: editOpen });
@@ -397,9 +434,8 @@ export function ContentDetailPage() {
         return meta ? <Tag color={meta.color}>{meta.label}</Tag> : <Tag>{s}</Tag>;
       },
     },
-    // 컷/대사 수는 아직 API 미제공 → 플레이스홀더(추후 maker 연동).
-    { title: '컷', key: 'cutCount', width: 70, align: 'center', render: () => '—' },
-    { title: '대사', key: 'lineCount', width: 70, align: 'center', render: () => '—' },
+    { title: '컷', dataIndex: 'cutCount', key: 'cutCount', width: 70, align: 'center' },
+    { title: '대사', dataIndex: 'lineCount', key: 'lineCount', width: 70, align: 'center' },
   ];
 
   return (
@@ -413,9 +449,9 @@ export function ContentDetailPage() {
       )}
       {isLoading && !content && <Spin />}
 
-      {/* 기본 정보(좌) + 등장인물·캐스팅(우) flex 배치 */}
-      <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'flex-start' }}>
-        <SectionCard title="기본 정보" onEdit={openEdit} editDisabled={!content} style={{ flex: '2 1 440px' }}>
+      {/* 기본 정보(좌) + [등장인물·캐스팅 + 상태·발행](우). 고정 높이 박스. */}
+      <div style={{ display: 'flex', gap: 16, alignItems: 'stretch', height: 400 }}>
+        <SectionCard title="기본 정보" onEdit={openEdit} editDisabled={!content} fillHeight style={{ flex: '2 1 440px' }}>
           {/* 썸네일 묶음 + 정보 묶음을 카드 안에서 flex */}
           <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'stretch' }}>
             <Image
@@ -457,20 +493,22 @@ export function ContentDetailPage() {
           </div>
         </SectionCard>
 
-        <SectionCard
-          title="등장인물 & 캐스팅"
-          extra={
-            <Space>
-              <Button size="small" onClick={() => setCharDrawerOpen(true)}>
-                전체 보기
-              </Button>
-              <Button size="small" type="primary" onClick={() => setCharOpen(true)}>
-                캐릭터 추가
-              </Button>
-            </Space>
-          }
-          style={{ flex: '1 1 300px' }}
-        >
+        <div style={{ flex: '1 1 300px', display: 'flex', flexDirection: 'column', gap: 16, minHeight: 0 }}>
+          <SectionCard
+            title="등장인물 & 캐스팅"
+            extra={
+              <Space>
+                <Button size="small" onClick={() => setCharDrawerOpen(true)}>
+                  전체 보기
+                </Button>
+                <Button size="small" type="primary" onClick={() => setCharOpen(true)}>
+                  캐릭터 추가
+                </Button>
+              </Space>
+            }
+            fillHeight
+            style={{ flex: '1 1 auto', minHeight: 0 }}
+          >
           <Space direction="vertical" size="small" style={{ width: '100%' }}>
             <Typography.Text type="secondary">총 {characters.length}명</Typography.Text>
             {characters.length === 0 && (
@@ -493,7 +531,47 @@ export function ContentDetailPage() {
               </Button>
             )}
           </Space>
-        </SectionCard>
+          </SectionCard>
+
+          {content && (
+            <SectionCard title="상태 & 발행" style={{ flex: '0 0 auto' }}>
+          <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+            <Space align="center" wrap>
+              <Typography.Text type="secondary">현재 상태</Typography.Text>
+              <Tag color={CONTENT_STATUS_META[content.status].color}>
+                {CONTENT_STATUS_META[content.status].label}
+              </Tag>
+              {(MANUAL_CONTENT_TRANSITIONS[content.status] ?? []).map((t) => (
+                <Button
+                  key={t.to}
+                  size="small"
+                  danger={t.danger}
+                  loading={statusMutation.isPending}
+                  onClick={() => transitionStatus(t.to)}
+                >
+                  {t.label}
+                </Button>
+              ))}
+            </Space>
+
+            {(content.status === ContentStatus.RECORDING || content.status === ContentStatus.SCHEDULED) && (
+              <Space align="center" wrap>
+                <Typography.Text type="secondary">발행 예정 날짜</Typography.Text>
+                <DatePicker
+                  showTime
+                  value={content.scheduledPublishAt ? dayjs(content.scheduledPublishAt) : null}
+                  onChange={(d) => setSchedule(d ? d.toISOString() : null)}
+                  placeholder="발행 예정 일시"
+                />
+                <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                  날짜를 채우면 "발행 예정"으로 자동 전환되고, 예정일에 자동 발행됩니다.
+                </Typography.Text>
+              </Space>
+            )}
+          </Space>
+            </SectionCard>
+          )}
+        </div>
       </div>
 
       <Divider style={{ margin: '20px 0 12px' }} />

@@ -61,7 +61,8 @@
 .wt-card__thumb {
   width: 100%;
   aspect-ratio: 16 / 10;
-  object-fit: cover;
+  object-fit: contain;
+  background: #f1f5f9;
   display: block;
 }
 
@@ -104,4 +105,76 @@
 
 .wt-card__pending--clear {
   color: #15803d;
+}
+
+/* 검색창 */
+.wt-list__search {
+  width: 100%;
+  max-width: 360px;
+  padding: 9px 12px;
+  margin-bottom: 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 14px;
+  color: #0f172a;
+  background: #fff;
+  outline: none;
+}
+.wt-list__search:focus {
+  border-color: #c7d2fe;
+}
+
+/* 참여 성우 */
+.wt-card__cast {
+  margin-top: 4px;
+  font-size: 12px;
+  color: #64748b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 빈 결과 */
+.wt-list__empty {
+  color: #64748b;
+  font-size: 14px;
+  padding: 24px 0;
+}
+
+/* 상태/태그 칩 */
+.wt-card__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 8px;
+}
+.wt-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 8px;
+  border: 1px solid;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.6;
+  white-space: nowrap;
+}
+
+/* 썸네일 위 상태 오버레이(좌상단) */
+.wt-card__thumb-wrap {
+  position: relative;
+  display: block;
+}
+.wt-card__status {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+  line-height: 1.6;
+  white-space: nowrap;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
 }

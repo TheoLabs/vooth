@@ -29,6 +29,12 @@ export class Episode extends DddAggregate {
   @Column({ type: 'smallint' })
   status: EpisodeStatus;
 
+  @Column()
+  cutCount: number;
+
+  @Column()
+  lineCount: number;
+
   // 스크립트 재업로드 시 교체된(빠진) 컷은 삭제한다(고아 제거). 하위 라인은 Cut.lines 가 정리.
   @OneToMany(() => Cut, (cut) => cut.episode, { cascade: true, orphanedRowAction: 'delete' })
   cuts: Cut[];
@@ -41,6 +47,8 @@ export class Episode extends DddAggregate {
       this.title = args.title;
       this.status = EpisodeStatus.DRAFT;
       this.chapter = args.chapter;
+      this.cutCount = 0;
+      this.lineCount = 0;
       this.cuts = [];
     }
   }
@@ -84,11 +92,11 @@ export class Episode extends DddAggregate {
       lineItems: { id?: number; characterId: number; position: number; script: string }[];
     }[];
   }) {
-    if (this.status !== EpisodeStatus.DRAFT) {
-      throw new BadRequestException('편집 중인 상태에서만 수정이 가능합니다.', {
-        cause: '편집 중인 상태에서만 수정이 가능합니다.',
-      });
-    }
+    // if (this.status !== EpisodeStatus.DRAFT) {
+    //   throw new BadRequestException('편집 중인 상태에서만 수정이 가능합니다.', {
+    //     cause: '편집 중인 상태에서만 수정이 가능합니다.',
+    //   });
+    // }
 
     // id 로 기존 컷/대사를 매칭해 upsert 한다.
     // - id 있고 매칭 → update(변경분만, id 유지), id 없거나 미매칭 → 신규 insert.
@@ -98,9 +106,7 @@ export class Episode extends DddAggregate {
     this.cuts = cutItems.map((cutItem) => {
       const existingCut = cutItem.id != null ? existingCuts.find((c) => c.id === cutItem.id) : undefined;
 
-      const cut =
-        existingCut ??
-        Cut.of({ episodeId: this.id, position: cutItem.position, imageUrl: cutItem.imageUrl });
+      const cut = existingCut ?? Cut.of({ episodeId: this.id, position: cutItem.position, imageUrl: cutItem.imageUrl });
 
       if (existingCut) {
         existingCut.update({ position: cutItem.position, imageUrl: cutItem.imageUrl });
@@ -129,7 +135,11 @@ export class Episode extends DddAggregate {
       });
 
       cut.setLines(lines);
+
       return cut;
     });
+
+    this.cutCount = this.cuts.length;
+    this.lineCount = this.cuts.reduce((acc, cut) => acc + cut.lines.length, 0);
   }
 }

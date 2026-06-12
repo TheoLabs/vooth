@@ -3,7 +3,8 @@ import { LoginPage } from './features/auth/LoginPage'
 import { AppLayout } from './layouts/AppLayout'
 import { WorkListPage } from './pages/WorkListPage'
 import { WebtoonListPage } from './pages/WebtoonListPage'
-import { EpisodeListPage } from './pages/EpisodeListPage'
+import { ContentDetailPage } from './pages/ContentDetailPage'
+import { RecordingPage } from './pages/RecordingPage'
 import { EpisodeViewerPage } from './pages/EpisodeViewerPage'
 import { ReviewLayout } from './features/review/ReviewContext'
 import { ReviewWebtoonsPage } from './pages/ReviewWebtoonsPage'
@@ -21,7 +22,8 @@ function App(): React.JSX.Element {
           <Route element={<AppLayout />}>
             <Route index element={<WorkListPage />} />
             <Route path="webtoons" element={<WebtoonListPage />} />
-            <Route path="webtoons/:id" element={<EpisodeListPage />} />
+            <Route path="webtoons/:id" element={<ContentDetailPage />} />
+            <Route path="recording/:id" element={<RecordingPage />} />
             <Route path="review" element={<ReviewLayout />}>
               <Route index element={<ReviewWebtoonsPage />} />
               <Route path="webtoons/:id" element={<ReviewEpisodesPage />} />

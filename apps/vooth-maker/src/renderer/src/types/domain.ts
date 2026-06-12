@@ -46,12 +46,18 @@ export interface Cut {
 }
 
 /** 작품(웹툰) — 콘텐츠 카탈로그 단위. 회차(Episode)들을 가진다. */
+export type ContentStatus = 'DRAFT' | 'PUBLISHED' | 'ARCHIVED'
+
 export interface Webtoon {
   id: string
   title: string
   description?: string
   /** 썸네일(CSP-safe data: URI). */
   thumbnailUrl: string
+  /** 게시 상태. 성우 앱은 PUBLISHED 만 노출한다. */
+  status: ContentStatus
+  /** 이 작품에 참여(캐스팅)한 성우 이름들. */
+  voiceActors: string[]
 }
 
 /** 작품의 회차 1개 */

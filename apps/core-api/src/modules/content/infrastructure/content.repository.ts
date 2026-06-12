@@ -3,10 +3,19 @@ import { Injectable } from '@nestjs/common';
 import { Content } from '../domain/content.entity';
 import { checkInValue, checkLikeValue, convertOptions, stripUndefined, TypeormRelationOptions } from '@libs/utils';
 import { ContentStatus } from '@vooth/shared';
+import { ContentSpec } from '../domain/specs';
 
 @Injectable()
 export class ContentRepository extends DddRepository<Content> {
   entityClass = Content;
+
+  async satifyElementFind(spec: ContentSpec, options: TypeormRelationOptions<Content>) {
+    return spec.satisfyElementFind(this, options);
+  }
+
+  async satifyElementCount(spec: ContentSpec) {
+    return spec.satisfyElementCount(this);
+  }
 
   async find(
     conditions: {

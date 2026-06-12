@@ -27,25 +27,33 @@ export const MOCK_WEBTOONS: Webtoon[] = [
     id: 'wt-moonlight',
     title: '달빛 기사단',
     description: '천 년의 봉인이 풀리며 시작되는 검과 정령의 판타지.',
-    thumbnailUrl: thumbnail('달빛 기사단', '#6366f1', '#8b5cf6')
+    thumbnailUrl: thumbnail('달빛 기사단', '#6366f1', '#8b5cf6'),
+    status: 'PUBLISHED',
+    voiceActors: ['김하늘', '박서준', '이도윤']
   },
   {
     id: 'wt-seoul2099',
     title: '서울 2099',
     description: '네온이 흐르는 미래 도시에서 펼쳐지는 추격극.',
-    thumbnailUrl: thumbnail('서울 2099', '#0ea5e9', '#22d3ee')
+    thumbnailUrl: thumbnail('서울 2099', '#0ea5e9', '#22d3ee'),
+    status: 'PUBLISHED',
+    voiceActors: ['최유나', '정해인']
   },
   {
     id: 'wt-starlight',
     title: '별빛 정거장',
-    description: '우주 정거장에서 벌어지는 잔잔한 드라마. (에피소드 준비중)',
-    thumbnailUrl: thumbnail('별빛 정거장', '#f59e0b', '#f97316')
+    description: '우주 정거장에서 벌어지는 잔잔한 드라마.',
+    thumbnailUrl: thumbnail('별빛 정거장', '#f59e0b', '#f97316'),
+    status: 'PUBLISHED',
+    voiceActors: ['한지민']
   },
   {
     id: 'wt-deepblue',
     title: '심해의 노래',
-    description: '깊은 바다 속 비밀을 쫓는 모험. (에피소드 준비중)',
-    thumbnailUrl: thumbnail('심해의 노래', '#0d9488', '#14b8a6')
+    description: '깊은 바다 속 비밀을 쫓는 모험. (게시 전)',
+    thumbnailUrl: thumbnail('심해의 노래', '#0d9488', '#14b8a6'),
+    status: 'DRAFT',
+    voiceActors: []
   }
 ]
 

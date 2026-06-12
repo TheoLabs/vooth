@@ -16,17 +16,20 @@ export interface ContentListItem {
   title: string;
   description: string;
   status: ContentStatus;
+  /** 발행 예정 일시(UTC ISO). 채워지면 SCHEDULED 자동 전이. */
+  scheduledPublishAt?: string | null;
   tags: ContentTag[];
   createdAt: string;
   updatedAt: string;
 }
 
-/** ContentStatus 표시 메타. */
+/** ContentStatus 표시 메타(lifecycle 라벨). */
 export const CONTENT_STATUS_META: Record<ContentStatus, { label: string; color: string }> = {
-  [ContentStatus.PENDING]: { label: '대기', color: 'default' },
-  [ContentStatus.SCHEDULED]: { label: '예약', color: 'blue' },
-  [ContentStatus.PUBLISHED]: { label: '게시', color: 'green' },
-  [ContentStatus.ARCHIVED]: { label: '보관', color: 'gold' },
+  [ContentStatus.PENDING]: { label: '편집중', color: 'default' },
+  [ContentStatus.RECORDING]: { label: '녹음 대기', color: 'blue' },
+  [ContentStatus.SCHEDULED]: { label: '발행 예정', color: 'gold' },
+  [ContentStatus.PUBLISHED]: { label: '발행', color: 'green' },
+  [ContentStatus.ARCHIVED]: { label: '아카이브', color: 'default' },
 };
 
 export interface FetchContentsParams {
@@ -77,9 +80,16 @@ export interface UpdateContentPayload {
   description?: string;
   thumbnailImageUrl?: string;
   tagIds?: number[];
+  /** 발행 예정 일시(ISO). null 로 보내면 예약 해제. 채우면 SCHEDULED 자동 전이. */
+  scheduledPublishAt?: string | null;
 }
 
 /** 콘텐츠 기본 정보 수정(PUT /admins/contents/:id). */
 export async function updateContent(id: number, payload: UpdateContentPayload): Promise<void> {
   await apiClient.put(`/admins/contents/${id}`, payload);
+}
+
+/** 콘텐츠 상태 변경(PUT /admins/contents/:id/status). 허용 전이만(canTransitionContent). */
+export async function updateContentStatus(id: number, nextStatus: ContentStatus): Promise<void> {
+  await apiClient.put(`/admins/contents/${id}/status`, { nextStatus });
 }

@@ -1,6 +1,7 @@
 import { Button, Image, Space, Upload, message } from 'antd';
 import { UploadOutlined } from '@ant-design/icons';
 import type { UploadProps } from 'antd';
+import ImgCrop from 'antd-img-crop';
 import { useFileUpload } from '../features/files/useFileUpload';
 
 interface ThumbnailUploadProps {
@@ -36,15 +37,18 @@ export function ThumbnailUpload({ value, onChange }: ThumbnailUploadProps) {
         <Image
           src={value}
           width={160}
-          height={96}
+          height={100}
           style={{ objectFit: 'cover', borderRadius: 8, background: '#f0f0f0' }}
         />
       )}
-      <Upload accept="image/*" maxCount={1} showUploadList={false} customRequest={customRequest}>
-        <Button icon={<UploadOutlined />} loading={upload.isPending}>
-          {value ? '이미지 변경' : '이미지 업로드'}
-        </Button>
-      </Upload>
+      {/* 선택한 이미지를 16:10 으로 크롭한 뒤 업로드한다. */}
+      <ImgCrop aspect={16 / 10} quality={0.9} modalTitle="썸네일 자르기 (16:10)" showGrid rotationSlider>
+        <Upload accept="image/*" maxCount={1} showUploadList={false} customRequest={customRequest}>
+          <Button icon={<UploadOutlined />} loading={upload.isPending}>
+            {value ? '이미지 변경' : '이미지 업로드'}
+          </Button>
+        </Upload>
+      </ImgCrop>
     </Space>
   );
 }

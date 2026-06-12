@@ -5,3 +5,4 @@ export * from './episode';
 export * from './recording';
 export * from './role';
 export * from './permission';
+export * from './type';

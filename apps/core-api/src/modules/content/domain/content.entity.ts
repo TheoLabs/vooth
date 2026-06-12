@@ -1,8 +1,10 @@
 import { DddAggregate } from '@libs/ddd';
 import { Column, Entity, JoinTable, ManyToMany, PrimaryGeneratedColumn } from 'typeorm';
-import { ContentStatus } from '@vooth/shared';
+import { canTransitionContent, CONTENT_STATUS_LABEL, ContentStatus } from '@vooth/shared';
 import { Tag } from '@modules/tag/domain/tag.entity';
 import { ContentSetTagEvent } from './events';
+import { BadRequestException } from '@nestjs/common';
+import { type CalendarDate } from '@vooth/shared';
 
 type Ctor = {
   thumbnailImageUrl: string;
@@ -26,6 +28,9 @@ export class Content extends DddAggregate {
 
   @Column({ type: 'enum', enum: ContentStatus })
   status: ContentStatus;
+
+  @Column({ type: 'varchar', nullable: true })
+  expectedPublishOn?: CalendarDate | null;
 
   @ManyToMany(() => Tag, { cascade: true })
   @JoinTable({ name: 'content_tag', joinColumn: { name: 'contentId' }, inverseJoinColumn: { name: 'tagId' } })
@@ -73,5 +78,18 @@ export class Content extends DddAggregate {
     this.publishEvent(
       new ContentSetTagEvent({ addedTagIds: added.map((t) => t.id), removedTagIds: removed.map((t) => t.id) })
     );
+  }
+
+  transitionTo(nextStatus: ContentStatus) {
+    if (this.status === nextStatus) {
+      return;
+    }
+
+    if (!canTransitionContent(this.status, nextStatus)) {
+      const message = `'${CONTENT_STATUS_LABEL[this.status]}' → '${CONTENT_STATUS_LABEL[nextStatus]}' 상태 변경은 허용되지 않습니다.`;
+      throw new BadRequestException(message, { cause: message });
+    }
+
+    this.status = nextStatus;
   }
 }

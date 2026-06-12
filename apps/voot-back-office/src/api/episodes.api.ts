@@ -11,6 +11,10 @@ export interface EpisodeListItem {
   chapter: number;
   /** 회차 상태(숫자 enum). */
   status: EpisodeStatus;
+  /** 컷 수(비정규화). */
+  cutCount: number;
+  /** 대사 수(비정규화). */
+  lineCount: number;
 }
 
 /** EpisodeStatus 표시 메타(라벨/색). */

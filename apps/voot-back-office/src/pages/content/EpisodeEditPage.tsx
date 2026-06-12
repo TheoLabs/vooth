@@ -43,6 +43,13 @@ interface DraftCut {
 
 const uid = () => crypto.randomUUID();
 
+/** 자동 전이(시스템 처리 → 관리자 수동 버튼 미노출). READY→RECORDING 은 성우가 녹음하면 자동 전환. */
+const AUTO_EPISODE_TRANSITIONS: ReadonlyArray<readonly [EpisodeStatus, EpisodeStatus]> = [
+  [EpisodeStatus.READY, EpisodeStatus.RECORDING],
+];
+const isAutoEpisodeTransition = (from: EpisodeStatus, to: EpisodeStatus): boolean =>
+  AUTO_EPISODE_TRANSITIONS.some(([f, t]) => f === from && t === to);
+
 /** 변경 감지용 시그니처(로컬 key 제외, 순서·내용·serverId 반영). */
 function scriptSignature(cuts: DraftCut[]): string {
   return JSON.stringify(
@@ -163,7 +170,12 @@ export function EpisodeEditPage() {
     }
   };
 
-  const allowedNext = episode ? EPISODE_STATUS_TRANSITIONS[episode.status] ?? [] : [];
+  // 자동 전이(예: READY→RECORDING)는 관리자 수동 버튼에서 제외.
+  const allowedNext = episode
+    ? (EPISODE_STATUS_TRANSITIONS[episode.status] ?? []).filter(
+        (next) => !isAutoEpisodeTransition(episode.status, next),
+      )
+    : [];
 
   // --- 컷/대사 핸들러 ---
   const addCut = () => setCuts((p) => [...p, { id: uid(), lines: [] }]);
@@ -295,25 +307,7 @@ export function EpisodeEditPage() {
         </SectionCard>
       )}
 
-      <SectionCard
-        title="컷 & 대사"
-        extra={
-          <Space>
-            <Button size="small" onClick={addCut}>
-              + 컷 추가
-            </Button>
-            <Button
-              size="small"
-              type="primary"
-              loading={uploadScriptMutation.isPending}
-              disabled={!isDirty}
-              onClick={handleSaveScript}
-            >
-              저장
-            </Button>
-          </Space>
-        }
-      >
+      <SectionCard title="컷 & 대사">
         <Typography.Paragraph type="secondary" style={{ marginTop: 0, fontSize: 12 }}>
           * 저장하면 현재 화면의 컷/대사 순서대로 전체 교체됩니다(편집중 상태에서만 가능).
         </Typography.Paragraph>
@@ -395,6 +389,28 @@ export function EpisodeEditPage() {
             ))}
           </Space>
         )}
+
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            gap: 8,
+            marginTop: 16,
+            paddingTop: 16,
+            borderTop: '1px solid #f0f0f0',
+          }}
+        >
+          <Button onClick={addCut}>+ 컷 추가</Button>
+          <Button
+            type="primary"
+            loading={uploadScriptMutation.isPending}
+            disabled={!isDirty}
+            onClick={handleSaveScript}
+          >
+            저장
+          </Button>
+        </div>
       </SectionCard>
 
       <Modal

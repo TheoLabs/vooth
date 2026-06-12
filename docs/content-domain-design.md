@@ -330,3 +330,36 @@ export enum RecordingStatus {
 - **MVP**: Recording(`lineId/episodeId/creatorId/audioKey/durationMs/status`) 제출·조회.
 - **검수**: `rejectReason/reviewerId/reviewedAt`, 상태 전이, `LineTake` 채택(+ APPROVED 가드).
 - **UX/인코딩**: `take/waveformKey/mimeType/fileSize`, 추후 `encodedAudioKey`(인코딩 별도 서버 로드맵과 연결).
+
+---
+
+## 14. 콘텐츠 상태 lifecycle (2026-06-12)
+
+`ContentStatus`(@vooth/shared) 5상태 + 전이.
+
+| 상태 | 라벨 | 의미 |
+|---|---|---|
+| `PENDING` | 편집중 | 작성/편집 단계 |
+| `RECORDING` | 녹음 대기 | 녹음 공개(성우 작업 대상) |
+| `SCHEDULED` | 발행 예정 | 발행 예정일 예약됨 |
+| `PUBLISHED` | 발행 | 사용자 공개 |
+| `ARCHIVED` | 아카이브 | 보관(비공개) |
+
+### 전이 (`CONTENT_STATUS_TRANSITIONS` / `canTransitionContent`)
+```
+PENDING  ⇄  RECORDING        (수동 양방향)
+RECORDING →  SCHEDULED        (자동: 발행 예정 날짜가 채워질 때)
+SCHEDULED →  RECORDING        (수동: 예약 취소)
+SCHEDULED →  PUBLISHED        (자동: 예정일 도달 → 스케줄러)
+PUBLISHED ⇄  ARCHIVED         (수동 양방향)
+```
+- **수동(back-office 버튼)**: PENDING↔RECORDING, SCHEDULED→RECORDING(취소), PUBLISHED↔ARCHIVED.
+- **자동**: RECORDING→SCHEDULED(발행 예정 날짜 입력 시), SCHEDULED→PUBLISHED(스케줄러).
+
+### 필요한 백엔드 (예정)
+- **`scheduledPublishAt`(datetime nullable) 컬럼** 추가. 이 값이 채워지면 도메인에서 `RECORDING→SCHEDULED` 자동 전이(+값 비우면 SCHEDULED→RECORDING).
+- **상태 변경 엔드포인트**: `content.transitionTo(next)` + `canTransitionContent` 검증(episode 패턴). 예: `PUT /admins/contents/:id/status { status }`.
+- **스케줄러**: `scheduledPublishAt <= now` 인 SCHEDULED 콘텐츠를 PUBLISHED 로 전이(주기 잡 or 예약 잡).
+
+### FE (back-office 콘텐츠 상세)
+- "상태 & 발행" 카드: 현재 상태 + **허용 수동 전이 버튼** + **발행 예정 날짜(DatePicker)**. 날짜 설정/해제로 SCHEDULED 자동 전이를 트리거.

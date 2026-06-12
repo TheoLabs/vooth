@@ -1,7 +1,7 @@
 import { AdminGuard } from '@common/guards';
 import { Body, Controller, Get, Param, ParseIntPipe, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { AdminContentService } from '../applications/admin-content.service';
-import { ContentCreateDto, ContentQueryDto, ContentUpdateDto } from './dto';
+import { ContentCreateDto, AdminContentQueryDto, ContentUpdateDto, ContentStatusTransactionDto } from './dto';
 
 @Controller('admins/contents')
 @UseGuards(AdminGuard)
@@ -20,7 +20,7 @@ export class AdminContentController {
   }
 
   @Get()
-  async list(@Query() query: ContentQueryDto) {
+  async list(@Query() query: AdminContentQueryDto) {
     // 1. Destructure body, params, query
     const { searchKey, searchValue, statuses, ...options } = query;
 
@@ -49,6 +49,17 @@ export class AdminContentController {
     // 2. Get context
     // 3. Get result
     await this.adminContentService.update({ id, ...body });
+
+    // 4. Send response
+    return { data: {} };
+  }
+
+  @Put(':id/status')
+  async transition(@Param('id', ParseIntPipe) id: number, @Body() body: ContentStatusTransactionDto) {
+    // 1. Destructure body, params, query
+    // 2. Get context
+    // 3. Get result
+    await this.adminContentService.transition({ id, ...body });
 
     // 4. Send response
     return { data: {} };

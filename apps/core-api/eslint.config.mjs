@@ -36,6 +36,7 @@ export default tseslint.config(
       '@typescript-eslint/no-unsafe-call': 'off',
       'prettier/prettier': ['error', { endOfLine: 'auto' }],
       'no-empty-pattern': 'off',
+      '@typescript-eslint/no-redundant-type-constituents': 'off',
     },
   }
 );

@@ -1,4 +1,5 @@
 import { createContext, useContext, useMemo, useState, type ReactNode } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import type { AuthUser } from './types';
 import {
   clearAccessToken,
@@ -28,6 +29,7 @@ function userFromToken(token: string | null): AuthUser | null {
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const queryClient = useQueryClient();
   const [accessToken, setToken] = useState<string | null>(() => {
     const stored = getAccessToken();
     // 저장된 토큰이 손상됐으면 폐기
@@ -41,13 +43,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       login: (token) => {
         setAccessToken(token);
         setToken(token);
+        // 새 세션 → 이전 ['me'] 캐시 폐기(staleTime:Infinity 라 안 비우면 옛 결과 재사용됨).
+        queryClient.removeQueries({ queryKey: ['me'] });
       },
       logout: () => {
         clearAccessToken();
         setToken(null);
+        // 이전 사용자 데이터 전부 폐기.
+        queryClient.clear();
       },
     }),
-    [accessToken]
+    [accessToken, queryClient]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

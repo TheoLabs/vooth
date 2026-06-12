@@ -4,10 +4,24 @@ import { Episode } from '../domain/episode.entity';
 import { checkInValue, checkLikeValue, convertOptions, stripUndefined, TypeormRelationOptions } from '@libs/utils';
 import { EpisodeStatus } from '@vooth/shared';
 import { Line } from '../domain/line.entity';
+import { Cut } from '../domain/cut.entity';
+import { EpisodeSpec } from '../domain/specs';
 
 @Injectable()
 export class EpisodeRepository extends DddRepository<Episode> {
   entityClass = Episode;
+
+  private entityCutClass = Cut;
+
+  private entityLineClass = Line;
+
+  async satifyElementFrom(spec: EpisodeSpec, options?: TypeormRelationOptions<Episode>) {
+    return spec.satifyElementFrom(this, options);
+  }
+
+  async satifyCountFrom(spec: EpisodeSpec) {
+    return spec.satifyCountFrom(this);
+  }
 
   async find(
     conditions: {
@@ -51,8 +65,27 @@ export class EpisodeRepository extends DddRepository<Episode> {
     });
   }
 
+  async findCuts(conditions: { ids?: number[]; episodeId?: number }, options?: TypeormRelationOptions<Cut>) {
+    return this.entityManager.find(this.entityCutClass, {
+      where: stripUndefined({
+        id: checkInValue(conditions.ids),
+        episodeId: conditions.episodeId,
+      }),
+      ...convertOptions(options),
+    });
+  }
+
+  async countCuts(conditions: { ids?: number[]; episodeId?: number }) {
+    return this.entityManager.count(this.entityCutClass, {
+      where: stripUndefined({
+        id: checkInValue(conditions.ids),
+        episodeId: conditions.episodeId,
+      }),
+    });
+  }
+
   async findLines(conditions: { id?: number; episodeId?: number }, options?: TypeormRelationOptions<Line>) {
-    return this.entityManager.find(Line, {
+    return this.entityManager.find(this.entityLineClass, {
       where: stripUndefined({
         id: conditions.id,
         episodeId: conditions.episodeId,
@@ -62,7 +95,7 @@ export class EpisodeRepository extends DddRepository<Episode> {
   }
 
   async countLines(conditions: { id?: number; episodeId?: number }) {
-    return this.entityManager.count(Line, {
+    return this.entityManager.count(this.entityLineClass, {
       where: stripUndefined({
         id: conditions.id,
         episodeId: conditions.episodeId,

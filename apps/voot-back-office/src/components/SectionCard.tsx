@@ -9,6 +9,8 @@ interface SectionCardProps {
   onEdit?: () => void;
   editText?: string;
   editDisabled?: boolean;
+  /** 부모 높이를 꽉 채우고 body 가 넘치면 내부 스크롤(고정 높이 박스 안에서 사용). */
+  fillHeight?: boolean;
   children?: ReactNode;
   style?: CSSProperties;
   className?: string;
@@ -24,6 +26,7 @@ export function SectionCard({
   onEdit,
   editText = '수정',
   editDisabled,
+  fillHeight,
   children,
   style,
   className,
@@ -41,7 +44,14 @@ export function SectionCard({
     );
 
   return (
-    <Card size="small" title={title} extra={actions} style={style} className={className}>
+    <Card
+      size="small"
+      title={title}
+      extra={actions}
+      className={className}
+      style={fillHeight ? { height: '100%', display: 'flex', flexDirection: 'column', ...style } : style}
+      styles={fillHeight ? { body: { flex: 1, minHeight: 0, overflowY: 'auto' } } : undefined}
+    >
       {children}
     </Card>
   );

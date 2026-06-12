@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useLocation, useParams } from 'react-router-dom'
 import { getEpisodeById } from '../mocks/episodes.mock'
+import { buildMockEpisode } from '../mocks/recording-episode.mock'
+import type { EpisodeListItem } from '../api/episodes.api'
 import {
   buildTimeline,
   formatMs,
@@ -331,19 +333,34 @@ function TimelineBar({
 
 export function EpisodeViewerPage(): React.JSX.Element {
   const { id } = useParams<{ id: string }>()
+  const { state } = useLocation()
   const { data: me } = useMe()
   const meName = me?.name ?? '나'
 
-  // 정적 mock 을 읽기만 하던 것을 state 기반으로 전환.
+  // 회차 해석:
+  // 1) 기존 작업목록 mock(문자열 id) → getEpisodeById.
+  // 2) 콘텐츠 상세에서 넘어온 실제 회차(숫자 id) → 헤더는 실데이터, 컷/대사는 mock 생성.
+  const nav = state as { episode?: EpisodeListItem; contentTitle?: string } | null
+  const resolve = useCallback((): Episode | undefined => {
+    if (id) {
+      const found = getEpisodeById(id)
+      if (found) return found
+    }
+    if (nav?.episode) return buildMockEpisode(nav.episode, nav.contentTitle ?? '콘텐츠')
+    return undefined
+  }, [id, nav])
+
   // take 선택/녹음 편집은 이 state 를 갱신하고, 타임라인은 state 에서 재계산한다.
   // (세션 로컬 — 앱 재시작 간 영속화는 하지 않는다.)
-  const [episode, setEpisode] = useState<Episode | undefined>(() =>
-    id ? getEpisodeById(id) : undefined
-  )
+  const [episode, setEpisode] = useState<Episode | undefined>(resolve)
 
   useEffect(() => {
-    setEpisode(id ? getEpisodeById(id) : undefined)
-  }, [id])
+    setEpisode(resolve())
+  }, [resolve])
+
+  // 콘텐츠 상세에서 진입했으면 그 콘텐츠로, 아니면 작업 목록으로 돌아간다.
+  const backTo = nav?.episode ? `/webtoons/${nav.episode.contentId}` : '/'
+  const backLabel = nav?.episode ? '← 회차 목록으로 돌아가기' : '← 작업 목록으로 돌아가기'
 
   // 녹음으로 만든 objectURL 누수 방지: 언마운트 시 일괄 revoke.
   const createdUrlsRef = useRef<string[]>([])
@@ -434,8 +451,8 @@ export function EpisodeViewerPage(): React.JSX.Element {
     return (
       <div className="ev-empty">
         <p className="ev-empty__msg">회차를 찾을 수 없습니다.</p>
-        <Link className="ev-empty__back" to="/">
-          작업 목록으로 돌아가기
+        <Link className="ev-empty__back" to={backTo}>
+          돌아가기
         </Link>
       </div>
     )
@@ -446,8 +463,8 @@ export function EpisodeViewerPage(): React.JSX.Element {
   return (
     <div className="episode-viewer">
       <header className="ev-header">
-        <Link className="ev-header__back" to="/">
-          ← 작업 목록으로 돌아가기
+        <Link className="ev-header__back" to={backTo}>
+          {backLabel}
         </Link>
         <div className="ev-header__titles">
           <span className="ev-header__webtoon">{episode.webtoonTitle}</span>

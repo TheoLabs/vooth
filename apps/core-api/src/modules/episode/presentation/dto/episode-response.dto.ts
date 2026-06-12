@@ -50,6 +50,12 @@ export class EpisodeResponseDto extends ResponseDto {
   @Expose()
   status: EpisodeStatus;
 
+  @Expose()
+  cutCount: number;
+
+  @Expose()
+  lineCount: number;
+
   // 상세 조회 시에만 채워진다(목록은 relations 미로드 → 보통 비어있음).
   @Expose()
   @Type(() => CutResponseDto)
