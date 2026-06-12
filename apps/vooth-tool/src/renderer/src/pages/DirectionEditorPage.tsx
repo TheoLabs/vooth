@@ -1,11 +1,48 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import { AnchorStage, anchorEven } from '../components/AnchorStage'
 import { ScrollPreview } from '../components/ScrollPreview'
-import { getMockDirEpisode } from '../mocks/direction.mock'
+import {
+  fetchDirectorEpisode,
+  saveDirection,
+  type DirectionPayload,
+  type DirectorEpisodeDetail
+} from '../api/directors'
 import type { DirCut, DirEpisode } from '../types/direction'
 import type { ScrollInputCut } from '../lib/scrollTimeline'
 import './DirectionEditorPage.css'
+
+/** directors 상세 응답 → 에디터용 DirEpisode (캐릭터명 매핑, position 정렬). */
+function toDirEpisode(detail: DirectorEpisodeDetail): DirEpisode {
+  const nameById = new Map(detail.characters.map((c) => [c.id, c.name]))
+  const cuts: DirCut[] = [...detail.episode.cuts]
+    .sort((a, b) => a.position - b.position)
+    .map((c) => ({
+      id: c.id,
+      imageUrl: c.imageUrl,
+      imageWidth: c.imageWidth ?? 0,
+      imageHeight: c.imageHeight ?? 0,
+      cropBox: c.cropBox ?? undefined,
+      holdMs: c.holdMs ?? undefined,
+      lines: [...c.lines]
+        .sort((a, b) => a.position - b.position)
+        .map((l) => ({
+          id: l.id,
+          characterName: nameById.get(l.characterId) ?? `캐릭터 #${l.characterId}`,
+          script: l.script,
+          anchorY: l.anchorY ?? undefined,
+          gapBeforeMs: l.gapBeforeMs ?? undefined
+        }))
+    }))
+  return {
+    id: detail.episode.id,
+    contentTitle: detail.contentTitle,
+    chapter: detail.episode.chapter,
+    title: detail.episode.title,
+    cuts
+  }
+}
 
 function NumMs({
   value,
@@ -92,8 +129,34 @@ function CutDirector({
 export function DirectionEditorPage(): React.JSX.Element {
   const navigate = useNavigate()
   const { id } = useParams<{ id: string }>()
-  const [episode, setEpisode] = useState<DirEpisode | undefined>(() => getMockDirEpisode(Number(id)))
+  const [episode, setEpisode] = useState<DirEpisode | undefined>(undefined)
   const [previewOpen, setPreviewOpen] = useState(false)
+
+  const { data, isLoading, isError, error } = useQuery({
+    queryKey: ['director-episode', id],
+    queryFn: () => fetchDirectorEpisode(id as string),
+    enabled: Boolean(id),
+    retry: false
+  })
+  useEffect(() => {
+    if (data) setEpisode(toDirEpisode(data))
+  }, [data])
+
+  const saveMutation = useMutation({
+    mutationFn: (payload: DirectionPayload) => saveDirection(id as string, payload)
+  })
+
+  const handleSave = (): void => {
+    if (!episode) return
+    const payload: DirectionPayload = {
+      cuts: episode.cuts.map((c) => ({
+        id: c.id,
+        holdMs: c.holdMs,
+        lines: c.lines.map((l) => ({ id: l.id, anchorY: l.anchorY, gapBeforeMs: l.gapBeforeMs }))
+      }))
+    }
+    saveMutation.mutate(payload)
+  }
 
   const mapCut = (cutId: number, fn: (cut: DirCut) => DirCut): void =>
     setEpisode((prev) =>
@@ -124,10 +187,18 @@ export function DirectionEditorPage(): React.JSX.Element {
     [episode]
   )
 
-  if (!episode) {
+  if (isLoading && !episode) {
     return (
       <div className="de-empty">
-        <p>회차를 찾을 수 없습니다.</p>
+        <p>불러오는 중…</p>
+      </div>
+    )
+  }
+
+  if (isError || !episode) {
+    return (
+      <div className="de-empty">
+        <p>회차를 불러오지 못했습니다.{isError ? ` ${(error as Error)?.message}` : ''}</p>
         <button type="button" onClick={() => navigate('/')}>
           목록으로
         </button>
@@ -152,16 +223,23 @@ export function DirectionEditorPage(): React.JSX.Element {
           <button type="button" className="de__preview" onClick={() => setPreviewOpen(true)}>
             ▶ 연속 스크롤 미리보기
           </button>
-          <button type="button" className="de__save" disabled title="연출 저장 엔드포인트 연동 예정">
-            저장(준비 중)
+          <button
+            type="button"
+            className="de__save de__save--active"
+            onClick={handleSave}
+            disabled={saveMutation.isPending}
+          >
+            {saveMutation.isPending ? '저장 중…' : '저장'}
           </button>
         </div>
       </header>
 
-      <p className="de__note">
-        ⚠️ mock — 컷/대사는 back-office 등록 데이터를 대신한 샘플. 연출(위치·간격·머무름)은 로컬 편집이며 저장 API는 추후
-        연동.
-      </p>
+      {saveMutation.isError && (
+        <p className="de__note de__note--err">저장 실패: {(saveMutation.error as Error)?.message}</p>
+      )}
+      {saveMutation.isSuccess && !saveMutation.isPending && (
+        <p className="de__note de__note--ok">연출이 저장되었습니다.</p>
+      )}
 
       <div className="de__cuts">
         {episode.cuts.map((cut, i) => (

@@ -93,10 +93,22 @@ export function buildScrollTimeline(
   const maxScroll = Math.max(0, totalHeight - viewportH)
   const clamp = (y: number): number => Math.min(maxScroll, Math.max(0, y))
 
+  // 시작은 컷1 맨 위(scrollY 0)에서 → 첫 대사 앵커로 글라이드(리드인).
+  // 그 외 라인은 자기 시작 시각에 앵커가 중앙에 오게 한다.
+  const LEAD_MS = 700
   const keyframes: ScrollKeyframe[] = []
+  let first = true
   for (const cut of segs) {
     for (const line of cut.lines) {
-      keyframes.push({ time: line.start, scrollY: clamp(line.anchorPixel - viewportH / 2) })
+      const scrollY = clamp(line.anchorPixel - viewportH / 2)
+      if (first) {
+        keyframes.push({ time: 0, scrollY: 0 })
+        const t = Math.max(1, Math.min(line.end, line.start + LEAD_MS))
+        keyframes.push({ time: t, scrollY })
+        first = false
+      } else {
+        keyframes.push({ time: line.start, scrollY })
+      }
     }
   }
   if (keyframes.length === 0) keyframes.push({ time: 0, scrollY: 0 })

@@ -1,6 +1,4 @@
-import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
-import { useAuth } from '../auth/AuthContext'
-import { useMe } from '../features/me/useMe'
+import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import './AppLayout.css'
 
 interface NavItemDef {
@@ -29,17 +27,7 @@ function titleFromPath(pathname: string): string {
  * 콘텐츠 영역만 내부 스크롤되며, 윈도우 자체에는 스크롤이 생기지 않는다.
  */
 export function AppLayout(): React.JSX.Element {
-  const { user, logout } = useAuth()
-  const { data: account } = useMe()
-  const navigate = useNavigate()
   const location = useLocation()
-
-  const handleLogout = (): void => {
-    logout()
-    navigate('/login', { replace: true })
-  }
-
-  const displayName = account?.name ?? user?.email ?? '사용자'
 
   return (
     <div className="app-shell">
@@ -81,15 +69,6 @@ export function AppLayout(): React.JSX.Element {
       <div className="app-main">
         <header className="app-header">
           <h1 className="app-header__title">{titleFromPath(location.pathname)}</h1>
-          <div className="app-header__user">
-            <div className="app-header__userinfo">
-              <span className="app-header__name">{displayName}</span>
-              {account?.email && <span className="app-header__email">{account.email}</span>}
-            </div>
-            <button type="button" className="app-header__logout" onClick={handleLogout}>
-              로그아웃
-            </button>
-          </div>
         </header>
 
         <main className="app-content">

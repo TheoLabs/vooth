@@ -68,6 +68,27 @@
   border-radius: 8px;
   cursor: not-allowed;
 }
+.de__save--active {
+  border: none;
+  background: #0f172a;
+  color: #fff;
+  font-weight: 700;
+  cursor: pointer;
+}
+.de__save--active:disabled {
+  background: #94a3b8;
+  cursor: default;
+}
+.de__note--err {
+  color: #b91c1c;
+  background: #fef2f2;
+  border-color: #fecaca;
+}
+.de__note--ok {
+  color: #15803d;
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+}
 .de__note {
   margin: 12px 0;
   color: #b45309;

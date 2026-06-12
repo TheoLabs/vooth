@@ -21,6 +21,11 @@
   padding: 8px 12px;
   font-size: 13px;
 }
+.th__msg {
+  margin: 14px 0;
+  color: #64748b;
+  font-size: 14px;
+}
 .th__grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));

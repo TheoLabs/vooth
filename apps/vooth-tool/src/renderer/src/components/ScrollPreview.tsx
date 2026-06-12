@@ -6,10 +6,16 @@ import {
   type ScrollInputCut,
   type ScrollTimeline
 } from '../lib/scrollTimeline'
+import { FRAME_RATIO } from '../lib/cropBox'
 import './ScrollPreview.css'
 
-const RENDER_W = 300
-const VIEWPORT_H = 500
+const RENDER_W = 320
+
+/** 컷의 렌더 높이(원본 비율, 크기 미상이면 16:10). */
+function cutRenderHeight(cut: ScrollInputCut): number {
+  if (cut.imageWidth && cut.imageHeight) return (RENDER_W * cut.imageHeight) / cut.imageWidth
+  return RENDER_W / FRAME_RATIO
+}
 
 function fmt(ms: number): string {
   const s = Math.round(ms / 1000)
@@ -27,9 +33,18 @@ export function ScrollPreview({
   cuts: ScrollInputCut[]
   onClose: () => void
 }): React.JSX.Element {
+  // 뷰포트는 "가장 짧은 컷보다 작게" 잡아야 모든 컷(특히 컷1)이 중앙에 잡힌다.
+  // 뷰포트가 컷보다 크면 초반 앵커가 clamp(0) 돼서 컷1 이 스킵된 것처럼 보임.
+  const viewportH = useMemo(() => {
+    const heights = cuts.map(cutRenderHeight)
+    const minH = heights.length ? Math.min(...heights) : 400
+    // 항상 가장 짧은 컷보다 작게(0.85배) — 단 절대 상·하한.
+    return Math.max(120, Math.min(440, Math.round(minH * 0.85)))
+  }, [cuts])
+
   const timeline: ScrollTimeline = useMemo(
-    () => buildScrollTimeline(cuts, { renderW: RENDER_W, viewportH: VIEWPORT_H }),
-    [cuts]
+    () => buildScrollTimeline(cuts, { renderW: RENDER_W, viewportH }),
+    [cuts, viewportH]
   )
 
   const [elapsed, setElapsed] = useState(0)
@@ -100,7 +115,7 @@ export function ScrollPreview({
           </button>
         </div>
 
-        <div className="sp__stage" style={{ width: RENDER_W, height: VIEWPORT_H }}>
+        <div className="sp__stage" style={{ width: RENDER_W, height: viewportH }}>
           <div className="sp__track" style={{ transform: `translateY(${-scrollY}px)` }}>
             {timeline.cuts.map((cut, i) => (
               <div className="sp__frame" key={i} style={{ height: cut.height }}>

@@ -174,4 +174,37 @@ export class Episode extends DddAggregate {
     this.cutCount = this.cuts.length;
     this.lineCount = this.cuts.reduce((acc, cut) => acc + cut.lines.length, 0);
   }
+
+  /**
+   * 연출 부분 수정 — 컷 holdMs / 라인 anchorY·gapBeforeMs 만 갱신한다.
+   * 스크립트(컷/대사 구성)는 건드리지 않으므로 등록(uploadScript)과 충돌하지 않는다.
+   * payload 에 없는 컷/대사는 무시(부분 수정), 기존 연출값은 보존.
+   */
+  applyDirection({
+    cuts,
+  }: {
+    cuts: { id: number; holdMs?: number; lines?: { id: number; anchorY?: number; gapBeforeMs?: number }[] }[];
+  }) {
+    const existingCuts = this.cuts ?? [];
+
+    for (const cutItem of cuts) {
+      const cut = existingCuts.find((c) => c.id === cutItem.id);
+
+      if (!cut) {
+        continue;
+      }
+
+      cut.update({ holdMs: cutItem.holdMs });
+
+      for (const lineItem of cutItem.lines ?? []) {
+        const line = (cut.lines ?? []).find((l) => l.id === lineItem.id);
+
+        if (!line) {
+          continue;
+        }
+
+        line.update({ anchorY: lineItem.anchorY, gapBeforeMs: lineItem.gapBeforeMs });
+      }
+    }
+  }
 }
