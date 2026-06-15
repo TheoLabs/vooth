@@ -5,6 +5,10 @@ import { EpisodeRepository } from '../infrastructure/episode.repository';
 import { PaginationOptions } from '@libs/utils';
 import { RecordableEpisodeSpec } from '../domain/specs';
 import { CharacterRepository } from '@modules/character/infrastructure/character.repository';
+import { Transactional } from '@libs/decorators';
+import { EventHandler } from '@libs/decorators/event-handler.decorator';
+import { RecordingCreatedEvent } from '@modules/recording/domain/events';
+import { EpisodeStatus } from '@vooth/shared';
 
 @Injectable()
 export class CreatorEpisodeService extends DddService {
@@ -53,5 +57,20 @@ export class CreatorEpisodeService extends DddService {
         }),
       })),
     };
+  }
+
+  @EventHandler(RecordingCreatedEvent, {
+    description: '녹음이 생성되면 그에 따라 에피소드를 녹음 대기 -> 녹음 중으로 변경시켜준다.',
+  })
+  @Transactional()
+  async handleRecordingCreatedEvent(event: RecordingCreatedEvent) {
+    const { episodeId } = event;
+
+    const [episode] = await this.episodeRepository.find({ id: episodeId });
+
+    if (episode && episode.status === EpisodeStatus.READY) {
+      episode.transitionTo(EpisodeStatus.RECORDING);
+      await this.episodeRepository.save([episode]);
+    }
   }
 }

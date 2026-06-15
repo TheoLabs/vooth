@@ -1,6 +1,7 @@
 import { DddAggregate } from '@libs/ddd';
-import { Column, Entity, Index, PrimaryGeneratedColumn } from 'typeorm';
+import { AfterInsert, Column, Entity, Index, PrimaryGeneratedColumn } from 'typeorm';
 import { RecordingStatus } from '@vooth/shared';
+import { RecordingCreatedEvent } from './events';
 
 export interface RecordingPhase {
   mimeType: string;
@@ -51,6 +52,11 @@ export class Recording extends DddAggregate {
 
   @Column({ type: 'json', nullable: true })
   phase?: RecordingPhase | null;
+
+  @AfterInsert()
+  private afterInsert() {
+    this.publishEvent(new RecordingCreatedEvent({ recordingId: this.id, episodeId: this.episodeId }));
+  }
 
   private constructor(args: Ctor) {
     super();

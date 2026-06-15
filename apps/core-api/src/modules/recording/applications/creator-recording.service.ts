@@ -48,7 +48,6 @@ export class CreatorRecordingService extends DddService {
       throw new BadRequestException('등록되지 않은 대사입니다.', { cause: '등록되지 않은 대사입니다.' });
     }
 
-    // take 는 서버가 부여한다((line × creator) 의 max take + 1) — 프론트의 race/비연속 방지.
     const [existingRecording] = await this.recordingRepository.find(
       { creatorId: creator.id, lineId },
       { order: OrderType.DESC, sort: 'take', limit: 1 }
