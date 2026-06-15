@@ -10,6 +10,7 @@ import {
   type EpisodeListItem
 } from '../api/episodes.api'
 import { createRecording, fetchRecordings } from '../api/recordings.api'
+import { clearLineTake, fetchLineTakes, selectLineTake } from '../api/lineTakes.api'
 import { uploadBlob } from '../lib/uploadBlob'
 import { useMe } from '../features/me/useMe'
 import { useRecorder } from '../features/recording/useRecorder'
@@ -21,9 +22,10 @@ import {
   type Recording,
   type RecordingEpisode as Episode
 } from '../types/recording-domain'
-import { deriveCutDuration } from '../lib/recording-timeline'
+import { deriveCutDuration, representativeTake } from '../lib/recording-timeline'
 import { CropFrame } from '../components/CropFrame'
-import { ScrollPreview } from '../features/preview/ScrollPreview'
+import { ScrollPreview } from '../components/ScrollPreview'
+import type { ScrollInputCut } from '../lib/scrollTimeline'
 import { formatMs } from '../lib/timeline'
 import './RecordingPage.css'
 
@@ -58,8 +60,8 @@ function toEpisode(d: CreatorEpisodeDetail, contentTitle: string): Episode {
   }
 }
 
-/** 라인에 take 를 추가하는 콜백(업로드+생성까지 끝난 뒤 호출). */
-type CaptureFn = (line: Line, take: number, blob: Blob, blobUrl: string, durationMs: number) => Promise<void>
+/** 녹음 정지 후 업로드+생성 콜백. take 는 서버가 부여. */
+type CaptureFn = (line: Line, blob: Blob, durationMs: number) => Promise<void>
 
 function PlayButton({ rec }: { rec: Recording }): React.JSX.Element {
   const audioRef = useRef<HTMLAudioElement | null>(null)
@@ -108,10 +110,20 @@ function PlayButton({ rec }: { rec: Recording }): React.JSX.Element {
   )
 }
 
-function TakeRow({ rec, mine }: { rec: Recording; mine: boolean }): React.JSX.Element {
+function TakeRow({
+  rec,
+  mine,
+  selected,
+  onToggleSelect
+}: {
+  rec: Recording
+  mine: boolean
+  selected: boolean
+  onToggleSelect: () => void
+}): React.JSX.Element {
   const meta = RECORDING_STATUS_META[rec.status]
   return (
-    <li className={`rp-take${mine ? ' rp-take--mine' : ''}`}>
+    <li className={`rp-take${mine ? ' rp-take--mine' : ''}${selected ? ' rp-take--selected' : ''}`}>
       <span className="rp-take__no">T{rec.take}</span>
       <span className="rp-take__name">{rec.creatorName}</span>
       <span className="rp-take__badge" style={{ color: meta.color, background: meta.background }}>
@@ -119,6 +131,15 @@ function TakeRow({ rec, mine }: { rec: Recording; mine: boolean }): React.JSX.El
       </span>
       <span className="rp-take__dur">{formatMs(rec.durationMs)}</span>
       <PlayButton rec={rec} />
+      {mine && (
+        <button
+          type="button"
+          className={`rp-take__pick${selected ? ' rp-take__pick--on' : ''}`}
+          onClick={onToggleSelect}
+        >
+          {selected ? '★ 최종' : '채택'}
+        </button>
+      )}
     </li>
   )
 }
@@ -161,8 +182,8 @@ function RecordControl({
     setBusy(true)
     setSaveErr(null)
     try {
-      const { blob, url, durationMs } = await stop()
-      await onCapture(line, myTakeCount + 1, blob, url, durationMs)
+      const { blob, durationMs } = await stop()
+      await onCapture(line, blob, durationMs)
     } catch (e) {
       setSaveErr((e as Error)?.message ?? '저장에 실패했습니다.')
     } finally {
@@ -194,17 +215,19 @@ function LineCard({
   line,
   characterName,
   recordings,
-  creatorId,
+  selectedRecordingId,
+  onToggleSelect,
   onCapture
 }: {
   line: Line
   characterName: string
   recordings: Recording[]
-  creatorId: number
+  selectedRecordingId?: number
+  onToggleSelect: (lineId: number, recordingId: number) => void
   onCapture: CaptureFn
 }): React.JSX.Element {
-  const myTakes = recordings.filter((r) => r.creatorId === creatorId).sort((a, b) => a.take - b.take)
-  const otherTakes = recordings.filter((r) => r.creatorId !== creatorId)
+  // 목록 API 가 본인 녹음만 반환하므로 가져온 take 는 모두 내 것이다.
+  const myTakes = sortBy(recordings, 'take')
 
   return (
     <li className="rp-line">
@@ -213,13 +236,16 @@ function LineCard({
         <p className="rp-line__script">{line.script}</p>
       </div>
 
-      {(myTakes.length > 0 || otherTakes.length > 0) && (
+      {myTakes.length > 0 && (
         <ul className="rp-line__takes">
           {myTakes.map((rec) => (
-            <TakeRow key={rec.id} rec={rec} mine />
-          ))}
-          {otherTakes.map((rec) => (
-            <TakeRow key={rec.id} rec={rec} mine={false} />
+            <TakeRow
+              key={rec.id}
+              rec={rec}
+              mine
+              selected={rec.id === selectedRecordingId}
+              onToggleSelect={() => onToggleSelect(line.id, rec.id)}
+            />
           ))}
         </ul>
       )}
@@ -234,14 +260,16 @@ function CutSection({
   index,
   charactersById,
   recordingsByLine,
-  creatorId,
+  selectedByLine,
+  onToggleSelect,
   onCapture
 }: {
   cut: Cut
   index: number
   charactersById: Record<number, string>
   recordingsByLine: Record<number, Recording[]>
-  creatorId: number
+  selectedByLine: Record<number, number>
+  onToggleSelect: (lineId: number, recordingId: number) => void
   onCapture: CaptureFn
 }): React.JSX.Element {
   const lines = sortBy(cut.lines, 'position')
@@ -264,7 +292,8 @@ function CutSection({
             line={line}
             characterName={charactersById[line.characterId] ?? `캐릭터 #${line.characterId}`}
             recordings={recordingsByLine[line.id] ?? []}
-            creatorId={creatorId}
+            selectedRecordingId={selectedByLine[line.id]}
+            onToggleSelect={onToggleSelect}
             onCapture={onCapture}
           />
         ))}
@@ -276,7 +305,6 @@ function CutSection({
 export function RecordingPage(): React.JSX.Element {
   const { state } = useLocation()
   const { data: me } = useMe()
-  const creatorId = me?.id ?? 0
   const creatorName = me?.name ?? '나'
 
   const nav = state as { episode?: EpisodeListItem; contentTitle?: string } | null
@@ -330,17 +358,63 @@ export function RecordingPage(): React.JSX.Element {
     return groupBy(recs, 'lineId')
   }, [recData, creatorName])
 
+  // 내 채택(LineTake): lineId → recordingId.
+  const { data: takeData } = useQuery({
+    queryKey: ['creator-line-takes', episodeId],
+    queryFn: () => fetchLineTakes(episodeId as number),
+    enabled: Boolean(episodeId),
+    retry: false
+  })
+  const selectedByLine = useMemo<Record<number, number>>(() => {
+    const map: Record<number, number> = {}
+    for (const t of takeData?.items ?? []) map[t.lineId] = t.recordingId
+    return map
+  }, [takeData])
+
+  const onToggleSelect = useCallback(
+    (lineId: number, recordingId: number): void => {
+      const isSelected = selectedByLine[lineId] === recordingId
+      const run = isSelected ? clearLineTake(lineId) : selectLineTake(lineId, recordingId)
+      void run.then(() => queryClient.invalidateQueries({ queryKey: ['creator-line-takes', episodeId] }))
+    },
+    [selectedByLine, queryClient, episodeId]
+  )
+
   // 녹음 정지 → 오디오 업로드 → 녹음 생성 → 목록 갱신(서버가 진실).
   const onCapture = useCallback<CaptureFn>(
-    async (line, take, blob, _blobUrl, durationMs) => {
-      const audioUrl = await uploadBlob(blob, `take-${line.id}-${take}.webm`)
-      await createRecording({ lineId: line.id, episodeId: line.episodeId, audioUrl, durationMs, take })
+    async (line, blob, durationMs) => {
+      const audioUrl = await uploadBlob(blob, `take-${line.id}-${Date.now()}.webm`)
+      await createRecording({ lineId: line.id, episodeId: line.episodeId, audioUrl, durationMs })
       await queryClient.invalidateQueries({ queryKey: ['creator-recordings', episodeId] })
     },
     [queryClient, episodeId]
   )
 
-  const [showPreview, setShowPreview] = useState(false)
+  // 미리보기용 입력: detail(anchorY/gap/hold/이미지) + 라인 대표 take durationMs.
+  const previewCuts = useMemo<ScrollInputCut[]>(() => {
+    if (!detail) return []
+    return sortBy(detail.cuts, 'position').map((c) => ({
+      imageUrl: c.imageUrl,
+      imageWidth: c.imageWidth,
+      imageHeight: c.imageHeight,
+      holdMs: c.holdMs,
+      lines: sortBy(c.lines, 'position').map((l) => {
+        const recs = recordingsByLine[l.id] ?? []
+        const selId = selectedByLine[l.id]
+        const sel = selId != null ? recs.find((r) => r.id === selId) : undefined
+        return {
+          id: l.id,
+          script: l.script,
+          characterName: charactersById[l.characterId] ?? `캐릭터 #${l.characterId}`,
+          anchorY: l.anchorY,
+          gapBeforeMs: l.gapBeforeMs,
+          // 채택 take 길이 우선, 없으면 대표 take.
+          durationMs: (sel ?? representativeTake(recs))?.durationMs
+        }
+      })
+    }))
+  }, [detail, charactersById, recordingsByLine, selectedByLine])
+
   const backTo = nav?.episode ? `/webtoons/${nav.episode.contentId}` : '/webtoons'
 
   if (!contentId || !episodeId) {
@@ -367,57 +441,59 @@ export function RecordingPage(): React.JSX.Element {
 
   const statusMeta = EPISODE_STATUS_META[episode.status]
   const myRecordedLines = episode.cuts.reduce(
-    (acc, cut) =>
-      acc + cut.lines.filter((l) => (recordingsByLine[l.id] ?? []).some((r) => r.creatorId === creatorId)).length,
+    (acc, cut) => acc + cut.lines.filter((l) => (recordingsByLine[l.id] ?? []).length > 0).length,
     0
   )
   const totalMs = episode.cuts.reduce((acc, cut) => acc + deriveCutDuration(cut, recordingsByLine).ms, 0)
 
   return (
     <div className="rp">
-      <header className="rp__header">
-        <Link className="rp__back" to={backTo}>
-          ← 회차 목록으로 돌아가기
-        </Link>
-        <span className="rp__content">{episode.contentTitle}</span>
-        <h2 className="rp__title">
-          <span className="rp__chapter">{episode.chapter}화</span>
-          {episode.title}
-          {statusMeta && (
-            <span className="rp__status" style={{ color: statusMeta.color, background: `${statusMeta.color}1a` }}>
-              {statusMeta.label}
-            </span>
-          )}
-        </h2>
-        <div className="rp__summary">
-          컷 {episode.cutCount}개 · 대사 {episode.lineCount}개 · 내 녹음 {myRecordedLines}/{episode.lineCount} · 예상 길이{' '}
-          {formatMs(totalMs)}
-          <button type="button" className="rp__preview-btn" onClick={() => setShowPreview(true)}>
-            ▶ 미리보기
-          </button>
+      <div className="rp__split">
+        <div className="rp__main">
+          <header className="rp__header">
+            <Link className="rp__back" to={backTo}>
+              ← 회차 목록으로 돌아가기
+            </Link>
+            <span className="rp__content">{episode.contentTitle}</span>
+            <h2 className="rp__title">
+              <span className="rp__chapter">{episode.chapter}화</span>
+              {episode.title}
+              {statusMeta && (
+                <span className="rp__status" style={{ color: statusMeta.color, background: `${statusMeta.color}1a` }}>
+                  {statusMeta.label}
+                </span>
+              )}
+            </h2>
+            <div className="rp__summary">
+              컷 {episode.cutCount}개 · 대사 {episode.lineCount}개 · 내 녹음 {myRecordedLines}/{episode.lineCount} · 예상
+              길이 {formatMs(totalMs)}
+            </div>
+          </header>
+
+          <p className="rp__mock-note">
+            ℹ️ 내 녹음은 저장되어 다시 들어와도 보입니다. (다른 성우의 take 는 본인 녹음만 조회되어 표시되지 않습니다)
+          </p>
+
+          <div className="rp__cuts">
+            {sortBy(episode.cuts, 'position').map((cut, i) => (
+              <CutSection
+                key={cut.id}
+                cut={cut}
+                index={i + 1}
+                charactersById={charactersById}
+                recordingsByLine={recordingsByLine}
+                selectedByLine={selectedByLine}
+                onToggleSelect={onToggleSelect}
+                onCapture={onCapture}
+              />
+            ))}
+          </div>
         </div>
-      </header>
 
-      {showPreview && (
-        <ScrollPreview episode={episode} recordingsByLine={recordingsByLine} onClose={() => setShowPreview(false)} />
-      )}
-
-      <p className="rp__mock-note">
-        ℹ️ 내 녹음은 저장되어 다시 들어와도 보입니다. (다른 성우의 take 는 본인 녹음만 조회되어 표시되지 않습니다)
-      </p>
-
-      <div className="rp__cuts">
-        {sortBy(episode.cuts, 'position').map((cut, i) => (
-            <CutSection
-              key={cut.id}
-              cut={cut}
-              index={i + 1}
-              charactersById={charactersById}
-              recordingsByLine={recordingsByLine}
-              creatorId={creatorId}
-              onCapture={onCapture}
-            />
-          ))}
+        {/* 오른쪽 sticky 연속 스크롤 미리보기 — 녹음하며 확인 */}
+        <aside className="rp__side">
+          <ScrollPreview cuts={previewCuts} />
+        </aside>
       </div>
     </div>
   )

@@ -16,8 +16,4 @@ export class RecordingCreateDto {
   @IsInt()
   @IsNotEmpty()
   durationMs: number;
-
-  @IsInt()
-  @IsNotEmpty()
-  take: number;
 }

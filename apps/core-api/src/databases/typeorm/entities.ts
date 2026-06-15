@@ -10,6 +10,7 @@ import { Line } from '@modules/episode/domain/line.entity';
 import { File } from '@modules/file/domain/file.entity';
 import { Permission } from '@modules/permission/domain/permission.entity';
 import { Recording } from '@modules/recording/domain/recording.entity';
+import { LineTake } from '@modules/line-take/domain/line-take.entity';
 import { Role } from '@modules/role/domain/role.entity';
 import { Tag } from '@modules/tag/domain/tag.entity';
 
@@ -28,4 +29,5 @@ export default [
   Cut,
   Line,
   Recording,
+  LineTake,
 ];

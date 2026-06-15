@@ -12,6 +12,7 @@ import { CreatorModule } from './creator/creator.module';
 import { CastingModule } from '@modules/casting/casting.module';
 import { EpisodeModule } from './episode/episode.module';
 import { RecordingModule } from './recording/recording.module';
+import { LineTakeModule } from './line-take/line-take.module';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { RecordingModule } from './recording/recording.module';
     CastingModule,
     EpisodeModule,
     RecordingModule,
+    LineTakeModule,
   ],
   exports: [
     AccountModule,
@@ -43,6 +45,7 @@ import { RecordingModule } from './recording/recording.module';
     CastingModule,
     EpisodeModule,
     RecordingModule,
+    LineTakeModule,
   ],
 })
 export class DomainModule {}

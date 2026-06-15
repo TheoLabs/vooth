@@ -5,7 +5,7 @@ import { Transactional } from '@libs/decorators';
 import { Creator } from '@modules/creator/domain/creator.entity';
 import { RecordingPhase, Recording } from '../domain/recording.entity';
 import { EpisodeRepository } from '@modules/episode/infrastructure/episode.repository';
-import { PaginationOptions } from '@libs/utils';
+import { OrderType, PaginationOptions } from '@libs/utils';
 
 @Injectable()
 export class CreatorRecordingService extends DddService {
@@ -23,7 +23,6 @@ export class CreatorRecordingService extends DddService {
     episodeId,
     audioUrl,
     durationMs,
-    take,
     phase,
   }: {
     creator: Creator;
@@ -31,7 +30,6 @@ export class CreatorRecordingService extends DddService {
     episodeId: number;
     audioUrl: string;
     durationMs: number;
-    take: number;
     phase?: RecordingPhase;
   }) {
     const [episode] = await this.episodeRepository.find({
@@ -50,13 +48,11 @@ export class CreatorRecordingService extends DddService {
       throw new BadRequestException('등록되지 않은 대사입니다.', { cause: '등록되지 않은 대사입니다.' });
     }
 
-    const [existingRecording] = await this.recordingRepository.find({ creatorId: creator.id, lineId, take });
-
-    if (existingRecording) {
-      throw new BadRequestException('해당 테이크에 이미 녹음 기록이 존재합니다', {
-        cause: '해당 테이크에 이미 녹음 기록이 존재합니다',
-      });
-    }
+    // take 는 서버가 부여한다((line × creator) 의 max take + 1) — 프론트의 race/비연속 방지.
+    const [existingRecording] = await this.recordingRepository.find(
+      { creatorId: creator.id, lineId },
+      { order: OrderType.DESC, sort: 'take', limit: 1 }
+    );
 
     const recording = Recording.of({
       creatorId: creator.id,
@@ -64,7 +60,7 @@ export class CreatorRecordingService extends DddService {
       episodeId,
       audioUrl,
       durationMs,
-      take,
+      take: existingRecording ? existingRecording.take + 1 : 1,
       phase,
     });
 

@@ -1,12 +1,11 @@
 import { apiRequest } from '../lib/apiClient'
 
-/** POST /creators/recordings 바디. */
+/** POST /creators/recordings 바디. take 는 서버가 부여한다. */
 export interface CreateRecordingPayload {
   lineId: number
   episodeId: number
   audioUrl: string
   durationMs: number
-  take: number
 }
 
 /** 녹음 take 생성(성우). 동일 (line, creator, take) 중복 시 서버에서 거부. */
