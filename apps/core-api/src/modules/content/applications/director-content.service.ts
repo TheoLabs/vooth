@@ -1,5 +1,5 @@
 import { DddService } from '@libs/ddd';
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { ContentRepository } from '../infrastructure/content.repository';
 import { PaginationOptions } from '@libs/utils';
 import { ContentStatus } from '@vooth/shared';
@@ -20,5 +20,18 @@ export class DirectorContentService extends DddService {
     ]);
 
     return { items: contents, total };
+  }
+
+  async retrieve({ id }: { id: number }) {
+    const [content] = await this.contentRepository.find(
+      { id, statuses: [ContentStatus.RECORDING] },
+      { relations: { tags: true } }
+    );
+
+    if (!content) {
+      throw new BadRequestException('존재하지 않는 콘텐츠입니다.', { cause: '존재하지 않는 콘텐츠입니다.' });
+    }
+
+    return content;
   }
 }

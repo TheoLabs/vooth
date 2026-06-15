@@ -74,6 +74,45 @@ export function fetchDirectorContents(params?: {
   return apiRequest<{ items: DirectorContentItem[]; total: number }>(`/directors/contents?${query.toString()}`)
 }
 
+/** GET /directors/contents/:id — 콘텐츠 상세(검수 대상, tags 포함). */
+export function fetchDirectorContent(id: number | string): Promise<DirectorContentItem> {
+  return apiRequest<DirectorContentItem>(`/directors/contents/${id}`)
+}
+
+/** GET /directors/contents/:contentId/episodes 의 회차 항목. */
+export interface DirectorContentEpisode {
+  id: number
+  contentId: number
+  chapter: number
+  title: string
+  /** EpisodeStatus(숫자: 10~60). */
+  status: number
+  cutCount: number
+  lineCount: number
+}
+/** 콘텐츠 회차 목록(READY~PUBLISHED). */
+export function fetchDirectorContentEpisodes(
+  contentId: number | string
+): Promise<{ items: DirectorContentEpisode[]; total: number }> {
+  const query = new URLSearchParams({ page: '1', limit: '100' })
+  return apiRequest<{ items: DirectorContentEpisode[]; total: number }>(
+    `/directors/contents/${contentId}/episodes?${query.toString()}`
+  )
+}
+
+/** GET /directors/contents/:contentId/episodes/stats — 회차 상태별 집계. */
+export interface DirectorEpisodeStats {
+  total: number
+  approved: number
+  reviewing: number
+  ready: number
+}
+export function fetchDirectorContentEpisodeStats(
+  contentId: number | string
+): Promise<DirectorEpisodeStats> {
+  return apiRequest<DirectorEpisodeStats>(`/directors/contents/${contentId}/episodes/stats`)
+}
+
 /** 연출 대상 회차 목록. */
 export function fetchDirectorEpisodes(): Promise<{ items: DirectorEpisodeListItem[]; total: number }> {
   const query = new URLSearchParams({ page: '1', limit: '100' })

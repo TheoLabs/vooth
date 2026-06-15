@@ -3,7 +3,9 @@ import { PaginationDto } from '@libs/utils';
 import { EpisodeStatus } from '@vooth/shared';
 import { IsOptional, IsString } from 'class-validator';
 
-export class EpisodeQueryDto extends PaginationDto {
+class BaseEpisodeQueryDto extends PaginationDto {}
+
+export class AdminEpisodeQueryDto extends BaseEpisodeQueryDto {
   @IsOptional()
   @IsString()
   searchKey?: string;
@@ -16,3 +18,5 @@ export class EpisodeQueryDto extends PaginationDto {
   @IsOptional()
   statuses?: EpisodeStatus[];
 }
+
+export class DirectorEpisodeQueryDto extends BaseEpisodeQueryDto {}

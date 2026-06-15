@@ -1,34 +1,34 @@
-import { Body, Controller, Get, Param, ParseIntPipe, Patch, Query } from '@nestjs/common';
+import { Controller, Get, Param, ParseIntPipe, Query, UseGuards } from '@nestjs/common';
 import { DirectorEpisodeService } from '../applications/director-episode.service';
-import { EpisodeDirectionDto, EpisodeQueryDto } from './dto';
+import { DirectorGuard } from '@common/guards';
+import { DirectorEpisodeQueryDto } from './dto';
 
-/**
- * 연출(vooth-tool) 표면 — 인증/권한 없이 공개(임시, 추후 가드 추가).
- */
-@Controller('directors/episodes')
+@Controller('directors/contents/:contentId/episodes')
+@UseGuards(DirectorGuard)
 export class DirectorEpisodeController {
   constructor(private readonly directorEpisodeService: DirectorEpisodeService) {}
 
   @Get()
-  async list(@Query() query: EpisodeQueryDto) {
-    const { searchKey, searchValue, statuses, ...options } = query;
+  async list(@Param('contentId', ParseIntPipe) contentId: number, @Query() query: DirectorEpisodeQueryDto) {
+    // 1. Destructure body, params, query
+    const { ...options } = query;
 
-    const data = await this.directorEpisodeService.list({ statuses, searchKey, searchValue }, options);
+    // 2. Get context
+    // 3. Get result
+    const data = await this.directorEpisodeService.list({ contentId }, options);
 
+    // 4. Send response
     return { data };
   }
 
-  @Get(':id')
-  async retrieve(@Param('id', ParseIntPipe) id: number) {
-    const data = await this.directorEpisodeService.retrieve({ id });
+  @Get('stats')
+  async statsCount(@Param('contentId', ParseIntPipe) contentId: number) {
+    // 1. Destructure body, params, query
+    // 2. Get context
+    // 3. Get result
+    const data = await this.directorEpisodeService.getStatsCount({ contentId });
 
+    // 4. Send response
     return { data };
-  }
-
-  @Patch(':id/direction')
-  async saveDirection(@Param('id', ParseIntPipe) id: number, @Body() body: EpisodeDirectionDto) {
-    await this.directorEpisodeService.saveDirection({ id, cuts: body.cuts });
-
-    return { data: {} };
   }
 }

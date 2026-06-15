@@ -104,50 +104,102 @@ export const MOCK_EPISODES: MockEpisodeListItem[] = [
 
 // --- 검수 목록(콘텐츠 기반) mock ---
 export type ReviewStatus = 'review' | 'approved' | 'rejected'
+export interface MockTag {
+  id: number
+  name: string
+  /** TagColor 문자열(RED/BLUE…) */
+  color: string
+}
 export interface MockReviewEpisode {
   id: number
   chapter: number
   title: string
   status: ReviewStatus
+  cutCount: number
+  lineCount: number
+  /** 채택된 take 기준 예상 영상 길이(ms). */
+  durationMs: number
+  /** 멀티캐스팅 — 참여 성우 수. */
+  castCount: number
+  /** 마지막 갱신(ISO, UTC). */
+  updatedAt: string
 }
 export interface MockContent {
   id: number
   title: string
+  description: string
+  thumbnailImageUrl: string
+  tags: MockTag[]
   episodes: MockReviewEpisode[]
+}
+
+function contentThumb(title: string): string {
+  const initial = title.trim().charAt(0) || '?'
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="480" height="300" viewBox="0 0 480 300"><rect width="480" height="300" fill="#1e293b"/><text x="240" y="172" font-family="sans-serif" font-size="120" font-weight="800" fill="#475569" text-anchor="middle">${initial}</text></svg>`
+  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`
 }
 
 export const MOCK_CONTENTS: MockContent[] = [
   {
     id: 1,
     title: '화산귀환',
+    description: '대화산파 13대 제자, 매화검존 청명. 백년의 시간을 넘어 어린아이의 몸으로 다시 살아난다.',
+    thumbnailImageUrl: contentThumb('화산귀환'),
+    tags: [
+      { id: 1, name: '무협', color: 'RED' },
+      { id: 2, name: '액션', color: 'ORANGE' },
+      { id: 3, name: '회귀', color: 'PURPLE' }
+    ],
     episodes: [
-      { id: 1, chapter: 1, title: '서(序), 이게 뭐가 어떻게 돌아가는 상황이야?', status: 'review' },
-      { id: 2, chapter: 2, title: '돌아온 매화검존', status: 'approved' },
-      { id: 3, chapter: 3, title: '십만대산의 손님', status: 'rejected' }
+      { id: 1, chapter: 1, title: '서(序), 이게 뭐가 어떻게 돌아가는 상황이야?', status: 'review', cutCount: 4, lineCount: 7, durationMs: 78_000, castCount: 3, updatedAt: '2026-06-12T04:20:00.000Z' },
+      { id: 2, chapter: 2, title: '돌아온 매화검존', status: 'approved', cutCount: 5, lineCount: 9, durationMs: 95_000, castCount: 3, updatedAt: '2026-06-10T09:11:00.000Z' },
+      { id: 3, chapter: 3, title: '십만대산의 손님', status: 'rejected', cutCount: 6, lineCount: 11, durationMs: 110_000, castCount: 4, updatedAt: '2026-06-09T01:45:00.000Z' }
     ]
   },
   {
     id: 2,
     title: '나 혼자만 레벨업',
+    description: 'E급 헌터 성진우. 이중 던전에서 죽음의 문턱을 넘어 홀로 레벨업하는 능력을 얻는다.',
+    thumbnailImageUrl: contentThumb('나 혼자만 레벨업'),
+    tags: [
+      { id: 4, name: '판타지', color: 'BLUE' },
+      { id: 5, name: '액션', color: 'ORANGE' }
+    ],
     episodes: [
-      { id: 11, chapter: 1, title: '약자', status: 'review' },
-      { id: 12, chapter: 2, title: '각성', status: 'review' }
+      { id: 11, chapter: 1, title: '약자', status: 'review', cutCount: 5, lineCount: 8, durationMs: 88_000, castCount: 2, updatedAt: '2026-06-13T07:30:00.000Z' },
+      { id: 12, chapter: 2, title: '각성', status: 'review', cutCount: 6, lineCount: 10, durationMs: 102_000, castCount: 2, updatedAt: '2026-06-13T08:05:00.000Z' }
     ]
   }
 ]
 
 function buildReviewEpisodes(contentId: number): MockReviewEpisode[] {
-  return [
-    { id: contentId * 100 + 1, chapter: 1, title: '1화 (mock)', status: 'review' },
-    { id: contentId * 100 + 2, chapter: 2, title: '2화 (mock)', status: 'approved' },
-    { id: contentId * 100 + 3, chapter: 3, title: '3화 (mock)', status: 'rejected' }
-  ]
+  const statuses: ReviewStatus[] = ['review', 'approved', 'rejected']
+  return Array.from({ length: 3 }, (_, i) => ({
+    id: contentId * 100 + (i + 1),
+    chapter: i + 1,
+    title: `${i + 1}화 (mock)`,
+    status: statuses[i],
+    cutCount: 4 + i,
+    lineCount: 7 + i * 2,
+    durationMs: 80_000 + i * 12_000,
+    castCount: 2 + (i % 2),
+    updatedAt: new Date(Date.now() - i * 86_400_000).toISOString()
+  }))
 }
 
 export function getMockContent(id: number): MockContent | undefined {
   if (!id || Number.isNaN(id)) return undefined
-  // 목록은 실 API(real id) → 어떤 id가 와도 mock 회차를 만들어 보여준다.
-  return MOCK_CONTENTS.find((c) => c.id === id) ?? { id, title: `콘텐츠 #${id}`, episodes: buildReviewEpisodes(id) }
+  // 목록은 실 API(real id) → 어떤 id가 와도 mock 상세를 만들어 보여준다.
+  return (
+    MOCK_CONTENTS.find((c) => c.id === id) ?? {
+      id,
+      title: `콘텐츠 #${id}`,
+      description: '검수 대상 콘텐츠(mock). 실제 데이터 연동 전 UI/UX 확인용입니다.',
+      thumbnailImageUrl: contentThumb(`#${id}`),
+      tags: [{ id: 99, name: '검수 대기', color: 'GRAY' }],
+      episodes: buildReviewEpisodes(id)
+    }
+  )
 }
 
 export function getMockEpisode(id: number): MockEpisode | undefined {
