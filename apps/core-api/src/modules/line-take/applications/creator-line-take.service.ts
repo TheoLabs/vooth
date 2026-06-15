@@ -47,6 +47,12 @@ export class CreatorLineTakeService extends DddService {
 
   @Transactional()
   async clear({ creator, lineId }: { creator: Creator; lineId: number }) {
-    await this.lineTakeRepository.remove({ lineId, creatorId: creator.id });
+    const [lineTake] = await this.lineTakeRepository.find({ lineId, creatorId: creator.id });
+
+    if (!lineTake) {
+      return;
+    }
+
+    await this.lineTakeRepository.remove([lineTake]);
   }
 }

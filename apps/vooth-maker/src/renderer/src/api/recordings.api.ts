@@ -36,3 +36,11 @@ export function fetchRecordings(episodeId: number | string): Promise<RecordingLi
   const query = new URLSearchParams({ episodeId: String(episodeId), page: '1', limit: '500' })
   return apiRequest<RecordingListResponse>(`/creators/recordings?${query.toString()}`)
 }
+
+/**
+ * 내 녹음 take 삭제(성우). 본인 녹음만 삭제 가능(서버 검증).
+ * 채택(LineTake)된 take 를 지우면 서버에서 채택도 함께 해제된다.
+ */
+export function deleteRecording(recordingId: number): Promise<unknown> {
+  return apiRequest(`/creators/recordings/${recordingId}`, { method: 'DELETE' })
+}

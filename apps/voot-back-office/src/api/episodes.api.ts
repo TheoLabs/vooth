@@ -22,8 +22,7 @@ export const EPISODE_STATUS_META: Record<EpisodeStatus, { label: string; color: 
   [EpisodeStatus.DRAFT]: { label: '편집중', color: 'default' },
   [EpisodeStatus.READY]: { label: '녹음 대기', color: 'blue' },
   [EpisodeStatus.RECORDING]: { label: '녹음 중', color: 'processing' },
-  [EpisodeStatus.REVIEW]: { label: '검수 대기', color: 'gold' },
-  [EpisodeStatus.APPROVED]: { label: '검수 완료', color: 'cyan' },
+  [EpisodeStatus.REVIEWING]: { label: '검수 중', color: 'gold' },
   [EpisodeStatus.PUBLISHED]: { label: '발행', color: 'green' },
 };
 

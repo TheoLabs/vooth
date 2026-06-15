@@ -1,11 +1,7 @@
 import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
-import {
-  fetchDirectorContent,
-  fetchDirectorContentEpisodes,
-  fetchDirectorContentEpisodeStats
-} from '../api/directors'
+import { fetchDirectorContent, fetchDirectorContentEpisodes } from '../api/directors'
 import './ReviewContentPage.css'
 
 /** EpisodeStatus(숫자) → 칩 라벨/색. (EpisodeMenuList 와 동일 팔레트) */
@@ -13,8 +9,7 @@ const EP_STATUS_META: Record<number, { label: string; color: string }> = {
   10: { label: '편집중', color: '#8c8c8c' },
   20: { label: '녹음 대기', color: '#1677ff' },
   30: { label: '녹음 중', color: '#722ed1' },
-  40: { label: '검수 대기', color: '#d97706' },
-  50: { label: '승인', color: '#16a34a' },
+  40: { label: '검수 중', color: '#d97706' },
   60: { label: '발행', color: '#0f766e' }
 }
 
@@ -39,11 +34,6 @@ function placeholder(title: string): string {
   return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`
 }
 
-/** stats 핸들러가 아직 목록을 돌려줄 수 있어, 값이 숫자가 아니면 목록에서 계산한 값으로 대체. */
-function num(value: unknown, fallback: number): number {
-  return typeof value === 'number' && Number.isFinite(value) ? value : fallback
-}
-
 /** 전체 기준 구간 너비(%). */
 function pct(count: number, total: number): number {
   return total > 0 ? (count / total) * 100 : 0
@@ -53,7 +43,8 @@ function pct(count: number, total: number): number {
  * 검수 — 콘텐츠 상세(회차 목록). 회차 클릭 → 검수 상세.
  * - hero:  GET /directors/contents/:id
  * - 회차:  GET /directors/contents/:contentId/episodes
- * - 집계:  GET /directors/contents/:contentId/episodes/stats
+ * 진행 요약은 회차 status(진행 중/검수 중/발행) 롤업. 회차 단위 '승인'은 제거됨
+ * (승인은 (회차×성우) EpisodeReview 단위 — 추후 검수 화면 재설계 시 표시).
  */
 export function ReviewContentPage(): React.JSX.Element {
   const navigate = useNavigate()
@@ -75,35 +66,22 @@ export function ReviewContentPage(): React.JSX.Element {
     enabled,
     retry: false
   })
-  const statsQuery = useQuery({
-    queryKey: ['director-content-episode-stats', id],
-    queryFn: () => fetchDirectorContentEpisodeStats(id),
-    enabled,
-    retry: false
-  })
-
   const content = contentQuery.data
   const episodes = useMemo(
     () => [...(episodesQuery.data?.items ?? [])].sort((a, b) => a.chapter - b.chapter),
     [episodesQuery.data]
   )
 
-  // stats API 우선, 미제공 시 목록에서 계산(컨트롤러 버그 대비).
+  // 회차 status 롤업: 진행 중(녹음대기/녹음중) · 검수 중(REVIEWING) · 발행(PUBLISHED).
   const counts = useMemo(() => {
-    const derived = { approved: 0, review: 0, progress: 0 }
+    const c = { progress: 0, reviewing: 0, published: 0 }
     episodes.forEach((e) => {
-      if (e.status === 50 || e.status === 60) derived.approved += 1
-      else if (e.status === 40) derived.review += 1
-      else derived.progress += 1
+      if (e.status === 40) c.reviewing += 1
+      else if (e.status === 60) c.published += 1
+      else c.progress += 1
     })
-    const s = statsQuery.data
-    return {
-      total: num(s?.total, episodes.length),
-      approved: num(s?.approved, derived.approved),
-      review: num(s?.reviewing, derived.review),
-      progress: num(s?.ready, derived.progress)
-    }
-  }, [episodes, statsQuery.data])
+    return { ...c, total: episodes.length }
+  }, [episodes])
 
   if (contentQuery.isError) {
     return (
@@ -118,7 +96,7 @@ export function ReviewContentPage(): React.JSX.Element {
 
   const title = content?.title ?? fallbackTitle ?? ''
   const total = counts.total
-  const approvedPct = total > 0 ? Math.round((counts.approved / total) * 100) : 0
+  const publishedPct = total > 0 ? Math.round((counts.published / total) * 100) : 0
 
   return (
     <div className="rc">
@@ -158,27 +136,27 @@ export function ReviewContentPage(): React.JSX.Element {
         </div>
       </section>
 
-      {/* 진행 요약 — 전체 기준 구간 분할 막대(승인/검수 대기/진행 중) */}
+      {/* 진행 요약 — 전체 기준 구간 분할 막대(진행 중/검수 중/발행) */}
       <section className="rc-summary">
-        <div className="rc-summary__bar" role="img" aria-label={`전체 ${total}회차 중 승인 ${counts.approved}, 검수 대기 ${counts.review}, 진행 중 ${counts.progress}`}>
-          <div className="rc-summary__seg rc-summary__seg--approved" style={{ width: `${pct(counts.approved, total)}%` }} />
-          <div className="rc-summary__seg rc-summary__seg--review" style={{ width: `${pct(counts.review, total)}%` }} />
+        <div className="rc-summary__bar" role="img" aria-label={`전체 ${total}회차 중 진행 중 ${counts.progress}, 검수 중 ${counts.reviewing}, 발행 ${counts.published}`}>
           <div className="rc-summary__seg rc-summary__seg--progress" style={{ width: `${pct(counts.progress, total)}%` }} />
+          <div className="rc-summary__seg rc-summary__seg--review" style={{ width: `${pct(counts.reviewing, total)}%` }} />
+          <div className="rc-summary__seg rc-summary__seg--published" style={{ width: `${pct(counts.published, total)}%` }} />
         </div>
         <div className="rc-summary__stats">
           <span className="rc-stat">
             전체 <b>{total}</b>
           </span>
-          <span className="rc-stat rc-stat--approved">
-            <i className="rc-dot rc-dot--approved" />승인 <b>{counts.approved}</b>
-          </span>
-          <span className="rc-stat rc-stat--review">
-            <i className="rc-dot rc-dot--review" />검수 대기 <b>{counts.review}</b>
-          </span>
           <span className="rc-stat rc-stat--progress">
             <i className="rc-dot rc-dot--progress" />진행 중 <b>{counts.progress}</b>
           </span>
-          <span className="rc-summary__pct">승인 {approvedPct}%</span>
+          <span className="rc-stat rc-stat--review">
+            <i className="rc-dot rc-dot--review" />검수 중 <b>{counts.reviewing}</b>
+          </span>
+          <span className="rc-stat rc-stat--published">
+            <i className="rc-dot rc-dot--published" />발행 <b>{counts.published}</b>
+          </span>
+          <span className="rc-summary__pct">발행 {publishedPct}%</span>
         </div>
       </section>
 

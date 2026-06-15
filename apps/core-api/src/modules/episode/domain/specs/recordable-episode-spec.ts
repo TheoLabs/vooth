@@ -15,7 +15,11 @@ export class RecordableEpisodeSpec implements EpisodeSpec {
 
   async satifyElementFrom(repo: EpisodeRepository, options?: TypeormRelationOptions<Episode>): Promise<Episode[]> {
     return repo.find(
-      { id: this.id, contentId: this.contentId, statuses: [EpisodeStatus.READY, EpisodeStatus.RECORDING] },
+      {
+        id: this.id,
+        contentId: this.contentId,
+        statuses: [EpisodeStatus.READY, EpisodeStatus.RECORDING, EpisodeStatus.REVIEWING],
+      },
       options
     );
   }
@@ -24,7 +28,7 @@ export class RecordableEpisodeSpec implements EpisodeSpec {
     return repo.count({
       id: this.id,
       contentId: this.contentId,
-      statuses: [EpisodeStatus.READY, EpisodeStatus.RECORDING],
+      statuses: [EpisodeStatus.READY, EpisodeStatus.RECORDING, EpisodeStatus.REVIEWING],
     });
   }
 }

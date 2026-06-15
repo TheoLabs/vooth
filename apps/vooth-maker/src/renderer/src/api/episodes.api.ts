@@ -23,8 +23,7 @@ export const EPISODE_STATUS_META: Record<number, { label: string; color: string 
   10: { label: '편집중', color: '#8c8c8c' },
   20: { label: '녹음 대기', color: '#1677ff' },
   30: { label: '녹음 중', color: '#722ed1' },
-  40: { label: '검수', color: '#faad14' },
-  50: { label: '승인', color: '#13c2c2' },
+  40: { label: '검수 중', color: '#faad14' },
   60: { label: '발행', color: '#52c41a' }
 }
 

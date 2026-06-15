@@ -209,9 +209,12 @@ export class Episode extends DddAggregate {
   }
 
   validRecordable() {
-    if (this.status !== EpisodeStatus.READY && this.status !== EpisodeStatus.RECORDING) {
-      throw new BadRequestException('편집 중인 상태에서만 녹음이 가능합니다.', {
-        cause: '편집 중인 상태에서만 녹음이 가능합니다.',
+    // REVIEWING 도 허용: 검수는 캐스팅(성우) 단위라, 한 성우가 검수 요청해 회차가 REVIEWING 이 돼도
+    // 아직 끝내지 않은 다른 성우는 계속 녹음/채택할 수 있어야 한다.
+    const recordable = [EpisodeStatus.READY, EpisodeStatus.RECORDING, EpisodeStatus.REVIEWING];
+    if (!recordable.includes(this.status)) {
+      throw new BadRequestException('녹음이 가능한 상태가 아닙니다.', {
+        cause: '녹음이 가능한 상태가 아닙니다.',
       });
     }
 

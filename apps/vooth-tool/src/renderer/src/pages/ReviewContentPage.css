@@ -84,7 +84,7 @@
   height: 100%;
   transition: width 0.25s ease;
 }
-.rc-summary__seg--approved {
+.rc-summary__seg--published {
   background: #16a34a;
 }
 .rc-summary__seg--review {
@@ -117,7 +117,7 @@
   border-radius: 999px;
   flex: 0 0 auto;
 }
-.rc-dot--approved {
+.rc-dot--published {
   background: #16a34a;
 }
 .rc-dot--review {
@@ -126,14 +126,11 @@
 .rc-dot--progress {
   background: #1677ff;
 }
-.rc-stat--approved b {
+.rc-stat--published b {
   color: #16a34a;
 }
 .rc-stat--review b {
   color: #d97706;
-}
-.rc-stat--rejected b {
-  color: #dc2626;
 }
 .rc-stat--progress b {
   color: #1677ff;

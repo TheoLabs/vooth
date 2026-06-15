@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import groupBy from 'lodash/groupBy'
 import sortBy from 'lodash/sortBy'
 import {
@@ -9,7 +9,7 @@ import {
   type CreatorEpisodeDetail,
   type EpisodeListItem
 } from '../api/episodes.api'
-import { createRecording, fetchRecordings } from '../api/recordings.api'
+import { createRecording, deleteRecording, fetchRecordings } from '../api/recordings.api'
 import { clearLineTake, fetchLineTakes, selectLineTake } from '../api/lineTakes.api'
 import { uploadBlob } from '../lib/uploadBlob'
 import { useMe } from '../features/me/useMe'
@@ -114,12 +114,14 @@ function TakeRow({
   rec,
   mine,
   selected,
-  onToggleSelect
+  onToggleSelect,
+  onRequestDelete
 }: {
   rec: Recording
   mine: boolean
   selected: boolean
   onToggleSelect: () => void
+  onRequestDelete: () => void
 }): React.JSX.Element {
   const meta = RECORDING_STATUS_META[rec.status]
   return (
@@ -132,13 +134,24 @@ function TakeRow({
       <span className="rp-take__dur">{formatMs(rec.durationMs)}</span>
       <PlayButton rec={rec} />
       {mine && (
-        <button
-          type="button"
-          className={`rp-take__pick${selected ? ' rp-take__pick--on' : ''}`}
-          onClick={onToggleSelect}
-        >
-          {selected ? '★ 최종' : '채택'}
-        </button>
+        <>
+          <button
+            type="button"
+            className={`rp-take__pick${selected ? ' rp-take__pick--on' : ''}`}
+            onClick={onToggleSelect}
+          >
+            {selected ? '★ 최종' : '채택'}
+          </button>
+          <button
+            type="button"
+            className="rp-take__delete"
+            onClick={onRequestDelete}
+            title="이 take 삭제"
+            aria-label={`T${rec.take} 삭제`}
+          >
+            🗑
+          </button>
+        </>
       )}
     </li>
   )
@@ -217,6 +230,7 @@ function LineCard({
   recordings,
   selectedRecordingId,
   onToggleSelect,
+  onRequestDelete,
   onCapture
 }: {
   line: Line
@@ -224,6 +238,7 @@ function LineCard({
   recordings: Recording[]
   selectedRecordingId?: number
   onToggleSelect: (lineId: number, recordingId: number) => void
+  onRequestDelete: (rec: Recording) => void
   onCapture: CaptureFn
 }): React.JSX.Element {
   // 목록 API 가 본인 녹음만 반환하므로 가져온 take 는 모두 내 것이다.
@@ -245,6 +260,7 @@ function LineCard({
               mine
               selected={rec.id === selectedRecordingId}
               onToggleSelect={() => onToggleSelect(line.id, rec.id)}
+              onRequestDelete={() => onRequestDelete(rec)}
             />
           ))}
         </ul>
@@ -262,6 +278,7 @@ function CutSection({
   recordingsByLine,
   selectedByLine,
   onToggleSelect,
+  onRequestDelete,
   onCapture
 }: {
   cut: Cut
@@ -270,6 +287,7 @@ function CutSection({
   recordingsByLine: Record<number, Recording[]>
   selectedByLine: Record<number, number>
   onToggleSelect: (lineId: number, recordingId: number) => void
+  onRequestDelete: (rec: Recording) => void
   onCapture: CaptureFn
 }): React.JSX.Element {
   const lines = sortBy(cut.lines, 'position')
@@ -294,11 +312,59 @@ function CutSection({
             recordings={recordingsByLine[line.id] ?? []}
             selectedRecordingId={selectedByLine[line.id]}
             onToggleSelect={onToggleSelect}
+            onRequestDelete={onRequestDelete}
             onCapture={onCapture}
           />
         ))}
       </ul>
     </section>
+  )
+}
+
+/** 녹음 삭제 확인 모달. 채택된 take 면 추가 경고를 보여준다. */
+function ConfirmDeleteDialog({
+  rec,
+  isSelected,
+  pending,
+  error,
+  onConfirm,
+  onCancel
+}: {
+  rec: Recording
+  isSelected: boolean
+  pending: boolean
+  error: string | null
+  onConfirm: () => void
+  onCancel: () => void
+}): React.JSX.Element {
+  return (
+    <div className="rp-modal" role="dialog" aria-modal="true" onClick={onCancel}>
+      <div className="rp-modal__panel" onClick={(e) => e.stopPropagation()}>
+        <h3 className="rp-modal__title">녹음 삭제</h3>
+        <p className="rp-modal__desc">
+          <b>T{rec.take}</b> 녹음을 삭제할까요? 삭제하면 되돌릴 수 없습니다.
+        </p>
+        {isSelected && (
+          <p className="rp-modal__warn">
+            ⚠️ 이 take 는 현재 <b>최종 채택본</b>입니다. 삭제하면 이 대사의 채택이 해제되어 다시 채택해야 합니다.
+          </p>
+        )}
+        {error && <p className="rp-modal__error">{error}</p>}
+        <div className="rp-modal__actions">
+          <button type="button" className="rp-modal__btn" onClick={onCancel} disabled={pending}>
+            취소
+          </button>
+          <button
+            type="button"
+            className="rp-modal__btn rp-modal__btn--danger"
+            onClick={onConfirm}
+            disabled={pending}
+          >
+            {pending ? '삭제 중…' : '삭제'}
+          </button>
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -379,6 +445,23 @@ export function RecordingPage(): React.JSX.Element {
     },
     [selectedByLine, queryClient, episodeId]
   )
+
+  // 녹음 삭제: 확인 모달 → DELETE → 녹음/채택 목록 갱신(채택 take 삭제 시 채택도 풀리므로 둘 다 무효화).
+  const [pendingDelete, setPendingDelete] = useState<Recording | null>(null)
+  const deleteMutation = useMutation({
+    mutationFn: (id: number) => deleteRecording(id),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['creator-recordings', episodeId] }),
+        queryClient.invalidateQueries({ queryKey: ['creator-line-takes', episodeId] })
+      ])
+      setPendingDelete(null)
+    }
+  })
+  const onRequestDelete = useCallback((rec: Recording): void => {
+    setPendingDelete(rec)
+    deleteMutation.reset()
+  }, [deleteMutation])
 
   // 녹음 정지 → 오디오 업로드 → 녹음 생성 → 목록 갱신(서버가 진실).
   const onCapture = useCallback<CaptureFn>(
@@ -484,6 +567,7 @@ export function RecordingPage(): React.JSX.Element {
                 recordingsByLine={recordingsByLine}
                 selectedByLine={selectedByLine}
                 onToggleSelect={onToggleSelect}
+                onRequestDelete={onRequestDelete}
                 onCapture={onCapture}
               />
             ))}
@@ -495,6 +579,19 @@ export function RecordingPage(): React.JSX.Element {
           <ScrollPreview cuts={previewCuts} />
         </aside>
       </div>
+
+      {pendingDelete && (
+        <ConfirmDeleteDialog
+          rec={pendingDelete}
+          isSelected={selectedByLine[pendingDelete.lineId] === pendingDelete.id}
+          pending={deleteMutation.isPending}
+          error={deleteMutation.isError ? (deleteMutation.error as Error)?.message ?? '삭제하지 못했습니다.' : null}
+          onConfirm={() => deleteMutation.mutate(pendingDelete.id)}
+          onCancel={() => {
+            if (!deleteMutation.isPending) setPendingDelete(null)
+          }}
+        />
+      )}
     </div>
   )
 }

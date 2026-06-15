@@ -1,5 +1,5 @@
 import { CreatorGuard } from '@common/guards';
-import { Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, ParseIntPipe, Post, Query, UseGuards } from '@nestjs/common';
 import { CreatorRecordingService } from '../applications/creator-recording.service';
 import { Context, ContextKey } from '@common/context';
 import { Creator } from '@modules/creator/domain/creator.entity';
@@ -39,5 +39,18 @@ export class CreatorRecordingController {
 
     // 4. Send response
     return { data };
+  }
+
+  @Delete(':id')
+  async remove(@Param('id', ParseIntPipe) id: number) {
+    // 1. Destructure body, params, query
+    // 2. Get context
+    const creator = this.context.get<Creator>(ContextKey.CREATOR);
+
+    // 3. Get result
+    await this.creatorRecordingService.remove({ creator, id });
+
+    // 4. Send response
+    return { data: {} };
   }
 }

@@ -6,12 +6,14 @@ import { Creator } from '@modules/creator/domain/creator.entity';
 import { RecordingPhase, Recording } from '../domain/recording.entity';
 import { EpisodeRepository } from '@modules/episode/infrastructure/episode.repository';
 import { OrderType, PaginationOptions } from '@libs/utils';
+import { LineTakeRepository } from '@modules/line-take/infrastructure/line-take.repository';
 
 @Injectable()
 export class CreatorRecordingService extends DddService {
   constructor(
     private readonly recordingRepository: RecordingRepository,
-    private readonly episodeRepository: EpisodeRepository
+    private readonly episodeRepository: EpisodeRepository,
+    private readonly lineTakeRepository: LineTakeRepository
   ) {
     super();
   }
@@ -73,5 +75,24 @@ export class CreatorRecordingService extends DddService {
     ]);
 
     return { items: recordings, total };
+  }
+
+  @Transactional()
+  async remove({ creator, id }: { creator: Creator; id: number }) {
+    const [recording] = await this.recordingRepository.find({ creatorId: creator.id, id });
+
+    if (!recording) {
+      throw new BadRequestException('등록되지 않은 녹음입니다.', { cause: '등록되지 않은 녹음입니다.' });
+    }
+
+    const [lineTake] = await this.lineTakeRepository.find({
+      lineId: recording.lineId,
+      creatorId: creator.id,
+      recordingId: recording.id,
+    });
+    if (lineTake) {
+      await this.lineTakeRepository.remove([lineTake]);
+    }
+    await this.recordingRepository.softRemove([recording]);
   }
 }

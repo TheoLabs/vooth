@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { RecordingModule } from '@modules/recording/recording.module';
 import { LineTakeRepository } from './infrastructure/line-take.repository';
 import { CreatorLineTakeService } from './applications/creator-line-take.service';
@@ -7,7 +7,8 @@ import { DirectorTakeService } from './applications/director-take.service';
 import { DirectorTakeController } from './presentation/director-take.controller';
 
 @Module({
-  imports: [RecordingModule],
+  // RecordingModule 과 상호 의존 → forwardRef 로 순환 해소.
+  imports: [forwardRef(() => RecordingModule)],
   controllers: [CreatorLineTakeController, DirectorTakeController],
   providers: [LineTakeRepository, CreatorLineTakeService, DirectorTakeService],
   exports: [LineTakeRepository],

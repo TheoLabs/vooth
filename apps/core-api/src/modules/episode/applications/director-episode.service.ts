@@ -19,44 +19,30 @@ export class DirectorEpisodeService extends DddService {
   }
 
   async list({ contentId }: { contentId?: number }, options?: PaginationOptions) {
+    const statuses = [
+      EpisodeStatus.READY,
+      EpisodeStatus.RECORDING,
+      EpisodeStatus.REVIEWING,
+      EpisodeStatus.PUBLISHED,
+    ];
     const [episodes, total] = await Promise.all([
-      this.episodeRepository.find(
-        {
-          contentId,
-          statuses: [
-            EpisodeStatus.READY,
-            EpisodeStatus.RECORDING,
-            EpisodeStatus.REVIEW,
-            EpisodeStatus.APPROVED,
-            EpisodeStatus.PUBLISHED,
-          ],
-        },
-        { options }
-      ),
-      this.episodeRepository.count({
-        contentId,
-        statuses: [
-          EpisodeStatus.READY,
-          EpisodeStatus.RECORDING,
-          EpisodeStatus.REVIEW,
-          EpisodeStatus.APPROVED,
-          EpisodeStatus.PUBLISHED,
-        ],
-      }),
+      this.episodeRepository.find({ contentId, statuses }, { options }),
+      this.episodeRepository.count({ contentId, statuses }),
     ]);
 
     return { items: episodes, total };
   }
 
   async getStatsCount({ contentId }: { contentId: number }) {
-    const [total, approved, reviewing, ready] = await Promise.all([
+    // NOTE: 회차 단위 APPROVED 제거됨 — '검수 완료(승인)' 집계는 (회차×성우) EpisodeReview 기준으로
+    // 재작성 필요. 지금은 episode.status 롤업만 제공(approved 는 EpisodeReview 연동 시 대체).
+    const [total, reviewing, ready] = await Promise.all([
       this.episodeRepository.count({ contentId }),
-      this.episodeRepository.count({ contentId, statuses: [EpisodeStatus.APPROVED] }),
-      this.episodeRepository.count({ contentId, statuses: [EpisodeStatus.REVIEW] }),
+      this.episodeRepository.count({ contentId, statuses: [EpisodeStatus.REVIEWING] }),
       this.episodeRepository.count({ contentId, statuses: [EpisodeStatus.RECORDING, EpisodeStatus.READY] }),
     ]);
 
-    return { total, approved, reviewing, ready };
+    return { total, approved: 0, reviewing, ready };
   }
 
   async retrieve({ id }: { id: number }) {
