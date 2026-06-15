@@ -68,13 +68,7 @@ export class Line extends DddAggregate {
     return new Line(args);
   }
 
-  update(args: {
-    characterId?: number;
-    script?: string;
-    position?: number;
-    anchorY?: number;
-    gapBeforeMs?: number;
-  }) {
+  update(args: { characterId?: number; script?: string; position?: number; anchorY?: number; gapBeforeMs?: number }) {
     const changed = this.stripUnchanged(args);
 
     if (!changed) {

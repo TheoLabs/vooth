@@ -1,8 +1,7 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { AnchorStage, anchorEven } from '../components/AnchorStage'
-import { ScrollPreview } from '../components/ScrollPreview'
 import {
   fetchDirectorEpisode,
   saveDirection,
@@ -10,7 +9,6 @@ import {
   type DirectorEpisodeDetail
 } from '../api/directors'
 import type { DirCut, DirEpisode } from '../types/direction'
-import type { ScrollInputCut } from '../lib/scrollTimeline'
 import './DirectionEditorPage.css'
 
 /** directors 상세 응답 → 에디터용 DirEpisode (캐릭터명 매핑, position 정렬). */
@@ -130,7 +128,6 @@ export function DirectionEditorPage(): React.JSX.Element {
   const navigate = useNavigate()
   const { id } = useParams<{ id: string }>()
   const [episode, setEpisode] = useState<DirEpisode | undefined>(undefined)
-  const [previewOpen, setPreviewOpen] = useState(false)
 
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ['director-episode', id],
@@ -169,24 +166,6 @@ export function DirectionEditorPage(): React.JSX.Element {
     mapCut(cutId, (c) => ({ ...c, lines: c.lines.map((l) => (l.id === lineId ? { ...l, gapBeforeMs: ms } : l)) }))
   const setHold = (cutId: number, ms: number | undefined): void => mapCut(cutId, (c) => ({ ...c, holdMs: ms }))
 
-  const previewCuts = useMemo<ScrollInputCut[]>(
-    () =>
-      (episode?.cuts ?? []).map((c) => ({
-        imageUrl: c.imageUrl,
-        imageWidth: c.imageWidth,
-        imageHeight: c.imageHeight,
-        holdMs: c.holdMs,
-        lines: c.lines.map((l) => ({
-          id: l.id,
-          script: l.script,
-          characterName: l.characterName,
-          anchorY: l.anchorY,
-          gapBeforeMs: l.gapBeforeMs
-        }))
-      })),
-    [episode]
-  )
-
   if (isLoading && !episode) {
     return (
       <div className="de-empty">
@@ -220,9 +199,6 @@ export function DirectionEditorPage(): React.JSX.Element {
           </h2>
         </div>
         <div className="de__actions">
-          <button type="button" className="de__preview" onClick={() => setPreviewOpen(true)}>
-            ▶ 연속 스크롤 미리보기
-          </button>
           <button
             type="button"
             className="de__save de__save--active"
@@ -253,8 +229,6 @@ export function DirectionEditorPage(): React.JSX.Element {
           />
         ))}
       </div>
-
-      {previewOpen && <ScrollPreview cuts={previewCuts} onClose={() => setPreviewOpen(false)} />}
     </div>
   )
 }
