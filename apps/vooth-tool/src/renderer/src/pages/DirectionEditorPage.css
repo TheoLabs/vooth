@@ -2,6 +2,19 @@
   max-width: 1000px;
   padding: 8px 4px;
 }
+.de__render {
+  border: 1px solid #6366f1;
+  background: #eef2ff;
+  color: #4f46e5;
+  font-weight: 700;
+  font-size: 13px;
+  padding: 6px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.de__render:hover {
+  background: #e0e7ff;
+}
 .de__header {
   display: flex;
   align-items: flex-start;

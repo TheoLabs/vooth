@@ -7,6 +7,7 @@ import type { CropBox } from '../lib/cropBox'
 
 export interface DirLine {
   id: number
+  characterId: number
   characterName: string
   script: string
   /** 컷 내 세로 위치(0~1). 미지정이면 균등 분배 폴백. */

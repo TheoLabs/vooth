@@ -57,6 +57,18 @@ export function fetchDirectorEpisode(id: number | string): Promise<DirectorEpiso
   return apiRequest<DirectorEpisodeDetail>(`/directors/episodes/${id}`)
 }
 
+/** GET /directors/episodes/:id/takes — 라인별 채택 take(오디오/길이, 전 성우). */
+export interface DirectorTakeItem {
+  lineId: number
+  creatorId: number
+  recordingId: number
+  audioUrl: string | null
+  durationMs: number | null
+}
+export function fetchDirectorTakes(episodeId: number | string): Promise<{ items: DirectorTakeItem[] }> {
+  return apiRequest<{ items: DirectorTakeItem[] }>(`/directors/episodes/${episodeId}/takes`)
+}
+
 /** 연출 부분 저장(anchorY/gap/hold). */
 export interface DirectionPayload {
   cuts: { id: number; holdMs?: number; lines?: { id: number; anchorY?: number; gapBeforeMs?: number }[] }[]

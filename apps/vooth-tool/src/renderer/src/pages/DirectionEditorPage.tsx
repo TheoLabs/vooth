@@ -24,6 +24,7 @@ function toDirEpisode(detail: DirectorEpisodeDetail): DirEpisode {
     holdMs: c.holdMs ?? undefined,
     lines: sortBy(c.lines, 'position').map((l) => ({
       id: l.id,
+      characterId: l.characterId,
       characterName: nameById.get(l.characterId) ?? `캐릭터 #${l.characterId}`,
       script: l.script,
       anchorY: l.anchorY ?? undefined,
@@ -196,6 +197,9 @@ export function DirectionEditorPage(): React.JSX.Element {
           </h2>
         </div>
         <div className="de__actions">
+          <button type="button" className="de__render" onClick={() => navigate('/review')}>
+            검수 →
+          </button>
           <button
             type="button"
             className="de__save de__save--active"

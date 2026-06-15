@@ -10,15 +10,18 @@ interface NavItemDef {
 }
 
 const NAV_ITEMS: NavItemDef[] = [
-  { to: '/', label: '연출 · 제작', icon: '🎬' },
-  { to: '/render', label: '렌더', icon: '🎞️', disabled: true },
+  { to: '/', label: '연출', icon: '🎬' },
+  { to: '/review', label: '검수', icon: '✅' },
+  { to: '/render', label: '렌더', icon: '🎞️' },
   { to: '/settings', label: '설정', icon: '⚙️', disabled: true }
 ]
 
 /** 현재 경로에 맞는 헤더 타이틀. */
 function titleFromPath(pathname: string): string {
+  if (pathname.startsWith('/review')) return '검수'
+  if (pathname.startsWith('/render')) return '렌더 · 제작'
   if (pathname.startsWith('/episodes')) return '연출'
-  return '연출 · 제작'
+  return '연출'
 }
 
 /**
