@@ -27,7 +27,7 @@ export class CreatorLineTakeService extends DddService {
       throw new BadRequestException('채택할 수 없는 녹음입니다.', { cause: '채택할 수 없는 녹음입니다.' });
     }
 
-    const [existing] = await this.lineTakeRepository.find({ lineId, creatorId: creator.id });
+    const [existing] = await this.lineTakeRepository.find({ lineIds: [lineId], creatorId: creator.id });
 
     if (existing) {
       existing.update({ recordingId });
@@ -47,7 +47,7 @@ export class CreatorLineTakeService extends DddService {
 
   @Transactional()
   async clear({ creator, lineId }: { creator: Creator; lineId: number }) {
-    const [lineTake] = await this.lineTakeRepository.find({ lineId, creatorId: creator.id });
+    const [lineTake] = await this.lineTakeRepository.find({ lineIds: [lineId], creatorId: creator.id });
 
     if (!lineTake) {
       return;

@@ -10,6 +10,7 @@ import {
   type EpisodeListItem
 } from '../api/episodes.api'
 import { createRecording, deleteRecording, fetchRecordings } from '../api/recordings.api'
+import { requestReview } from '../api/reviews.api'
 import { clearLineTake, fetchLineTakes, selectLineTake } from '../api/lineTakes.api'
 import { uploadBlob } from '../lib/uploadBlob'
 import { useMe } from '../features/me/useMe'
@@ -463,6 +464,19 @@ export function RecordingPage(): React.JSX.Element {
     deleteMutation.reset()
   }, [deleteMutation])
 
+  // 검수 요청(성우 → 해당 회차의 내 캐스팅): 내가 녹음한 모든 라인을 채택해야 요청 가능.
+  // 서버(POST /creators/reviews)가 캐스팅 기준으로 최종 검증한다. 성공 시 '검수 요청됨' 표시.
+  // (현재 내 Review 상태 조회 API 가 없어, 요청 여부는 이 세션 동안만 유지된다.)
+  const [reviewRequested, setReviewRequested] = useState(false)
+  const [showReviewConfirm, setShowReviewConfirm] = useState(false)
+  const reviewMutation = useMutation({
+    mutationFn: () => requestReview(episodeId as number),
+    onSuccess: () => {
+      setReviewRequested(true)
+      setShowReviewConfirm(false)
+    }
+  })
+
   // 녹음 정지 → 오디오 업로드 → 녹음 생성 → 목록 갱신(서버가 진실).
   const onCapture = useCallback<CaptureFn>(
     async (line, blob, durationMs) => {
@@ -523,10 +537,14 @@ export function RecordingPage(): React.JSX.Element {
   }
 
   const statusMeta = EPISODE_STATUS_META[episode.status]
-  const myRecordedLines = episode.cuts.reduce(
-    (acc, cut) => acc + cut.lines.filter((l) => (recordingsByLine[l.id] ?? []).length > 0).length,
-    0
-  )
+  // 내가 녹음한 라인들. 그 라인이 전부 최종 채택되면 검수 요청 가능.
+  const myRecordedLineIds = episode.cuts
+    .flatMap((cut) => cut.lines)
+    .filter((l) => (recordingsByLine[l.id] ?? []).length > 0)
+    .map((l) => l.id)
+  const myRecordedLines = myRecordedLineIds.length
+  const myAdoptedLines = myRecordedLineIds.filter((id) => selectedByLine[id] != null).length
+  const canRequestReview = myRecordedLines > 0 && myAdoptedLines === myRecordedLines && !reviewRequested
   const totalMs = episode.cuts.reduce((acc, cut) => acc + deriveCutDuration(cut, recordingsByLine).ms, 0)
 
   return (
@@ -534,22 +552,52 @@ export function RecordingPage(): React.JSX.Element {
       <div className="rp__split">
         <div className="rp__main">
           <header className="rp__header">
-            <Link className="rp__back" to={backTo}>
-              ← 회차 목록으로 돌아가기
-            </Link>
-            <span className="rp__content">{episode.contentTitle}</span>
-            <h2 className="rp__title">
-              <span className="rp__chapter">{episode.chapter}화</span>
-              {episode.title}
-              {statusMeta && (
-                <span className="rp__status" style={{ color: statusMeta.color, background: `${statusMeta.color}1a` }}>
-                  {statusMeta.label}
-                </span>
+            <div className="rp__header-main">
+              <Link className="rp__back" to={backTo}>
+                ← 회차 목록으로 돌아가기
+              </Link>
+              <span className="rp__content">{episode.contentTitle}</span>
+              <h2 className="rp__title">
+                <span className="rp__chapter">{episode.chapter}화</span>
+                {episode.title}
+                {statusMeta && (
+                  <span className="rp__status" style={{ color: statusMeta.color, background: `${statusMeta.color}1a` }}>
+                    {statusMeta.label}
+                  </span>
+                )}
+              </h2>
+              <div className="rp__summary">
+                컷 {episode.cutCount}개 · 대사 {episode.lineCount}개 · 내 녹음 {myRecordedLines}/{episode.lineCount} · 예상
+                길이 {formatMs(totalMs)}
+              </div>
+            </div>
+
+            {/* 검수 요청(성우): 내가 녹음한 라인을 전부 채택해야 활성화 */}
+            <div className="rp__review">
+              {reviewRequested ? (
+                <span className="rp__review-pill">✓ 검수 요청됨</span>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    className="rp__review-btn"
+                    disabled={!canRequestReview}
+                    onClick={() => {
+                      reviewMutation.reset()
+                      setShowReviewConfirm(true)
+                    }}
+                  >
+                    검수 요청
+                  </button>
+                  <span className="rp__review-hint">
+                    {myRecordedLines === 0
+                      ? '먼저 녹음하고 최종 take 를 채택하세요'
+                      : myAdoptedLines === myRecordedLines
+                        ? `내 라인 ${myAdoptedLines}/${myRecordedLines} 채택 완료`
+                        : `채택 ${myAdoptedLines}/${myRecordedLines} · 전부 채택하면 요청 가능`}
+                  </span>
+                </>
               )}
-            </h2>
-            <div className="rp__summary">
-              컷 {episode.cutCount}개 · 대사 {episode.lineCount}개 · 내 녹음 {myRecordedLines}/{episode.lineCount} · 예상
-              길이 {formatMs(totalMs)}
             </div>
           </header>
 
@@ -591,6 +639,48 @@ export function RecordingPage(): React.JSX.Element {
             if (!deleteMutation.isPending) setPendingDelete(null)
           }}
         />
+      )}
+
+      {showReviewConfirm && (
+        <div
+          className="rp-modal"
+          role="dialog"
+          aria-modal="true"
+          onClick={() => {
+            if (!reviewMutation.isPending) setShowReviewConfirm(false)
+          }}
+        >
+          <div className="rp-modal__panel" onClick={(e) => e.stopPropagation()}>
+            <h3 className="rp-modal__title">검수 요청</h3>
+            <p className="rp-modal__desc">
+              이 회차의 내 작업(<b>{myRecordedLines}개 라인</b>)을 검수 요청할까요? 요청하면 검수자가 승인 또는
+              반려합니다. 요청 후에도 채택을 수정하면 요청이 해제될 수 있어요.
+            </p>
+            {reviewMutation.isError && (
+              <p className="rp-modal__error">
+                {(reviewMutation.error as Error)?.message ?? '검수 요청에 실패했습니다.'}
+              </p>
+            )}
+            <div className="rp-modal__actions">
+              <button
+                type="button"
+                className="rp-modal__btn"
+                onClick={() => setShowReviewConfirm(false)}
+                disabled={reviewMutation.isPending}
+              >
+                취소
+              </button>
+              <button
+                type="button"
+                className="rp-modal__btn rp-modal__btn--primary"
+                onClick={() => reviewMutation.mutate()}
+                disabled={reviewMutation.isPending}
+              >
+                {reviewMutation.isPending ? '요청 중…' : '검수 요청'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

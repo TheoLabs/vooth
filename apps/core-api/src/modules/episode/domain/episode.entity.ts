@@ -35,7 +35,6 @@ export class Episode extends DddAggregate {
   @Column()
   lineCount: number;
 
-  // 스크립트 재업로드 시 교체된(빠진) 컷은 삭제한다(고아 제거). 하위 라인은 Cut.lines 가 정리.
   @OneToMany(() => Cut, (cut) => cut.episode, { cascade: true, orphanedRowAction: 'delete' })
   cuts: Cut[];
 
@@ -175,11 +174,6 @@ export class Episode extends DddAggregate {
     this.lineCount = this.cuts.reduce((acc, cut) => acc + cut.lines.length, 0);
   }
 
-  /**
-   * 연출 부분 수정 — 컷 holdMs / 라인 anchorY·gapBeforeMs 만 갱신한다.
-   * 스크립트(컷/대사 구성)는 건드리지 않으므로 등록(uploadScript)과 충돌하지 않는다.
-   * payload 에 없는 컷/대사는 무시(부분 수정), 기존 연출값은 보존.
-   */
   applyDirection({
     cuts,
   }: {
@@ -209,8 +203,6 @@ export class Episode extends DddAggregate {
   }
 
   validRecordable() {
-    // REVIEWING 도 허용: 검수는 캐스팅(성우) 단위라, 한 성우가 검수 요청해 회차가 REVIEWING 이 돼도
-    // 아직 끝내지 않은 다른 성우는 계속 녹음/채택할 수 있어야 한다.
     const recordable = [EpisodeStatus.READY, EpisodeStatus.RECORDING, EpisodeStatus.REVIEWING];
     if (!recordable.includes(this.status)) {
       throw new BadRequestException('녹음이 가능한 상태가 아닙니다.', {

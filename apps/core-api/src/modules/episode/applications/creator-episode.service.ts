@@ -9,6 +9,7 @@ import { Transactional } from '@libs/decorators';
 import { EventHandler } from '@libs/decorators/event-handler.decorator';
 import { RecordingCreatedEvent } from '@modules/recording/domain/events';
 import { EpisodeStatus } from '@vooth/shared';
+import { ReviewCreatedEvent } from '@modules/review/domain/events';
 
 @Injectable()
 export class CreatorEpisodeService extends DddService {
@@ -70,6 +71,21 @@ export class CreatorEpisodeService extends DddService {
 
     if (episode && episode.status === EpisodeStatus.READY) {
       episode.transitionTo(EpisodeStatus.RECORDING);
+      await this.episodeRepository.save([episode]);
+    }
+  }
+
+  @EventHandler(ReviewCreatedEvent, {
+    description: '에피소드에 대한 검수요청이 오면 녹음 중 -> 검수 중으로 변경해준다.',
+  })
+  @Transactional()
+  async handleReviewCreatedEvent(event: ReviewCreatedEvent) {
+    const { episodeId } = event;
+
+    const [episode] = await this.episodeRepository.find({ id: episodeId });
+
+    if (episode && episode.status === EpisodeStatus.RECORDING) {
+      episode.transitionTo(EpisodeStatus.REVIEWING);
       await this.episodeRepository.save([episode]);
     }
   }

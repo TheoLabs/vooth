@@ -86,7 +86,7 @@ export class CreatorRecordingService extends DddService {
     }
 
     const [lineTake] = await this.lineTakeRepository.find({
-      lineId: recording.lineId,
+      lineIds: [recording.lineId],
       creatorId: creator.id,
       recordingId: recording.id,
     });

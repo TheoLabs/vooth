@@ -13,6 +13,7 @@ import { CastingModule } from '@modules/casting/casting.module';
 import { EpisodeModule } from './episode/episode.module';
 import { RecordingModule } from './recording/recording.module';
 import { LineTakeModule } from './line-take/line-take.module';
+import { ReviewModule } from './review/review.module';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { LineTakeModule } from './line-take/line-take.module';
     EpisodeModule,
     RecordingModule,
     LineTakeModule,
+    ReviewModule,
   ],
   exports: [
     AccountModule,
@@ -45,6 +47,7 @@ import { LineTakeModule } from './line-take/line-take.module';
     CastingModule,
     EpisodeModule,
     RecordingModule,
+    ReviewModule,
     LineTakeModule,
   ],
 })

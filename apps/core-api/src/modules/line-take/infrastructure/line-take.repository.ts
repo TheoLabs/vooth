@@ -1,25 +1,43 @@
 import { DddRepository } from '@libs/ddd';
 import { Injectable } from '@nestjs/common';
 import { LineTake } from '../domain/line-take.entity';
-import { convertOptions, stripUndefined, TypeormRelationOptions } from '@libs/utils';
+import { checkInValue, convertOptions, stripUndefined, TypeormRelationOptions } from '@libs/utils';
 
 @Injectable()
 export class LineTakeRepository extends DddRepository<LineTake> {
   entityClass = LineTake;
 
   async find(
-    conditions: { id?: number; lineId?: number; episodeId?: number; creatorId?: number; recordingId?: number },
+    conditions: { id?: number; lineIds?: number[]; episodeId?: number; creatorId?: number; recordingId?: number },
     options?: TypeormRelationOptions<LineTake>
   ) {
     return this.entityManager.find(this.entityClass, {
       where: stripUndefined({
         id: conditions.id,
-        lineId: conditions.lineId,
+        lineId: checkInValue(conditions.lineIds),
         episodeId: conditions.episodeId,
         creatorId: conditions.creatorId,
         recordingId: conditions.recordingId,
       }),
       ...convertOptions(options),
+    });
+  }
+
+  async count(conditions: {
+    id?: number;
+    lineIds?: number[];
+    episodeId?: number;
+    creatorId?: number;
+    recordingId?: number;
+  }) {
+    return this.entityManager.count(this.entityClass, {
+      where: stripUndefined({
+        id: conditions.id,
+        lineId: checkInValue(conditions.lineIds),
+        episodeId: conditions.episodeId,
+        creatorId: conditions.creatorId,
+        recordingId: conditions.recordingId,
+      }),
     });
   }
 

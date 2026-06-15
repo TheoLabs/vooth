@@ -13,6 +13,7 @@ import { Recording } from '@modules/recording/domain/recording.entity';
 import { LineTake } from '@modules/line-take/domain/line-take.entity';
 import { Role } from '@modules/role/domain/role.entity';
 import { Tag } from '@modules/tag/domain/tag.entity';
+import { Review } from '@modules/review/domain/review.entity';
 
 export default [
   DddEvent,
@@ -30,4 +31,5 @@ export default [
   Line,
   Recording,
   LineTake,
+  Review,
 ];
