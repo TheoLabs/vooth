@@ -37,7 +37,10 @@ export class DirectorEpisodeService extends DddService {
     // 콘텐츠 제목 매핑(단일 id 조회만 가능 → unique id 만 모아 병렬 조회).
     const contentIds = uniq(episodes.map((e) => e.contentId));
     const contents = await Promise.all(contentIds.map((id) => this.contentRepository.find({ id }).then((r) => r[0])));
-    const contentById = keyBy(contents.filter((c): c is NonNullable<typeof c> => Boolean(c)), 'id');
+    const contentById = keyBy(
+      contents.filter((c): c is NonNullable<typeof c> => Boolean(c)),
+      'id'
+    );
 
     const items = episodes.map((e) => ({
       id: e.id,

@@ -7,7 +7,7 @@ import { PendingApprovalPage } from '../pages/PendingApprovalPage'
 import './approval-gate.css'
 
 /**
- * 인증된 사용자의 /creators/me 결과에 따라 보호 영역 접근을 통제한다.
+ * 인증된 사용자의 /directors/me 결과에 따라 보호 영역 접근을 통제한다.
  * - loading   → 중앙 로딩 상태
  * - 200(성공) → 승인된 계정(역할 배정) → 하위 라우트(홈) 진입
  * - 403       → 승인 대기 페이지

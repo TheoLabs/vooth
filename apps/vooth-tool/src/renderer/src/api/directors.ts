@@ -46,6 +46,34 @@ export interface DirectorEpisodeDetail {
   characters: { id: number; name: string }[]
 }
 
+/** 콘텐츠 태그(조인). color 는 TagColor 문자열('RED' 등). */
+export interface DirectorContentTag {
+  id: number
+  name: string
+  color: string
+}
+/** GET /directors/contents — 검수/제작 대상 콘텐츠 목록(RECORDING). */
+export interface DirectorContentItem {
+  id: number
+  title: string
+  thumbnailImageUrl: string
+  description: string
+  status: string
+  tags: DirectorContentTag[]
+}
+export function fetchDirectorContents(params?: {
+  /** 제목 검색어. */
+  title?: string
+}): Promise<{ items: DirectorContentItem[]; total: number }> {
+  const query = new URLSearchParams({ page: '1', limit: '100' })
+  const title = params?.title?.trim()
+  if (title) {
+    query.set('searchKey', 'title')
+    query.set('searchValue', title)
+  }
+  return apiRequest<{ items: DirectorContentItem[]; total: number }>(`/directors/contents?${query.toString()}`)
+}
+
 /** 연출 대상 회차 목록. */
 export function fetchDirectorEpisodes(): Promise<{ items: DirectorEpisodeListItem[]; total: number }> {
   const query = new URLSearchParams({ page: '1', limit: '100' })

@@ -1,4 +1,6 @@
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
+import { useAuth } from '../auth/AuthContext'
+import { useMe } from '../features/me/useMe'
 import './AppLayout.css'
 
 interface NavItemDef {
@@ -31,6 +33,8 @@ function titleFromPath(pathname: string): string {
  */
 export function AppLayout(): React.JSX.Element {
   const location = useLocation()
+  const { logout } = useAuth()
+  const { data: me } = useMe()
 
   return (
     <div className="app-shell">
@@ -72,6 +76,17 @@ export function AppLayout(): React.JSX.Element {
       <div className="app-main">
         <header className="app-header">
           <h1 className="app-header__title">{titleFromPath(location.pathname)}</h1>
+          <div className="app-header__user">
+            {me && (
+              <div className="app-header__userinfo">
+                <span className="app-header__name">{me.name}</span>
+                <span className="app-header__email">{me.email}</span>
+              </div>
+            )}
+            <button type="button" className="app-header__logout" onClick={logout}>
+              로그아웃
+            </button>
+          </div>
         </header>
 
         <main className="app-content">

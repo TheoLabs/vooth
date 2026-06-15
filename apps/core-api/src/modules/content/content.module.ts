@@ -5,11 +5,13 @@ import { AdminContentService } from './applications/admin-content.service';
 import { TagModule } from '@modules/tag/tag.module';
 import { CreatorContentController } from './presentation/creator-content.controller';
 import { CreatorContentService } from './applications/creator-content.service';
+import { DirectorContentController } from './presentation/director-content.controller';
+import { DirectorContentService } from './applications/director-content.service';
 
 @Module({
   imports: [TagModule],
-  controllers: [AdminContentController, CreatorContentController],
-  providers: [ContentRepository, AdminContentService, CreatorContentService],
-  exports: [ContentRepository, AdminContentService, CreatorContentService],
+  controllers: [AdminContentController, CreatorContentController, DirectorContentController],
+  providers: [ContentRepository, AdminContentService, CreatorContentService, DirectorContentService],
+  exports: [ContentRepository, AdminContentService, CreatorContentService, DirectorContentService],
 })
 export class ContentModule {}

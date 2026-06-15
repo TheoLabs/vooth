@@ -102,8 +102,57 @@ export const MOCK_EPISODES: MockEpisodeListItem[] = [
   { id: 2, contentTitle: '화산귀환', chapter: 2, title: '돌아온 매화검존', cutCount: 4, lineCount: 7, status: 'approved' }
 ]
 
+// --- 검수 목록(콘텐츠 기반) mock ---
+export type ReviewStatus = 'review' | 'approved' | 'rejected'
+export interface MockReviewEpisode {
+  id: number
+  chapter: number
+  title: string
+  status: ReviewStatus
+}
+export interface MockContent {
+  id: number
+  title: string
+  episodes: MockReviewEpisode[]
+}
+
+export const MOCK_CONTENTS: MockContent[] = [
+  {
+    id: 1,
+    title: '화산귀환',
+    episodes: [
+      { id: 1, chapter: 1, title: '서(序), 이게 뭐가 어떻게 돌아가는 상황이야?', status: 'review' },
+      { id: 2, chapter: 2, title: '돌아온 매화검존', status: 'approved' },
+      { id: 3, chapter: 3, title: '십만대산의 손님', status: 'rejected' }
+    ]
+  },
+  {
+    id: 2,
+    title: '나 혼자만 레벨업',
+    episodes: [
+      { id: 11, chapter: 1, title: '약자', status: 'review' },
+      { id: 12, chapter: 2, title: '각성', status: 'review' }
+    ]
+  }
+]
+
+function buildReviewEpisodes(contentId: number): MockReviewEpisode[] {
+  return [
+    { id: contentId * 100 + 1, chapter: 1, title: '1화 (mock)', status: 'review' },
+    { id: contentId * 100 + 2, chapter: 2, title: '2화 (mock)', status: 'approved' },
+    { id: contentId * 100 + 3, chapter: 3, title: '3화 (mock)', status: 'rejected' }
+  ]
+}
+
+export function getMockContent(id: number): MockContent | undefined {
+  if (!id || Number.isNaN(id)) return undefined
+  // 목록은 실 API(real id) → 어떤 id가 와도 mock 회차를 만들어 보여준다.
+  return MOCK_CONTENTS.find((c) => c.id === id) ?? { id, title: `콘텐츠 #${id}`, episodes: buildReviewEpisodes(id) }
+}
+
 export function getMockEpisode(id: number): MockEpisode | undefined {
+  if (!id || Number.isNaN(id)) return undefined
+  // 목록은 실 API(real id)라, 어떤 id가 와도 mock 상세를 만들어 보여준다(UI/UX용).
   const meta = MOCK_EPISODES.find((e) => e.id === id)
-  if (!meta) return undefined
-  return buildEpisode(meta.id, meta.chapter, meta.title)
+  return buildEpisode(id, meta?.chapter ?? 1, meta?.title ?? '검수 샘플 회차')
 }

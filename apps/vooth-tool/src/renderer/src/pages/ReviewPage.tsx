@@ -76,7 +76,7 @@ export function ReviewPage(): React.JSX.Element {
       <div className="rv-empty">
         <p>회차를 찾을 수 없습니다.</p>
         <button type="button" onClick={() => navigate('/review')}>
-          검수 목록으로
+          검수로
         </button>
       </div>
     )
@@ -89,8 +89,8 @@ export function ReviewPage(): React.JSX.Element {
       <div className="rv__split">
         <div className="rv__main">
           <header className="rv__header">
-            <button type="button" className="rv__back" onClick={() => navigate('/review')}>
-              ← 검수 목록
+            <button type="button" className="rv__back" onClick={() => navigate(-1)}>
+              ← 회차 목록
             </button>
             <span className="rv__content">{ep.contentTitle}</span>
             <h2 className="rv__title">

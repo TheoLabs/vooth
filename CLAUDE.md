@@ -11,6 +11,19 @@ pnpm + Turborepo 모노레포. `apps/` 에 4개 애플리케이션, 공유 코�
 
 > 화면 경계: back-office=등록/관리, vooth-tool=연출/제작, vooth-maker=녹음. 데이터 모델(anchorY/gap/hold/cropBox)은 core-api에 둔다. 상세는 `docs/content-domain-design.md` §15.
 
+## API 표면(네임스페이스) 규칙 (중요)
+
+각 프론트 앱은 **고정된 API 네임스페이스**만 호출한다. core-api 컨트롤러도 이 네임스페이스로 분리한다.
+
+| 앱 | 네임스페이스 | 인증 가드 | 계정 |
+|----|------|------|------|
+| `voot-back-office` | `admins/*` | `AdminGuard` | ADMIN |
+| `vooth-maker` | `creators/*` | `CreatorGuard` | CREATOR |
+| `vooth-tool` | `directors/*` | `DirectorGuard` | ADMIN(연출자/검수자 = 내부 관리자) |
+
+- **vooth-tool 은 무조건 `directors/*` 만 호출한다**(`admins/*`/`creators/*` 직접 호출 금지). `DirectorGuard` 는 `AdminGuard` 와 동일하게 ADMIN 계정+역할을 검증한다.
+- 로그인: back-office=웹 idToken(`admins/auth/login/google`), maker/tool=데스크톱 PKCE(`creators|directors/auth/login/google/desktop`). 데스크톱 앱은 웹 idToken 로그인 엔드포인트를 만들지 않는다.
+
 ## 작업 권한 규칙 (중요)
 
 - **`apps/core-api` — 구현 금지, 사전 허락 필수.**

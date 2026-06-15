@@ -8,8 +8,13 @@ import { GoogleAuthClient } from '../infrastructure/google-auth.client';
 import { GoogleDesktopLoginDto } from '../presentation/dto/google-desktop-login.dto';
 import { AccountType } from '@vooth/shared';
 
+/**
+ * 연출·제작(vooth-tool) 로그인. 연출자/검수자는 내부 관리자이므로 ADMIN 계정으로 식별한다.
+ * (DirectorGuard 와 동일하게 ADMIN 표면 — back-office=admins, vooth-tool=directors)
+ * vooth-tool 은 데스크톱 앱이므로 loopback + PKCE 데스크톱 플로우만 제공한다.
+ */
 @Injectable()
-export class CreatorAuthService extends DddService {
+export class DirectorAuthService extends DddService {
   constructor(
     private readonly accountRepository: AccountRepository,
     private readonly googleAuthClient: GoogleAuthClient,
@@ -19,8 +24,8 @@ export class CreatorAuthService extends DddService {
   }
 
   /**
-   * 데스크톱(vooth-maker) 로그인: loopback + PKCE 로 받은 authorization code 를
-   * 서버에서 교환해 식별 후 access token 을 발급한다.
+   * 데스크톱(vooth-tool) 로그인: loopback + PKCE 로 받은 authorization code 를
+   * 서버에서 교환해 ADMIN 계정으로 식별 후 access token 을 발급한다.
    */
   @Transactional()
   async signInWithGoogleCode({ code, codeVerifier, redirectUri }: GoogleDesktopLoginDto) {
@@ -30,14 +35,10 @@ export class CreatorAuthService extends DddService {
       redirectUri,
     });
 
-    return this.issueToken({ googleSub, email, name });
-  }
-
-  private async issueToken({ googleSub, email, name }: { googleSub: string; email: string; name: string }) {
-    let [account] = await this.accountRepository.find({ googleSub, types: [AccountType.CREATOR] });
+    let [account] = await this.accountRepository.find({ googleSub, types: [AccountType.ADMIN] });
 
     if (!account) {
-      account = Account.of({ googleSub, email, name, type: AccountType.CREATOR });
+      account = Account.of({ googleSub, email, name, type: AccountType.ADMIN });
       await this.accountRepository.save([account]);
     }
 
