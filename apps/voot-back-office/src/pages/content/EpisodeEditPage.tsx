@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
+import sortBy from 'lodash/sortBy';
 import {
   Alert,
   App,
@@ -115,7 +116,7 @@ export function EpisodeEditPage() {
   // 상세에서 받은 컷/대사를 에디터 초기값으로 로드(회차 진입 시 1회, position 순 정렬).
   useEffect(() => {
     if (!episode?.cuts) return;
-    const sortedCuts = [...episode.cuts].sort((a, b) => a.position - b.position);
+    const sortedCuts = sortBy(episode.cuts, 'position');
     const draft: DraftCut[] = sortedCuts.map((cut) => ({
       id: uid(),
       serverId: cut.id,
@@ -124,9 +125,7 @@ export function EpisodeEditPage() {
       imageHeight: cut.imageHeight ?? undefined,
       cropBox: cut.cropBox ?? undefined,
       holdMs: cut.holdMs ?? undefined,
-      lines: [...cut.lines]
-        .sort((a, b) => a.position - b.position)
-        .map((line) => ({
+      lines: sortBy(cut.lines, 'position').map((line) => ({
           id: uid(),
           serverId: line.id,
           text: line.script,

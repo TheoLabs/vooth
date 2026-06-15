@@ -207,4 +207,14 @@ export class Episode extends DddAggregate {
       }
     }
   }
+
+  validRecordable() {
+    if (this.status !== EpisodeStatus.READY && this.status !== EpisodeStatus.RECORDING) {
+      throw new BadRequestException('편집 중인 상태에서만 녹음이 가능합니다.', {
+        cause: '편집 중인 상태에서만 녹음이 가능합니다.',
+      });
+    }
+
+    return true;
+  }
 }

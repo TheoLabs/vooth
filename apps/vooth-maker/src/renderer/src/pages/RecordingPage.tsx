@@ -1,16 +1,25 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { EPISODE_STATUS_META, type EpisodeListItem } from '../api/episodes.api'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import groupBy from 'lodash/groupBy'
+import sortBy from 'lodash/sortBy'
+import {
+  EPISODE_STATUS_META,
+  fetchCreatorEpisode,
+  type CreatorEpisodeDetail,
+  type EpisodeListItem
+} from '../api/episodes.api'
+import { createRecording, fetchRecordings } from '../api/recordings.api'
+import { uploadBlob } from '../lib/uploadBlob'
 import { useMe } from '../features/me/useMe'
 import { useRecorder } from '../features/recording/useRecorder'
-import { buildRecordingEpisode } from '../mocks/recording-domain.mock'
 import {
-  canTransitionRecording,
   RECORDING_STATUS_META,
   RecordingStatus,
   type Cut,
   type Line,
-  type Recording
+  type Recording,
+  type RecordingEpisode as Episode
 } from '../types/recording-domain'
 import { deriveCutDuration } from '../lib/recording-timeline'
 import { CropFrame } from '../components/CropFrame'
@@ -18,18 +27,44 @@ import { ScrollPreview } from '../features/preview/ScrollPreview'
 import { formatMs } from '../lib/timeline'
 import './RecordingPage.css'
 
-/** 세션 로컬 녹음 take 의 numeric id 생성기(mock seed id 와 충돌 안 나게 큰 수에서 시작). */
-let localRecSeq = 2_000_000_000
-function nextRecordingId(): number {
-  localRecSeq += 1
-  return localRecSeq
+/** 회차 상세(서버) → 녹음 도메인 Episode 매핑. */
+function toEpisode(d: CreatorEpisodeDetail, contentTitle: string): Episode {
+  return {
+    id: d.id,
+    contentId: d.contentId,
+    contentTitle,
+    title: d.title,
+    chapter: d.chapter,
+    status: d.status,
+    cutCount: d.cutCount,
+    lineCount: d.lineCount,
+    cuts: d.cuts.map((c) => ({
+      id: c.id,
+      episodeId: c.episodeId,
+      position: c.position,
+      imageUrl: c.imageUrl,
+      imageWidth: c.imageWidth ?? undefined,
+      imageHeight: c.imageHeight ?? undefined,
+      cropBox: c.cropBox ?? undefined,
+      lines: c.lines.map((l) => ({
+        id: l.id,
+        cutId: l.cutId,
+        episodeId: l.episodeId,
+        characterId: l.characterId,
+        position: l.position,
+        script: l.script
+      }))
+    }))
+  }
 }
 
-/** 단일 take 의 재생 버튼(직접 녹음한 blob 만 재생 가능). */
+/** 라인에 take 를 추가하는 콜백(업로드+생성까지 끝난 뒤 호출). */
+type CaptureFn = (line: Line, take: number, blob: Blob, blobUrl: string, durationMs: number) => Promise<void>
+
 function PlayButton({ rec }: { rec: Recording }): React.JSX.Element {
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const [playing, setPlaying] = useState(false)
-  const canPlay = Boolean(rec.audioUrl && rec.audioUrl.startsWith('blob:'))
+  const canPlay = Boolean(rec.audioUrl)
 
   useEffect(() => {
     return () => {
@@ -39,7 +74,7 @@ function PlayButton({ rec }: { rec: Recording }): React.JSX.Element {
   }, [])
 
   const toggle = useCallback((): void => {
-    if (!canPlay || !rec.audioUrl) return
+    if (!rec.audioUrl) return
     if (audioRef.current) {
       audioRef.current.pause()
       audioRef.current = null
@@ -57,12 +92,12 @@ function PlayButton({ rec }: { rec: Recording }): React.JSX.Element {
       setPlaying(false)
       audioRef.current = null
     })
-  }, [canPlay, rec.audioUrl])
+  }, [rec.audioUrl])
 
   if (!canPlay) {
     return (
-      <button type="button" className="rp-take__play rp-take__play--off" disabled title="샘플(오디오 없음)">
-        샘플
+      <button type="button" className="rp-take__play rp-take__play--off" disabled>
+        오디오 없음
       </button>
     )
   }
@@ -73,31 +108,35 @@ function PlayButton({ rec }: { rec: Recording }): React.JSX.Element {
   )
 }
 
-interface LineActions {
-  addTake: (line: Line, rec: Recording) => void
-  submitTake: (lineId: number, recId: number) => void
-  deleteTake: (lineId: number, recId: number) => void
+function TakeRow({ rec, mine }: { rec: Recording; mine: boolean }): React.JSX.Element {
+  const meta = RECORDING_STATUS_META[rec.status]
+  return (
+    <li className={`rp-take${mine ? ' rp-take--mine' : ''}`}>
+      <span className="rp-take__no">T{rec.take}</span>
+      <span className="rp-take__name">{rec.creatorName}</span>
+      <span className="rp-take__badge" style={{ color: meta.color, background: meta.background }}>
+        {meta.label}
+      </span>
+      <span className="rp-take__dur">{formatMs(rec.durationMs)}</span>
+      <PlayButton rec={rec} />
+    </li>
+  )
 }
 
-/** 라인별 녹음 컨트롤(대기 → 녹음 / 녹음 중 → 정지). */
+/** 라인별 녹음 컨트롤(녹음 → 정지 → 업로드+생성). */
 function RecordControl({
   line,
   myTakeCount,
-  creatorId,
-  creatorName,
-  episodeId,
-  onRecorded
+  onCapture
 }: {
   line: Line
   myTakeCount: number
-  creatorId: number
-  creatorName: string
-  episodeId: number
-  onRecorded: LineActions['addTake']
+  onCapture: CaptureFn
 }): React.JSX.Element {
   const { isRecording, error, start, stop } = useRecorder()
   const [elapsedMs, setElapsedMs] = useState(0)
   const [busy, setBusy] = useState(false)
+  const [saveErr, setSaveErr] = useState<string | null>(null)
 
   useEffect(() => {
     if (!isRecording) {
@@ -110,36 +149,26 @@ function RecordControl({
   }, [isRecording])
 
   const handleStart = useCallback(async (): Promise<void> => {
-    setBusy(true)
+    setSaveErr(null)
     try {
       await start()
     } catch {
-      /* 에러는 useRecorder.error 로 표시 */
-    } finally {
-      setBusy(false)
+      /* useRecorder.error 로 표시 */
     }
   }, [start])
 
   const handleStop = useCallback(async (): Promise<void> => {
     setBusy(true)
+    setSaveErr(null)
     try {
-      const { url, durationMs } = await stop()
-      const rec: Recording = {
-        id: nextRecordingId(),
-        lineId: line.id,
-        episodeId,
-        creatorId,
-        creatorName,
-        audioUrl: url,
-        durationMs,
-        status: RecordingStatus.RECORDED,
-        take: myTakeCount + 1
-      }
-      onRecorded(line, rec)
+      const { blob, url, durationMs } = await stop()
+      await onCapture(line, myTakeCount + 1, blob, url, durationMs)
+    } catch (e) {
+      setSaveErr((e as Error)?.message ?? '저장에 실패했습니다.')
     } finally {
       setBusy(false)
     }
-  }, [stop, line, episodeId, creatorId, creatorName, myTakeCount, onRecorded])
+  }, [stop, line, myTakeCount, onCapture])
 
   return (
     <div className="rp-record">
@@ -147,62 +176,17 @@ function RecordControl({
         <>
           <span className="rp-record__live">● 녹음 중 ({formatMs(elapsedMs)})</span>
           <button type="button" className="rp-record__stop" onClick={handleStop} disabled={busy}>
-            정지
+            {busy ? '업로드 중…' : '정지'}
           </button>
         </>
       ) : (
         <button type="button" className="rp-record__start" onClick={handleStart} disabled={busy}>
-          ● {myTakeCount > 0 ? '다시 녹음' : '녹음'}
+          ● {busy ? '업로드 중…' : myTakeCount > 0 ? '다시 녹음' : '녹음'}
         </button>
       )}
       {error && <span className="rp-record__error">{error}</span>}
+      {saveErr && <span className="rp-record__error">{saveErr}</span>}
     </div>
-  )
-}
-
-function TakeRow({
-  rec,
-  mine,
-  onSubmit,
-  onDelete
-}: {
-  rec: Recording
-  mine: boolean
-  onSubmit: () => void
-  onDelete: () => void
-}): React.JSX.Element {
-  const meta = RECORDING_STATUS_META[rec.status]
-  const canSubmit = canTransitionRecording(rec.status, RecordingStatus.REVIEW) && rec.status === RecordingStatus.RECORDED
-
-  return (
-    <li className={`rp-take${mine ? ' rp-take--mine' : ''}`}>
-      <span className="rp-take__no">T{rec.take}</span>
-      <span className="rp-take__name">{rec.creatorName}</span>
-      <span className="rp-take__badge" style={{ color: meta.color, background: meta.background }}>
-        {meta.label}
-      </span>
-      <span className="rp-take__dur">{formatMs(rec.durationMs)}</span>
-      <PlayButton rec={rec} />
-      {mine && (
-        <>
-          {canSubmit && (
-            <button type="button" className="rp-take__submit" onClick={onSubmit}>
-              검수 요청
-            </button>
-          )}
-          <button
-            type="button"
-            className="rp-take__delete"
-            title="이 녹음 삭제"
-            onClick={() => {
-              if (window.confirm('이 녹음을 삭제할까요?')) onDelete()
-            }}
-          >
-            삭제
-          </button>
-        </>
-      )}
-    </li>
   )
 }
 
@@ -211,15 +195,13 @@ function LineCard({
   characterName,
   recordings,
   creatorId,
-  creatorName,
-  actions
+  onCapture
 }: {
   line: Line
   characterName: string
   recordings: Recording[]
   creatorId: number
-  creatorName: string
-  actions: LineActions
+  onCapture: CaptureFn
 }): React.JSX.Element {
   const myTakes = recordings.filter((r) => r.creatorId === creatorId).sort((a, b) => a.take - b.take)
   const otherTakes = recordings.filter((r) => r.creatorId !== creatorId)
@@ -234,28 +216,15 @@ function LineCard({
       {(myTakes.length > 0 || otherTakes.length > 0) && (
         <ul className="rp-line__takes">
           {myTakes.map((rec) => (
-            <TakeRow
-              key={rec.id}
-              rec={rec}
-              mine
-              onSubmit={() => actions.submitTake(line.id, rec.id)}
-              onDelete={() => actions.deleteTake(line.id, rec.id)}
-            />
+            <TakeRow key={rec.id} rec={rec} mine />
           ))}
           {otherTakes.map((rec) => (
-            <TakeRow key={rec.id} rec={rec} mine={false} onSubmit={() => {}} onDelete={() => {}} />
+            <TakeRow key={rec.id} rec={rec} mine={false} />
           ))}
         </ul>
       )}
 
-      <RecordControl
-        line={line}
-        myTakeCount={myTakes.length}
-        creatorId={creatorId}
-        creatorName={creatorName}
-        episodeId={line.episodeId}
-        onRecorded={actions.addTake}
-      />
+      <RecordControl line={line} myTakeCount={myTakes.length} onCapture={onCapture} />
     </li>
   )
 }
@@ -266,24 +235,21 @@ function CutSection({
   charactersById,
   recordingsByLine,
   creatorId,
-  creatorName,
-  actions
+  onCapture
 }: {
   cut: Cut
   index: number
   charactersById: Record<number, string>
   recordingsByLine: Record<number, Recording[]>
   creatorId: number
-  creatorName: string
-  actions: LineActions
+  onCapture: CaptureFn
 }): React.JSX.Element {
-  const lines = [...cut.lines].sort((a, b) => a.position - b.position)
+  const lines = sortBy(cut.lines, 'position')
   const { ms, undecided } = deriveCutDuration(cut, recordingsByLine)
 
   return (
     <section className="rp-cut">
       <div className="rp-cut__image-wrap">
-        {/* 컷 표시 프레임: 원본 + cropBox 로 16:10 유도(저장 모델 B). */}
         <CropFrame src={cut.imageUrl} cropBox={cut.cropBox} alt={`컷 ${index}`} />
         <span className="rp-cut__order">컷 {index}</span>
         <span className="rp-cut__dur" title="대사별 대표 take 의 길이 합으로 계산">
@@ -299,8 +265,7 @@ function CutSection({
             characterName={charactersById[line.characterId] ?? `캐릭터 #${line.characterId}`}
             recordings={recordingsByLine[line.id] ?? []}
             creatorId={creatorId}
-            creatorName={creatorName}
-            actions={actions}
+            onCapture={onCapture}
           />
         ))}
       </ul>
@@ -315,70 +280,84 @@ export function RecordingPage(): React.JSX.Element {
   const creatorName = me?.name ?? '나'
 
   const nav = state as { episode?: EpisodeListItem; contentTitle?: string } | null
+  const contentId = nav?.episode?.contentId
+  const episodeId = nav?.episode?.id
 
-  // 회차 목록 항목 + 콘텐츠 제목으로 도메인 mock 생성(컷/대사 수는 실데이터 기준).
-  const mock = useMemo(() => {
-    if (!nav?.episode) return null
-    return buildRecordingEpisode(nav.episode, nav.contentTitle ?? '콘텐츠')
-  }, [nav])
+  const { data: detail, isLoading, isError, error } = useQuery({
+    queryKey: ['creator-episode', contentId, episodeId],
+    queryFn: () => fetchCreatorEpisode(contentId as number, episodeId as number),
+    enabled: Boolean(contentId && episodeId),
+    retry: false
+  })
 
-  const [recordingsByLine, setRecordingsByLine] = useState<Record<number, Recording[]>>(
-    () => mock?.initialRecordings ?? {}
+  const episode = useMemo(
+    () => (detail ? toEpisode(detail, nav?.contentTitle ?? '콘텐츠') : null),
+    [detail, nav?.contentTitle]
   )
-  useEffect(() => {
-    setRecordingsByLine(mock?.initialRecordings ?? {})
-  }, [mock])
 
-  // 직접 녹음한 objectURL 누수 방지.
-  const createdUrlsRef = useRef<string[]>([])
-  useEffect(() => {
-    return () => {
-      createdUrlsRef.current.forEach((url) => URL.revokeObjectURL(url))
-      createdUrlsRef.current = []
-    }
-  }, [])
-
-  const addTake = useCallback((line: Line, rec: Recording): void => {
-    if (rec.audioUrl) createdUrlsRef.current.push(rec.audioUrl)
-    setRecordingsByLine((prev) => ({ ...prev, [line.id]: [...(prev[line.id] ?? []), rec] }))
-  }, [])
-
-  const submitTake = useCallback((lineId: number, recId: number): void => {
-    setRecordingsByLine((prev) => ({
-      ...prev,
-      [lineId]: (prev[lineId] ?? []).map((r) =>
-        r.id === recId && canTransitionRecording(r.status, RecordingStatus.REVIEW)
-          ? { ...r, status: RecordingStatus.REVIEW }
-          : r
-      )
-    }))
-  }, [])
-
-  const deleteTake = useCallback((lineId: number, recId: number): void => {
-    setRecordingsByLine((prev) => {
-      const list = prev[lineId] ?? []
-      const target = list.find((r) => r.id === recId)
-      if (target?.audioUrl && target.audioUrl.startsWith('blob:')) {
-        URL.revokeObjectURL(target.audioUrl)
-        createdUrlsRef.current = createdUrlsRef.current.filter((u) => u !== target.audioUrl)
+  // 라인에 묶인 character → id별 이름 맵.
+  const charactersById = useMemo<Record<number, string>>(() => {
+    const map: Record<number, string> = {}
+    for (const cut of detail?.cuts ?? []) {
+      for (const line of cut.lines) {
+        if (line.character) map[line.character.id] = line.character.name
       }
-      return { ...prev, [lineId]: list.filter((r) => r.id !== recId) }
-    })
-  }, [])
+    }
+    return map
+  }, [detail])
 
-  const actions = useMemo<LineActions>(
-    () => ({ addTake, submitTake, deleteTake }),
-    [addTake, submitTake, deleteTake]
+  // 내 녹음 목록(서버) → lineId 별 그룹. 목록 API 는 본인 녹음만 반환한다.
+  const queryClient = useQueryClient()
+  const { data: recData } = useQuery({
+    queryKey: ['creator-recordings', episodeId],
+    queryFn: () => fetchRecordings(episodeId as number),
+    enabled: Boolean(episodeId),
+    retry: false
+  })
+
+  const recordingsByLine = useMemo<Record<number, Recording[]>>(() => {
+    const recs = (recData?.items ?? []).map<Recording>((r) => ({
+      id: r.id,
+      lineId: r.lineId,
+      episodeId: r.episodeId,
+      creatorId: r.creatorId,
+      creatorName,
+      audioUrl: r.audioUrl,
+      durationMs: r.durationMs,
+      status: r.status as RecordingStatus,
+      take: r.take
+    }))
+    return groupBy(recs, 'lineId')
+  }, [recData, creatorName])
+
+  // 녹음 정지 → 오디오 업로드 → 녹음 생성 → 목록 갱신(서버가 진실).
+  const onCapture = useCallback<CaptureFn>(
+    async (line, take, blob, _blobUrl, durationMs) => {
+      const audioUrl = await uploadBlob(blob, `take-${line.id}-${take}.webm`)
+      await createRecording({ lineId: line.id, episodeId: line.episodeId, audioUrl, durationMs, take })
+      await queryClient.invalidateQueries({ queryKey: ['creator-recordings', episodeId] })
+    },
+    [queryClient, episodeId]
   )
 
   const [showPreview, setShowPreview] = useState(false)
-
   const backTo = nav?.episode ? `/webtoons/${nav.episode.contentId}` : '/webtoons'
 
-  if (!mock) {
+  if (!contentId || !episodeId) {
     return (
       <div className="rp-empty">
         <p className="rp-empty__msg">회차 정보를 찾을 수 없습니다.</p>
+        <Link className="rp-empty__back" to="/webtoons">
+          콘텐츠 목록으로
+        </Link>
+      </div>
+    )
+  }
+
+  if (isLoading || !episode) {
+    return (
+      <div className="rp-empty">
+        <p className="rp-empty__msg">{isError ? `불러오지 못했습니다. ${(error as Error)?.message}` : '불러오는 중…'}</p>
         <Link className="rp-empty__back" to={backTo}>
           돌아가기
         </Link>
@@ -386,17 +365,12 @@ export function RecordingPage(): React.JSX.Element {
     )
   }
 
-  const { episode, charactersById } = mock
   const statusMeta = EPISODE_STATUS_META[episode.status]
-
-  // 내가 1개 이상 녹음한 대사 수 / 전체 대사 수.
   const myRecordedLines = episode.cuts.reduce(
     (acc, cut) =>
       acc + cut.lines.filter((l) => (recordingsByLine[l.id] ?? []).some((r) => r.creatorId === creatorId)).length,
     0
   )
-
-  // 회차 예상 길이 = 컷 길이(대표 take durationMs 합)들의 합.
   const totalMs = episode.cuts.reduce((acc, cut) => acc + deriveCutDuration(cut, recordingsByLine).ms, 0)
 
   return (
@@ -429,13 +403,11 @@ export function RecordingPage(): React.JSX.Element {
       )}
 
       <p className="rp__mock-note">
-        ⚠️ 컷/대사는 임시(mock) 샘플입니다. 녹음은 세션 로컬로만 반영됩니다(서버 업로드 전).
+        ℹ️ 내 녹음은 저장되어 다시 들어와도 보입니다. (다른 성우의 take 는 본인 녹음만 조회되어 표시되지 않습니다)
       </p>
 
       <div className="rp__cuts">
-        {[...episode.cuts]
-          .sort((a, b) => a.position - b.position)
-          .map((cut, i) => (
+        {sortBy(episode.cuts, 'position').map((cut, i) => (
             <CutSection
               key={cut.id}
               cut={cut}
@@ -443,8 +415,7 @@ export function RecordingPage(): React.JSX.Element {
               charactersById={charactersById}
               recordingsByLine={recordingsByLine}
               creatorId={creatorId}
-              creatorName={creatorName}
-              actions={actions}
+              onCapture={onCapture}
             />
           ))}
       </div>

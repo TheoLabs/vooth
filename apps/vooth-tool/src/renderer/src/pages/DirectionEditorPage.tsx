@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery } from '@tanstack/react-query'
+import sortBy from 'lodash/sortBy'
 import { AnchorStage, anchorEven } from '../components/AnchorStage'
 import {
   fetchDirectorEpisode,
@@ -14,25 +15,21 @@ import './DirectionEditorPage.css'
 /** directors 상세 응답 → 에디터용 DirEpisode (캐릭터명 매핑, position 정렬). */
 function toDirEpisode(detail: DirectorEpisodeDetail): DirEpisode {
   const nameById = new Map(detail.characters.map((c) => [c.id, c.name]))
-  const cuts: DirCut[] = [...detail.episode.cuts]
-    .sort((a, b) => a.position - b.position)
-    .map((c) => ({
-      id: c.id,
-      imageUrl: c.imageUrl,
-      imageWidth: c.imageWidth ?? 0,
-      imageHeight: c.imageHeight ?? 0,
-      cropBox: c.cropBox ?? undefined,
-      holdMs: c.holdMs ?? undefined,
-      lines: [...c.lines]
-        .sort((a, b) => a.position - b.position)
-        .map((l) => ({
-          id: l.id,
-          characterName: nameById.get(l.characterId) ?? `캐릭터 #${l.characterId}`,
-          script: l.script,
-          anchorY: l.anchorY ?? undefined,
-          gapBeforeMs: l.gapBeforeMs ?? undefined
-        }))
+  const cuts: DirCut[] = sortBy(detail.episode.cuts, 'position').map((c) => ({
+    id: c.id,
+    imageUrl: c.imageUrl,
+    imageWidth: c.imageWidth ?? 0,
+    imageHeight: c.imageHeight ?? 0,
+    cropBox: c.cropBox ?? undefined,
+    holdMs: c.holdMs ?? undefined,
+    lines: sortBy(c.lines, 'position').map((l) => ({
+      id: l.id,
+      characterName: nameById.get(l.characterId) ?? `캐릭터 #${l.characterId}`,
+      script: l.script,
+      anchorY: l.anchorY ?? undefined,
+      gapBeforeMs: l.gapBeforeMs ?? undefined
     }))
+  }))
   return {
     id: detail.episode.id,
     contentTitle: detail.contentTitle,

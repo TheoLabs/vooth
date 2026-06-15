@@ -1,3 +1,5 @@
+import keyBy from 'lodash/keyBy';
+import uniq from 'lodash/uniq';
 import { DddService } from '@libs/ddd';
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { Transactional } from '@libs/decorators';
@@ -33,14 +35,14 @@ export class DirectorEpisodeService extends DddService {
     ]);
 
     // 콘텐츠 제목 매핑(단일 id 조회만 가능 → unique id 만 모아 병렬 조회).
-    const contentIds = [...new Set(episodes.map((e) => e.contentId))];
+    const contentIds = uniq(episodes.map((e) => e.contentId));
     const contents = await Promise.all(contentIds.map((id) => this.contentRepository.find({ id }).then((r) => r[0])));
-    const titleById = new Map(contents.filter(Boolean).map((c) => [c.id, c.title]));
+    const contentById = keyBy(contents.filter((c): c is NonNullable<typeof c> => Boolean(c)), 'id');
 
     const items = episodes.map((e) => ({
       id: e.id,
       contentId: e.contentId,
-      contentTitle: titleById.get(e.contentId) ?? '',
+      contentTitle: contentById[e.contentId]?.title ?? '',
       chapter: e.chapter,
       title: e.title,
       status: e.status,
