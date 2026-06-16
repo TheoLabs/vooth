@@ -4,9 +4,11 @@ import { RoleModule } from './role/role.module';
 import { PermissionModule } from './permission/permission.module';
 import { AuthModule } from './auth/auth.module';
 import { MeModule } from './me/me.module';
+import { CreatorModule } from './creator/creator.module';
+import { FileModule } from './file/file.module';
 
 @Module({
-  imports: [AccountModule, RoleModule, PermissionModule, AuthModule, MeModule],
-  exports: [AccountModule, RoleModule, PermissionModule, AuthModule, MeModule],
+  imports: [AccountModule, RoleModule, PermissionModule, AuthModule, MeModule, CreatorModule, FileModule],
+  exports: [AccountModule, RoleModule, PermissionModule, AuthModule, MeModule, CreatorModule, FileModule],
 })
 export class DomainModule {}

@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { DeleteObjectCommand, GetObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { DeleteObjectCommand, GetObjectCommand, HeadObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { ConfigsService } from '@configs';
 
@@ -77,5 +77,18 @@ export class S3Service {
   /** 객체 삭제. */
   async deleteObject(key: string): Promise<void> {
     await this.client.send(new DeleteObjectCommand({ Bucket: this.bucket, Key: key }));
+  }
+
+  /**
+   * 객체 존재/메타 확인(HEAD). 업로드 완료 검증(commit-on-attach)에 사용한다.
+   * 없으면 null. (presigned PUT 은 서버가 완료 시점을 모르므로 채택 시 서버가 직접 확인)
+   */
+  async headObject(key: string): Promise<{ size?: number; contentType?: string } | null> {
+    try {
+      const res = await this.client.send(new HeadObjectCommand({ Bucket: this.bucket, Key: key }));
+      return { size: res.ContentLength, contentType: res.ContentType };
+    } catch {
+      return null;
+    }
   }
 }

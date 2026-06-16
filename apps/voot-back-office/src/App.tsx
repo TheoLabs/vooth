@@ -9,12 +9,14 @@ import { MENU_ROUTES } from './layouts/menu';
 import { AccountsPage } from './features/accounts/AccountsPage';
 import { RolesPage } from './features/roles/RolesPage';
 import { PermissionsPage } from './features/permissions/PermissionsPage';
+import { CreatorsPage } from './features/creators/CreatorsPage';
 
 /** 실제 구현된 화면(나머지는 PlaceholderPage). */
 const CUSTOM_PAGES: Record<string, ReactElement> = {
   '/accounts': <AccountsPage />,
   '/roles': <RolesPage />,
   '/permissions': <PermissionsPage />,
+  '/creators': <CreatorsPage />,
 };
 
 function App() {

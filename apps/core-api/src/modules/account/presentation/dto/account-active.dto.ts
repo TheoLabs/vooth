@@ -1,6 +1,6 @@
 import { IsInt, IsNotEmpty } from 'class-validator';
 
-export class AccountApproveDto {
+export class AccountActiveDto {
   @IsInt()
   @IsNotEmpty()
   roleId: number;

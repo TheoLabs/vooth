@@ -11,15 +11,13 @@ import {
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { RoleType } from '@vooth/shared';
-import { FullHeightTable } from '../../components/FullHeightTable';
+import { DEFAULT_PAGE_SIZE, FullHeightTable } from '../../components/FullHeightTable';
 import { TableToolbar } from '../../components/TableToolbar';
 import { FilterBar, FilterField } from '../../components/FilterBar';
 import { PermissionPicker } from './PermissionPicker';
 import type { Role } from '../../api/role.api';
 import { useCreateRole, useRoles, useUpdateRolePermissions } from './useRoles';
 import { ROLE_TYPE_LABEL, ROLE_TYPE_OPTIONS } from '../accounts/labels';
-
-const PAGE_SIZE = 20;
 
 /** 순서 무관 집합 동일 여부 */
 function sameSet(a: string[], b: string[]): boolean {
@@ -35,6 +33,7 @@ export function RolesPage() {
   const [searchValue, setSearchValue] = useState('');
   const [typeFilter, setTypeFilter] = useState<RoleType[]>([]);
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
 
   const query = useMemo(
     () => ({
@@ -42,9 +41,9 @@ export function RolesPage() {
       searchValue: searchValue || undefined,
       types: typeFilter.length ? typeFilter : undefined,
       page,
-      limit: PAGE_SIZE,
+      limit: pageSize,
     }),
-    [searchValue, typeFilter, page],
+    [searchValue, typeFilter, page, pageSize],
   );
 
   const { data, isLoading } = useRoles(query);
@@ -182,10 +181,16 @@ export function RolesPage() {
         total={data?.total}
         pagination={{
           current: page,
-          pageSize: PAGE_SIZE,
+          pageSize,
           total: data?.total ?? 0,
-          showSizeChanger: false,
-          onChange: setPage,
+          onChange: (nextPage, nextSize) => {
+            if (nextSize !== pageSize) {
+              setPageSize(nextSize);
+              setPage(1);
+            } else {
+              setPage(nextPage);
+            }
+          },
         }}
       />
 

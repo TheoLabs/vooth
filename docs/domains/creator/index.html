@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Creator 도메인 — Vooth core-api</title>
+<link rel="stylesheet" href="../assets/style.css" />
+</head>
+<body>
+<header class="topnav">
+  <div class="inner">
+    <div class="brand"><a href="../index.html" style="color: inherit">Vooth <span>core-api</span> · 도메인</a></div>
+    <nav>
+      <a href="../index.html">Overview</a>
+      <a href="../account/index.html">Account</a>
+      <a href="../creator/index.html" class="active">Creator</a>
+      <a href="../file/index.html">File</a>
+      <a href="../role/index.html">Role</a>
+      <a href="../permission/index.html">Permission</a>
+      <a href="../auth/index.html">Auth</a>
+      <a href="../content/index.html">Content</a>
+    </nav>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="hero">
+    <div class="eyebrow">Production · 제작</div>
+    <h1>Creator · 성우</h1>
+    <p class="lead">
+      녹음에 참여하는 성우(크리에이터)의 제작 도메인 프로필. <b>Account 와 1:1</b>로 묶이는 독립 애그리게이트로,
+      계정 승인 시 <b>이벤트 기반</b>으로 생성되며 <b>삭제되지 않는</b> 영속 레코드다(참여 이력 보존).
+    </p>
+    <div class="meta">
+      <span class="badge plan">설계</span>
+      <span class="badge ns">creators/* · directors/*</span>
+      <span class="badge ctx">AR · Creator</span>
+      <span class="badge ctx">Account 1:1</span>
+    </div>
+  </div>
+
+  <div class="note warn">
+    <span class="label">구현 상태.</span> 본 문서는 <strong>설계</strong> 단계다. core-api 에 Creator 모듈은 아직 없고,
+    생성 트리거인 <code>Account.active()</code> 의 <strong>이벤트 발행도 미구현</strong>(현재 <code>active()</code> 는 상태만 바꾸고
+    <code>AccountApproved</code> 를 publish 하지 않음). 구현은 별도 승인 후 진행.
+  </div>
+
+  <section class="section">
+    <h2><span class="num">01</span> 책임과 특성</h2>
+    <ul class="clean">
+      <li><b>제작 도메인의 주체</b> — 캐스팅(Character N:M)·녹음(Recording)·채택(LineTake)·정산(Settlement)이 <code>creatorId</code> 로 참조하는 중심.</li>
+      <li><b>Account 와 1:1</b> — <code>accountId</code> 유니크로 묶인 독립 애그리게이트. 인증/인가는 Account, 제작 프로필은 Creator 로 경계를 가른다.</li>
+      <li><b>이벤트로 태어난다</b> — 직접 생성 API 가 없다. 계정이 CREATOR 타입으로 <b>승인(ACTIVE)</b>될 때 이벤트로 자동 생성된다.</li>
+      <li><b>지워지지 않는다</b> — 성우가 하차해도 이미 참여한 콘텐츠 이력이 남아야 하므로 hard/soft delete 모두 하지 않는다.</li>
+      <li><b>name/email 비복제</b> — Account 가 source of truth. Creator 는 활동명 등 제작 고유 정보만 갖는다.</li>
+    </ul>
+  </section>
+
+  <section class="section">
+    <h2><span class="num">02</span> 애그리게이트 — <code>Creator</code> <span style="font-size:12px;font-weight:600;color:var(--faint)">(제안)</span></h2>
+    <p class="desc">Account↔Role 패턴을 따른 soft 1:1 (<code>createForeignKeyConstraints: false</code> + <code>accountId</code> unique)</p>
+    <div class="t-scroll">
+      <table>
+        <thead><tr><th>필드</th><th>타입</th><th>필수</th><th>설명</th></tr></thead>
+        <tbody>
+          <tr><td><code>id</code></td><td>number (PK)</td><td>✓</td><td>Creator 고유 식별자. <code>accountId</code> 와 별개 — 캐스팅/정산이 <code>creatorId</code> 로 참조</td></tr>
+          <tr><td><code>accountId</code></td><td>number · unique</td><td>✓</td><td>1:1 soft FK. 멱등성·1:1 의 구조적 보증</td></tr>
+          <tr><td><code>nickname</code></td><td>string</td><td>✓</td><td>활동명/예명. 실명(<code>Account.name</code>)과 다른 크레딧 표기용</td></tr>
+          <tr><td><code>avatarFileId</code></td><td>number | null</td><td>✓</td><td>아바타 이미지. <b>fileId 만 저장</b>(key·URL 비저장). File 이 단일 진실, 표시 URL 은 읽을 때 유도 — 아래 §02-1</td></tr>
+          <tr><td><code>bio</code></td><td>text | null</td><td>—</td><td>자기소개</td></tr>
+          <tr><td><code>account</code></td><td>Account</td><td>—</td><td>OneToOne soft 관계(물리 FK 없음). name/email 은 여기서 조회</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note">
+      <span class="label">상태 컬럼 없음.</span> 활동 가능 여부는 <b>Account.status 에서 유도</b>한다(중복 저장 금지).
+      계정 활성과 무관한 "일시 활동 중단" 같은 Creator 고유 상태가 필요해질 때만 <code>availability</code> 추가 검토.
+    </div>
+
+    <h3 id="avatar">02-1. 아바타 / File 연동 — <code>avatarFileId</code> only</h3>
+    <p>
+      Creator 는 <b><code>avatarFileId</code> 만</b> 저장한다(key·full URL 비저장). 이유: ① File 이 단일 진실(커밋 검증·고아 정리),
+      ② full URL 은 환경 의존적(<code>localhost:4566</code> vs 운영 버킷/CDN)이라 저장하면 안 됨 — URL 은 항상 읽을 때 유도.
+    </p>
+    <h4 style="margin:14px 0 6px;font-size:13px;color:var(--ink-2)">읽기 — 서버가 URL 로 변환(enrich)</h4>
+    <ul class="clean">
+      <li>응답 시 <code>avatarFileId → File 조회(key) → S3Service.getPublicUrl(key)</code> 로 <code>avatarUrl</code> 을 만들어 DTO 에 동봉한다.</li>
+      <li><b>FE 는 fileId 로 재조회하지 않는다</b> — 응답의 <code>avatarUrl</code> 을 <code>&lt;img src&gt;</code> 에 바로 사용.</li>
+      <li>목록(캐스팅 피커)은 <b>단일 쿼리 LEFT JOIN file</b> 로 N+1 을 피한다(개별 lazy 로드 금지). File 은 PK 조인이라 저렴.</li>
+      <li><code>getPublicUrl</code> 은 순수 문자열 조합(DB·S3 호출 없음) — 비용은 key 조회(JOIN)뿐.</li>
+    </ul>
+    <div class="note">
+      <span class="label">응답 DTO 예시.</span>
+      <code>{ id, nickname, bio, avatarFileId, avatarUrl }</code> — 저장은 <code>avatarFileId</code>, 노출은 <code>avatarUrl</code>(파생).
+    </div>
+    <h4 style="margin:14px 0 6px;font-size:13px;color:var(--ink-2)">쓰기 — presign → S3 PUT → 프로필 저장 시 commit-on-attach</h4>
+    <ul class="clean">
+      <li>① <code>POST /…/files/presign {originalName, mimeType, size, prefix?}</code> → File(<code>isCommit=false</code>) + presigned PUT URL + <code>fileId</code>.</li>
+      <li>② FE 가 presigned URL 로 S3 직접 PUT(Content-Type = mimeType 일치).</li>
+      <li>③ <code>PUT /creators/me/profile { avatarFileId }</code> → 서버가 <b>같은 트랜잭션</b>에서
+        <code>FileService.commit(fileId, { mimePrefix: 'image/' })</code> 호출:
+        <b>S3 HEAD 검증 → <code>isCommit=true</code></b> → <code>creator.avatarFileId</code> 저장.</li>
+      <li>④ 이전 <code>avatarFileId</code> 의 File 은 미참조 → cron 정리.</li>
+    </ul>
+    <div class="note">
+      <span class="label">commit 엔드포인트 없음.</span> 업로드 직후 별도 <code>/files/:id/commit</code> 을 두지 않는다 —
+      클라 주장을 신뢰하지 않고, <b>채택(프로필 저장) 시점에 서버가 HEAD 로 직접 확인</b>해 커밋한다. <a href="../file/index.html">File 도메인</a> 참고.
+    </div>
+    <div class="note warn">
+      <span class="label">트랜잭션 합성 주의.</span> <code>CreatorService.updateProfile</code> 의 <code>@Transactional</code> 단 하나가 트랜잭션을 연다.
+      <code>FileService.commit</code> 에는 <b><code>@Transactional</code> 을 붙이지 않는다</b> — 이 데코레이터는 전파(join)를 지원하지 않아 중첩하면
+      별도 트랜잭션이 열리고 <code>finally</code> 가 <code>Context.ENTITY_MANAGER</code> 를 비워 <b>바깥 트랜잭션을 깨뜨린다</b>.
+      repository 가 컨텍스트 EM 을 읽으므로 commit 은 호출자 트랜잭션에 자연 합성된다.
+    </div>
+    <div class="note">
+      <span class="label">왜 FileService 를 주입하나.</span> File 은 동급 비즈니스 도메인이 아니라 <b>공용 플랫폼 능력</b>(S3 presign·HEAD·키생성)이라
+      소비가 정상. 비순환·단방향(Creator→File)이며, Repository 만 주입하면 HEAD/commit/S3 로직이 Creator 로 새므로 service(공개 인터페이스) 주입이 맞다.
+    </div>
+    <div class="note warn">
+      <span class="label">구현 상태.</span> <a href="../file/index.html">File 모듈</a>(<code>admins/files/presign</code> + <code>FileService.commit/resolvePublicUrls</code>)은
+      <strong>구현됨</strong>. 단 <b>creator 측 <code>avatarFileId</code> 컬럼·<code>creators/*</code> presign·고아 cron</b> 은 예정.
+    </div>
+  </section>
+
+  <section class="section">
+    <h2><span class="num">03</span> 생명주기</h2>
+    <div class="t-scroll" style="margin-bottom:16px">
+      <table>
+        <thead><tr><th>단계</th><th>트리거</th><th>처리</th></tr></thead>
+        <tbody>
+          <tr><td><b>생성</b></td><td><code>type=CREATOR</code> &amp; Account → <code>ACTIVE</code>(승인)</td><td><code>AccountApproved</code> 이벤트 → 멱등 핸들러가 빈 프로필 생성</td></tr>
+          <tr><td><b>프로필 작성</b></td><td>본인(<code>creators/*</code>)</td><td>avatar/bio/nickname 등 채움(여러 번)</td></tr>
+          <tr><td><b>하차</b></td><td>Account <code>exit()</code> → <code>EXITED</code></td><td><b>Creator 는 그대로</b>. 별도 이벤트 없음. 활동 후보에서만 제외(account.status 기준)</td></tr>
+          <tr><td><b>삭제</b></td><td>—</td><td><b>없음.</b> hard/soft delete 모두 안 함(참여 이력 보존)</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <h3>생성 흐름 (이벤트 기반)</h3>
+    <div class="diagram-scroll">
+      <svg id="flow" class="statemachine" viewBox="0 0 680 560" role="img" aria-label="Creator 생성 흐름"></svg>
+    </div>
+    <div class="legend">
+      <div class="item"><span class="swatch" style="border-color:#ea580c"></span> 관리자 수동</div>
+      <div class="item"><span class="swatch" style="border-color:#2563eb"></span> 자동 (아웃박스 · CDC · 핸들러)</div>
+    </div>
+  </section>
+
+  <section class="section">
+    <h2><span class="num">04</span> 비즈니스 규칙 · 불변식</h2>
+    <ul class="clean">
+      <li>🔒 <b>삭제 금지</b> — Creator 는 영속 레코드. 캐스팅/녹음/채택이 <code>creatorId</code> 로 참조하므로 항상 resolve 가능해야 한다.</li>
+      <li><b>1:1 보장</b> — <code>accountId</code> 유니크. 한 계정에 Creator 는 최대 하나.</li>
+      <li><b>멱등 생성</b> — 승인 재호출·at-least-once 대비. <code>accountId</code> 로 이미 있으면 skip(+ 유니크 제약 이중 안전).</li>
+      <li><b>CREATOR 한정</b> — <code>AccountApproved</code> 핸들러는 <code>type === CREATOR</code> 일 때만 생성. ADMIN 승인엔 반응하지 않음.</li>
+      <li><b>활동 여부 유도</b> — 하차/활성은 Account.status 로 판단. 캐스팅 피커는 <code>Creator JOIN Account WHERE account.status = ACTIVE</code>.</li>
+      <li><b>재활성 시 이력 보존</b> — 동일 계정이 다시 활성화돼도 <code>accountId</code> 유니크+멱등으로 <b>같은 Creator 재사용</b> → 과거 참여 이력 유지.</li>
+      <li><b>name/email 비복제</b> — Account 에서 조회. 정산 정보도 Creator 가 아니라 별도 Settlement.</li>
+    </ul>
+  </section>
+
+  <section class="section">
+    <h2><span class="num">05</span> 이벤트 — <code>AccountApproved</code></h2>
+    <p>승인 시점에 Account 애그리게이트가 발행하는 도메인 이벤트. 아웃박스(<code>ddd_events</code>)에 같은 트랜잭션으로 적재되고 CDC 로 전파된다.</p>
+    <div class="t-scroll">
+      <table>
+        <thead><tr><th>항목</th><th>내용</th></tr></thead>
+        <tbody>
+          <tr><td>payload</td><td><code>{ accountId, type }</code> — 최소 정보. 핸들러가 추가 정보 필요 시 조회</td></tr>
+          <tr><td>발행 위치</td><td><code>Account.active()</code> 안에서 <code>publishEvent(new AccountApproved(...))</code> <span style="color:var(--faint)">(현재 미구현)</span></td></tr>
+          <tr><td>전파</td><td>아웃박스 → Debezium CDC → Kafka (in-memory emit 경로 제거됨)</td></tr>
+          <tr><td>구독</td><td>Creator 모듈의 <code>@EventHandler(AccountApproved)</code> (향후 알림 등 다른 구독자도 가능 — 그래서 전용 <code>CreatorApproved</code> 보다 범용명 채택)</td></tr>
+          <tr><td>신뢰성</td><td>at-least-once · 재시도 3회(백오프) · 소진 시 DLQ(<code>&lt;topic&gt;.dlq</code>). <b>멱등성은 핸들러 책임</b></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="section">
+    <h2><span class="num">06</span> API 표면 <span style="font-size:12px;font-weight:600;color:var(--faint)">(예정)</span></h2>
+    <p class="desc">생성 API 는 없다(이벤트 생성). 본인 프로필은 <code>creators/*</code>(CreatorGuard), 캐스팅 목록은 <code>directors/*</code>.</p>
+    <div class="t-scroll">
+      <table>
+        <thead><tr><th>Method</th><th>Path</th><th>설명</th></tr></thead>
+        <tbody>
+          <tr><td><span class="method get">GET</span></td><td><code>/creators/me/profile</code></td><td>본인 Creator 프로필 조회</td></tr>
+          <tr><td><span class="method put">PUT</span></td><td><code>/creators/me/profile</code></td><td>avatar/bio/nickname 수정(변경 필드만)</td></tr>
+          <tr><td><span class="method get">GET</span></td><td><code>/directors/creators</code></td><td>캐스팅 피커용 목록(활동 중 성우, account 조인 필터)</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note">
+      <span class="label">네임스페이스 규칙.</span> vooth-maker=<code>creators/*</code>(CreatorGuard), vooth-tool=<code>directors/*</code>(DirectorGuard=ADMIN).
+      tool 은 <code>creators/*</code> 를 직접 호출하지 않는다 (CLAUDE.md API 표면 규칙).
+    </div>
+  </section>
+
+  <section class="section">
+    <h2><span class="num">07</span> 의존 · 경계</h2>
+    <ul class="clean">
+      <li><b>← Account</b>: 1:1(<code>accountId</code>). 승인 이벤트로 생성, name/email/활동여부를 조회.</li>
+      <li><b>→ File</b>: 아바타를 <code>avatarFileId</code> 로만 참조(key·URL 비저장). 읽을 때 JOIN 해 <code>avatarUrl</code> 유도 — §02-1.</li>
+      <li><b>← Casting / Recording / LineTake / Settlement</b>: <code>creatorId</code> 로 Creator 를 소프트 참조(삭제 불가의 근거).</li>
+      <li><b>정산 분리</b>: 계좌·세금 등은 Creator 가 아니라 별도 <code>Settlement</code> 애그리게이트(<code>creatorId</code> 참조).</li>
+    </ul>
+  </section>
+</div>
+
+<footer class="page">
+  Source(설계): <code>docs/content-domain-design.md</code> §11.4 · 현행 인프라 <code>libs/ddd</code>(아웃박스) · <code>libs/decorators/event-handler</code>
+</footer>
+
+<script>
+  // 이벤트 기반 생성 흐름 — 세로 플로우 (의존성 없는 인라인 렌더)
+  (function () {
+    const SVGNS = 'http://www.w3.org/2000/svg';
+    const svg = document.getElementById('flow');
+    const C = { manual: '#ea580c', auto: '#2563eb' };
+    const STEPS = [
+      { kind: 'manual', title: '승인 요청', sub: 'ADMIN · PUT /admins/accounts/:id/approve' },
+      { kind: 'manual', title: 'Account.active(roleId)', sub: 'status → ACTIVE · publishEvent(AccountApproved{accountId, type})' },
+      { kind: 'auto', title: '아웃박스 적재', sub: 'DddRepository.save → ddd_events (계정과 같은 트랜잭션)' },
+      { kind: 'auto', title: 'CDC 전파', sub: 'Debezium → Kafka' },
+      { kind: 'auto', title: '@EventHandler(AccountApproved)', sub: 'type === CREATOR ? · accountId 멱등 체크' },
+      { kind: 'auto', title: 'Creator 생성', sub: 'Creator.of({ accountId }) 저장 · 빈 프로필' },
+    ];
+    const el = (n, a, t) => {
+      const e = document.createElementNS(SVGNS, n);
+      for (const k in a) e.setAttribute(k, a[k]);
+      if (t != null) e.textContent = t;
+      return e;
+    };
+    // arrowhead
+    const defs = el('defs', {});
+    const m = el('marker', { id: 'fa', viewBox: '0 0 10 10', refX: '8', refY: '5', markerWidth: '7', markerHeight: '7', orient: 'auto' });
+    m.appendChild(el('path', { d: 'M0,0 L10,5 L0,10 z', fill: '#94a3b8' }));
+    defs.appendChild(m);
+    svg.appendChild(defs);
+
+    const X = 40, W = 600, H = 56, GAP = 30;
+    STEPS.forEach((s, i) => {
+      const y = 18 + i * (H + GAP);
+      const col = C[s.kind];
+      if (i > 0) {
+        const py = y - GAP;
+        svg.appendChild(el('path', { d: `M ${X + W / 2} ${py} L ${X + W / 2} ${y - 4}`, stroke: '#94a3b8', 'stroke-width': '2', 'marker-end': 'url(#fa)' }));
+      }
+      const g = el('g', {});
+      g.appendChild(el('rect', { x: X, y, width: W, height: H, rx: 11, fill: '#fff', stroke: col, 'stroke-width': '2' }));
+      g.appendChild(el('rect', { x: X, y, width: 6, height: H, rx: 3, fill: col }));
+      g.appendChild(el('circle', { cx: X + 30, cy: y + H / 2, r: 12, fill: 'none', stroke: col, 'stroke-width': '2' }));
+      g.appendChild(el('text', { x: X + 30, y: y + H / 2 + 4, 'text-anchor': 'middle', 'font-size': '12', 'font-weight': '800', fill: col }, String(i + 1)));
+      g.appendChild(el('text', { x: X + 54, y: y + 23, 'font-size': '14', 'font-weight': '700', fill: '#0f172a' }, s.title));
+      g.appendChild(el('text', { x: X + 54, y: y + 41, 'font-size': '11.5', fill: '#64748b' }, s.sub));
+      svg.appendChild(g);
+    });
+  })();
+</script>
+</body>
+</html>

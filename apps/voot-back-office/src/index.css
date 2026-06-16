@@ -66,6 +66,16 @@ body {
   min-height: 0;
 }
 
+/* 페이지 크기 선택(30/50/100)을 페이지네이션 맨 왼쪽으로 보낸다. */
+.bo-table-fill .ant-table-pagination.ant-pagination {
+  align-items: center;
+}
+.bo-table-fill .ant-pagination .ant-pagination-options {
+  order: -1;
+  margin-inline-start: 0;
+  margin-inline-end: auto;
+}
+
 /* 폼 컨트롤 상단 라벨. 필터/모달 폼에서 컨트롤 위에 배치한다. */
 .form-label {
   display: block;

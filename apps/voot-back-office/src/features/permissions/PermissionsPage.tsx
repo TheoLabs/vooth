@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { Select, Tag, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { PermissionCategory } from '@vooth/shared';
-import { FullHeightTable } from '../../components/FullHeightTable';
+import { DEFAULT_PAGE_SIZE, FullHeightTable } from '../../components/FullHeightTable';
 import { TableToolbar } from '../../components/TableToolbar';
 import { FilterBar, FilterField } from '../../components/FilterBar';
 import type { Permission } from '../../api/permission.api';
@@ -13,13 +13,12 @@ import {
   PERMISSION_CATEGORY_OPTIONS,
 } from '../accounts/labels';
 
-const PAGE_SIZE = 20;
-
 export function PermissionsPage() {
   const [searchInput, setSearchInput] = useState('');
   const [searchValue, setSearchValue] = useState('');
   const [categories, setCategories] = useState<PermissionCategory[]>([]);
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
 
   const query = useMemo(
     () => ({
@@ -27,9 +26,9 @@ export function PermissionsPage() {
       searchValue: searchValue || undefined,
       categories: categories.length ? categories : undefined,
       page,
-      limit: PAGE_SIZE,
+      limit: pageSize,
     }),
-    [searchValue, categories, page],
+    [searchValue, categories, page, pageSize],
   );
 
   const { data, isLoading } = usePermissions(query);
@@ -115,10 +114,16 @@ export function PermissionsPage() {
         total={data?.total}
         pagination={{
           current: page,
-          pageSize: PAGE_SIZE,
+          pageSize,
           total: data?.total ?? 0,
-          showSizeChanger: false,
-          onChange: setPage,
+          onChange: (nextPage, nextSize) => {
+            if (nextSize !== pageSize) {
+              setPageSize(nextSize);
+              setPage(1);
+            } else {
+              setPage(nextPage);
+            }
+          },
         }}
       />
     </div>

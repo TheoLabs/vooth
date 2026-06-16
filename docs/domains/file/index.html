@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>File 도메인 — Vooth core-api</title>
+<link rel="stylesheet" href="../assets/style.css" />
+</head>
+<body>
+<header class="topnav">
+  <div class="inner">
+    <div class="brand"><a href="../index.html" style="color: inherit">Vooth <span>core-api</span> · 도메인</a></div>
+    <nav>
+      <a href="../index.html">Overview</a>
+      <a href="../account/index.html">Account</a>
+      <a href="../creator/index.html">Creator</a>
+      <a href="../file/index.html" class="active">File</a>
+      <a href="../role/index.html">Role</a>
+      <a href="../permission/index.html">Permission</a>
+      <a href="../auth/index.html">Auth</a>
+      <a href="../content/index.html">Content</a>
+    </nav>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="hero">
+    <div class="eyebrow">Platform · 공용</div>
+    <h1>File · 업로드 파일</h1>
+    <p class="lead">
+      presigned URL 로 S3 에 직접 올라가는 업로드 파일의 메타. 바이너리는 S3 에만 두고 여기엔 <b>객체 키/메타</b>만 둔다.
+      핵심 정책은 <b>commit-on-attach</b> — 업로드 직후가 아니라 <b>소유 도메인이 참조하며 저장하는 순간</b> 서버가 확정한다.
+    </p>
+    <div class="meta">
+      <span class="badge ok">구현됨</span>
+      <span class="badge ns">admins/files</span>
+      <span class="badge ctx">AR · File</span>
+      <span class="badge ctx">commit-on-attach</span>
+    </div>
+  </div>
+
+  <div class="note">
+    <span class="label">소비 도메인.</span> 아바타(<a href="../creator/index.html">Creator</a>)·콘텐츠 썸네일 등이 <code>fileId</code> 로만 참조하고,
+    표시 URL 은 읽을 때 유도한다. 바이너리 전송은 전부 S3 직접 PUT(서버는 키만 발급/저장).
+  </div>
+
+  <section class="section">
+    <h2><span class="num">01</span> 책임과 특성</h2>
+    <ul class="clean">
+      <li><b>업로드 파이프라인의 단일 출처</b> — presign(키 발급) → S3 직접 PUT → 채택 시 commit. 서버는 바이너리를 다루지 않는다.</li>
+      <li><b>commit-on-attach</b> — <code>isCommit</code> 은 "업로드됨"이 아니라 <b>"채택(참조)됨"</b>을 의미. 소유 엔티티 저장 트랜잭션 안에서 켜진다.</li>
+      <li><b>키만 저장, URL 비저장</b> — full URL 은 환경 의존적(<code>localhost:4566</code> vs 운영 버킷/CDN)이라 저장하지 않고 <code>getPublicUrl(key)</code> 로 유도.</li>
+      <li><b>미채택은 수거 대상</b> — 채택되지 않은 파일(<code>isCommit=false</code>)이나 교체로 버려진 파일은 cron 이 정리.</li>
+    </ul>
+  </section>
+
+  <section class="section">
+    <h2><span class="num">02</span> 애그리게이트 — <code>File</code></h2>
+    <p class="desc">파일: <code>src/modules/file/domain/file.entity.ts</code></p>
+    <div class="t-scroll">
+      <table>
+        <thead><tr><th>필드</th><th>타입</th><th>설명</th></tr></thead>
+        <tbody>
+          <tr><td><code>id</code></td><td>number (PK)</td><td>소유 도메인이 <code>fileId</code> 로 참조</td></tr>
+          <tr><td><code>key</code></td><td>string</td><td>S3 객체 키. <code>&lt;prefix&gt;/&lt;year&gt;/&lt;uuid&gt;&lt;ext&gt;</code></td></tr>
+          <tr><td><code>originalName</code></td><td>string</td><td>원본 파일명(확장자 추출용)</td></tr>
+          <tr><td><code>mimeType</code></td><td>string</td><td>MIME. presigned PUT 의 Content-Type 과 일치해야 함</td></tr>
+          <tr><td><code>size</code></td><td>bigint → number</td><td>바이트 크기(transformer 로 number 환원)</td></tr>
+          <tr><td><code>isCommit</code></td><td>boolean (기본 false)</td><td>채택 확정 플래그. <b>false→true 단방향</b></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note">
+      <span class="label">인덱스.</span> <code>idx_file_is_commit_created_at(isCommit, createdAt)</code> — 정리 cron 의
+      "<code>isCommit=false</code> & 오래됨" 스캔을 받친다. (감사/소프트삭제 컬럼은 <code>DddAggregate</code> 상속)
+    </div>
+  </section>
+
+  <section class="section">
+    <h2><span class="num">03</span> 생명주기</h2>
+    <div class="diagram-scroll">
+      <svg id="flow" class="statemachine" viewBox="0 0 720 500" role="img" aria-label="File 생명주기 흐름"></svg>
+    </div>
+    <div class="legend">
+      <div class="item"><span class="swatch" style="border-color:#2563eb"></span> 서버(core-api)</div>
+      <div class="item"><span class="swatch" style="border-color:#ea580c"></span> 클라이언트(FE → S3)</div>
+      <div class="item"><span class="swatch" style="border-color:#7c3aed"></span> cron</div>
+    </div>
+  </section>
+
+  <section class="section">
+    <h2><span class="num">04</span> 비즈니스 규칙 · 불변식</h2>
+    <ul class="clean">
+      <li><b>commit-on-attach</b> — <code>isCommit=true</code> 는 소유 도메인이 <code>fileId</code> 를 참조하며 저장하는 <b>같은 트랜잭션</b>에서만. 별도 commit 엔드포인트 없음.</li>
+      <li><b>서버가 HEAD 검증</b> — commit 시 <code>S3Service.headObject(key)</code> 로 실제 업로드를 직접 확인. 클라의 "업로드 완료" 주장을 신뢰하지 않는다.</li>
+      <li><b>형식 제한</b> — <code>commit(fileId, { mimePrefix })</code> 로 채택 시 MIME 접두사 검증(예: 아바타 = <code>image/</code>).</li>
+      <li><b>멱등 commit</b> — 이미 <code>isCommit=true</code> 면 통과. 되돌리지 않음(단방향).</li>
+      <li><b>키 안전성</b> — <code>prefix</code> 화이트리스트(<code>^[a-z0-9][a-z0-9/_-]*$</code>, <code>..</code> 금지) + <code>uuid</code> 로 path traversal·충돌 차단. 미지정 시 <code>uploads</code>.</li>
+      <li><b>크기 가드</b> — presign DTO 에서 <code>1 ~ 100MB</code>(sanity cap), MIME 형식 검증.</li>
+    </ul>
+    <div class="note warn">
+      <span class="label">합성 규칙.</span> <code>commit</code> 은 소유 도메인의 <code>@Transactional</code> 에 합성돼야 원자적이다.
+      따라서 <code>commit</code> 자체엔 <b><code>@Transactional</code> 을 붙이지 않는다</b> — 이 프로젝트의 데코레이터는 전파를 지원하지 않아
+      중첩하면 트랜잭션이 분리되고 <code>finally</code> 의 컨텍스트 초기화가 바깥 트랜잭션을 손상시킨다.
+    </div>
+    <h3>정리(cron) — 두 규칙 <span style="font-size:12px;font-weight:600;color:var(--faint)">(예정)</span></h3>
+    <ul class="clean">
+      <li><b>① 미채택</b>: <code>isCommit=false</code> & <code>createdAt</code> 오래됨 → 실패/이탈 업로드 → S3 delete + 행 제거. (인덱스로 저렴)</li>
+      <li><b>② 교체 고아</b>: <code>isCommit=true</code> 인데 어떤 엔티티도 참조 안 함 & 오래됨 → 아바타 교체 등으로 버려진 파일 → 삭제. (참조 스캔)</li>
+    </ul>
+  </section>
+
+  <section class="section">
+    <h2><span class="num">05</span> API 표면</h2>
+    <h3>HTTP — <code>admins/files</code></h3>
+    <div class="t-scroll">
+      <table>
+        <thead><tr><th>Method</th><th>Path</th><th>설명</th><th>본문 / 응답</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><span class="method post">POST</span></td>
+            <td><code>/admins/files/presign</code></td>
+            <td>presigned PUT URL + File(미커밋) 적재</td>
+            <td><code>{ originalName, mimeType, size, prefix? }</code> → <code>{ fileId, key, uploadUrl, publicUrl }</code></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <h3>내부 API — <code>FileService</code> (다른 도메인이 주입)</h3>
+    <div class="t-scroll">
+      <table>
+        <thead><tr><th>메서드</th><th>용도</th></tr></thead>
+        <tbody>
+          <tr><td><code>presign(input)</code></td><td>키 생성 + File 적재 + presigned URL. (컨트롤러도 이걸 사용)</td></tr>
+          <tr><td><code>commit(fileId, { mimePrefix? })</code></td><td><b>commit-on-attach seam.</b> 소유 도메인 저장 트랜잭션에서 호출 — HEAD 검증 후 <code>isCommit=true</code>. <b><code>@Transactional</code> 미부착</b>(호출자 트랜잭션에 합성 — 중첩 시 분리·컨텍스트 손상 방지)</td></tr>
+          <tr><td><code>resolvePublicUrls(ids)</code></td><td>읽기 enrich. <code>fileId[] → Map&lt;id, publicUrl&gt;</code> (응답에 URL 동봉용)</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note warn">
+      <span class="label">예정.</span> ① <code>creators/*</code> presign(아바타 업로드 — Creator/CreatorGuard 생기면 <code>FileService</code> 재사용),
+      ② 정리 cron, ③ 소비 도메인(Creator) 의 <code>avatarFileId</code> 채택·enrich 연동.
+    </div>
+  </section>
+
+  <section class="section">
+    <h2><span class="num">06</span> 의존 · 경계</h2>
+    <ul class="clean">
+      <li><b>→ S3Service</b> (<code>@libs/s3</code>): presigned PUT(<code>createPresignedPutUrl</code>), 채택 검증(<code>headObject</code>), 표시 URL(<code>getPublicUrl</code>), 정리(<code>deleteObject</code>).</li>
+      <li><b>← Creator / Content …</b>: <code>fileId</code> 로 File 을 참조하고 <code>FileService.commit</code> 으로 채택, <code>resolvePublicUrls</code> 로 표시 URL 을 유도.</li>
+      <li><b>경계</b>: File 은 바이너리·표시 URL 의 출처일 뿐, 도메인 의미(아바타냐 썸네일이냐)는 소유 도메인이 가진다.</li>
+    </ul>
+  </section>
+</div>
+
+<footer class="page">
+  Source: <code>src/modules/file</code>, <code>src/libs/s3/s3.service.ts</code>
+</footer>
+
+<script>
+  // File 생명주기 — 세로 플로우
+  (function () {
+    const SVGNS = 'http://www.w3.org/2000/svg';
+    const svg = document.getElementById('flow');
+    const C = { server: '#2563eb', fe: '#ea580c', cron: '#7c3aed' };
+    const STEPS = [
+      { kind: 'server', title: 'presign', sub: 'POST /admins/files/presign · File(isCommit=false) + presigned PUT URL' },
+      { kind: 'fe', title: 'S3 직접 PUT', sub: 'presigned URL 로 업로드 (Content-Type = mimeType 일치)' },
+      { kind: 'server', title: '채택 (commit-on-attach)', sub: '소유 도메인 저장 TX 에서 FileService.commit(fileId, {mimePrefix})' },
+      { kind: 'server', title: 'HEAD 검증 → isCommit=true', sub: 'S3 headObject(key) 로 업로드 확인 후 단방향 확정' },
+      { kind: 'cron', title: '정리(cron)', sub: '① 미커밋·오래됨  ② 커밋·미참조·오래됨 → S3 delete + 행 제거' },
+    ];
+    const el = (n, a, t) => {
+      const e = document.createElementNS(SVGNS, n);
+      for (const k in a) e.setAttribute(k, a[k]);
+      if (t != null) e.textContent = t;
+      return e;
+    };
+    const defs = el('defs', {});
+    const m = el('marker', { id: 'fa', viewBox: '0 0 10 10', refX: '8', refY: '5', markerWidth: '7', markerHeight: '7', orient: 'auto' });
+    m.appendChild(el('path', { d: 'M0,0 L10,5 L0,10 z', fill: '#94a3b8' }));
+    defs.appendChild(m);
+    svg.appendChild(defs);
+
+    const X = 50, W = 620, H = 58, GAP = 30;
+    STEPS.forEach((s, i) => {
+      const y = 18 + i * (H + GAP);
+      const col = C[s.kind];
+      if (i > 0) {
+        const py = y - GAP;
+        svg.appendChild(el('path', { d: `M ${X + W / 2} ${py} L ${X + W / 2} ${y - 4}`, stroke: '#94a3b8', 'stroke-width': '2', 'marker-end': 'url(#fa)' }));
+      }
+      const g = el('g', {});
+      g.appendChild(el('rect', { x: X, y, width: W, height: H, rx: 11, fill: '#fff', stroke: col, 'stroke-width': '2' }));
+      g.appendChild(el('rect', { x: X, y, width: 6, height: H, rx: 3, fill: col }));
+      g.appendChild(el('circle', { cx: X + 30, cy: y + H / 2, r: 12, fill: 'none', stroke: col, 'stroke-width': '2' }));
+      g.appendChild(el('text', { x: X + 30, y: y + H / 2 + 4, 'text-anchor': 'middle', 'font-size': '12', 'font-weight': '800', fill: col }, String(i + 1)));
+      g.appendChild(el('text', { x: X + 54, y: y + 23, 'font-size': '14', 'font-weight': '700', fill: '#0f172a' }, s.title));
+      g.appendChild(el('text', { x: X + 54, y: y + 41, 'font-size': '11', fill: '#64748b' }, s.sub));
+      svg.appendChild(g);
+    });
+  })();
+</script>
+</body>
+</html>

@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Role 도메인 — Vooth core-api</title>
+<link rel="stylesheet" href="../assets/style.css" />
+</head>
+<body>
+<header class="topnav">
+  <div class="inner">
+    <div class="brand"><a href="../index.html" style="color: inherit">Vooth <span>core-api</span> · 도메인</a></div>
+    <nav>
+      <a href="../index.html">Overview</a>
+      <a href="../account/index.html">Account</a>
+      <a href="../creator/index.html">Creator</a>
+      <a href="../file/index.html">File</a>
+      <a href="../role/index.html" class="active">Role</a>
+      <a href="../permission/index.html">Permission</a>
+      <a href="../auth/index.html">Auth</a>
+      <a href="../content/index.html">Content</a>
+    </nav>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="hero">
+    <div class="eyebrow">Identity &amp; Access</div>
+    <h1>Role · 역할</h1>
+    <p class="lead">
+      권한(Permission)의 <b>묶음</b>이자 계정이 참조하는 역할군. 도메인 단위 관리자 역할(계정/콘텐츠/정산/통계/알림)과
+      SUPER·CREATOR 를 <code>RoleType</code> 으로 구분하며, 역할마다 권한 집합을 부여한다.
+    </p>
+    <div class="meta">
+      <span class="badge ok">구현됨</span>
+      <span class="badge ns">admins/roles</span>
+      <span class="badge ctx">AdminGuard (ADMIN)</span>
+      <span class="badge ctx">AR · Role</span>
+    </div>
+  </div>
+
+  <section class="section">
+    <h2><span class="num">01</span> 책임과 특성</h2>
+    <ul class="clean">
+      <li><b>권한 집합의 단위</b> — Role 은 <code>Permission</code> 과 N:M(<code>role_permissions</code> 조인). 계정은 Role 을 통해 간접적으로 권한을 가진다.</li>
+      <li><b>RoleType 1:1 정책</b> — 같은 <code>type</code> 의 역할은 시스템에 하나만 존재한다(중복 생성 거부). 즉 "콘텐츠 관리자" 역할군은 단일.</li>
+      <li><b>권한은 코드로 참조</b> — 역할 생성/수정 시 <code>permissionCodes</code>(문자열 코드 배열)를 받고, 전부 실재하는 코드인지 검증한다.</li>
+      <li><b>수정 = 권한 재할당</b> — 역할 수정은 이름이 아니라 <b>권한 집합 교체</b>(<code>assignPermissions</code>)를 의미한다.</li>
+    </ul>
+  </section>
+
+  <section class="section">
+    <h2><span class="num">02</span> 애그리게이트 — <code>Role</code></h2>
+    <p class="desc">파일: <code>src/modules/role/domain/role.entity.ts</code></p>
+    <div class="t-scroll">
+      <table>
+        <thead><tr><th>필드</th><th>타입</th><th>설명</th></tr></thead>
+        <tbody>
+          <tr><td><code>id</code></td><td>number (PK)</td><td>자동 증가 식별자</td></tr>
+          <tr><td><code>type</code></td><td>RoleType</td><td>역할군. 같은 type 중복 불가(앱 정책)</td></tr>
+          <tr><td><code>name</code></td><td>string</td><td>표시 이름</td></tr>
+          <tr><td><code>permissions</code></td><td>Permission[]</td><td>ManyToMany(<code>cascade</code>), 조인 테이블 <code>role_permissions(roleId, codeId)</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="section">
+    <h2><span class="num">03</span> Enum — RoleType</h2>
+    <p class="desc">파일: <code>packages/shared/src/role.ts</code> · 도메인별 관리자 역할 + SUPER/CREATOR</p>
+    <div class="t-scroll">
+      <table>
+        <thead><tr><th>값</th><th>의미</th></tr></thead>
+        <tbody>
+          <tr><td><code>SUPER</code></td><td>전체 권한 (role/permission/system 등 메타 영역 포함)</td></tr>
+          <tr><td><code>ACCOUNT_MANAGER</code></td><td>계정 도메인 관리자</td></tr>
+          <tr><td><code>CONTENT_MANAGER</code></td><td>콘텐츠 도메인 관리자 (검수 포함)</td></tr>
+          <tr><td><code>SETTLEMENT_MANAGER</code></td><td>정산 도메인 관리자</td></tr>
+          <tr><td><code>STATS_MANAGER</code></td><td>통계 도메인 관리자</td></tr>
+          <tr><td><code>NOTIFICATION_MANAGER</code></td><td>알림 도메인 관리자</td></tr>
+          <tr><td><code>CREATOR</code></td><td>성우/크리에이터</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="section">
+    <h2><span class="num">04</span> 비즈니스 규칙 · 불변식</h2>
+    <ul class="clean">
+      <li><b>생성(create)</b> — 동일 <code>type</code> 역할이 이미 있으면 거부("이미 등록된 역할군입니다"). 그래서 RoleType ↔ Role 은 사실상 1:1.</li>
+      <li><b>권한 코드 검증</b> — 입력한 <code>permissionCodes</code> 로 조회한 권한 수가 요청 수와 다르면 "미등록된 권한" 으로 거부(존재하지 않는 코드 차단).</li>
+      <li><b>수정(update)</b> — 역할의 권한 집합을 통째로 교체. 존재하지 않는 역할이면 거부.</li>
+      <li><b>트랜잭션</b> — create / update 는 <code>@Transactional()</code> 경계 안에서 처리.</li>
+    </ul>
+    <div class="note">
+      <span class="label">TODO (코드 주석).</span> 역할 생성은 추후 <b>SUPER 권한 유저만</b> 가능하도록 제한 예정
+      (<code>admin-role.controller.ts</code> 의 <code>POST</code> 핸들러).
+    </div>
+  </section>
+
+  <section class="section">
+    <h2><span class="num">05</span> 라이프사이클</h2>
+    <p>Role 은 상태 enum 이 없다. 라이프사이클은 단순하다:</p>
+    <ul class="clean">
+      <li><b>생성</b> — RoleType + 이름 + 권한 집합으로 1회 생성(타입 중복 불가).</li>
+      <li><b>권한 재할당</b> — 운영 중 <code>PUT /admins/roles/:id</code> 로 권한 집합을 교체(여러 번 가능).</li>
+      <li><b>삭제 없음</b> — 현재 삭제 엔드포인트는 제공하지 않는다(계정이 참조하므로).</li>
+    </ul>
+  </section>
+
+  <section class="section">
+    <h2><span class="num">06</span> API 표면</h2>
+    <p class="desc">컨트롤러: <code>presentation/admin-role.controller.ts</code> · 가드: <code>AdminGuard</code></p>
+    <div class="t-scroll">
+      <table>
+        <thead><tr><th>Method</th><th>Path</th><th>설명</th><th>본문</th></tr></thead>
+        <tbody>
+          <tr><td><span class="method get">GET</span></td><td><code>/admins/roles</code></td><td>목록(검색·타입 필터, permissions 포함) → <code>{ items, total }</code></td><td>—</td></tr>
+          <tr><td><span class="method post">POST</span></td><td><code>/admins/roles</code></td><td>역할 생성</td><td><code>{ name, type, permissionCodes }</code></td></tr>
+          <tr><td><span class="method get">GET</span></td><td><code>/admins/roles/:id</code></td><td>단건(permissions 포함)</td><td>—</td></tr>
+          <tr><td><span class="method put">PUT</span></td><td><code>/admins/roles/:id</code></td><td>권한 집합 교체</td><td><code>{ permissionCodes }</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="section">
+    <h2><span class="num">07</span> 의존 관계</h2>
+    <ul class="clean">
+      <li><b>← Account</b>: 계정이 <code>roleId</code> 로 Role 을 참조(승인 시 부여).</li>
+      <li><b>→ Permission</b>: Role 이 PermissionRepository 로 코드 검증 + 권한 집합 보유(<code>RoleModule imports PermissionModule</code>).</li>
+    </ul>
+  </section>
+</div>
+
+<footer class="page">
+  Source: <code>src/modules/role</code>, <code>packages/shared/src/role.ts</code>
+</footer>
+</body>
+</html>

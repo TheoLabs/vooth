@@ -1,7 +1,7 @@
 import { AdminGuard } from '@common/guards';
 import { Body, Controller, Get, Param, ParseIntPipe, Put, Query, UseGuards } from '@nestjs/common';
 import { AdminAccountService } from '../applications/admin-account.service';
-import { AccountQueryDto, AccountApproveDto, AccountChangeRoleDto } from './dto';
+import { AccountQueryDto, AccountActiveDto, AccountChangeRoleDto } from './dto';
 import { Context, ContextKey } from '@common/context';
 import { Account } from '../domain/account.entity';
 
@@ -50,8 +50,8 @@ export class AdminAccountController {
     return { data: {} };
   }
 
-  @Put(':id/approve')
-  async active(@Param('id', ParseIntPipe) id: number, @Body() body: AccountApproveDto) {
+  @Put(':id/active')
+  async active(@Param('id', ParseIntPipe) id: number, @Body() body: AccountActiveDto) {
     // 1. Destructure body, params, query
     // 2. Get context
     // 3. Get result

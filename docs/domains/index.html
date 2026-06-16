@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Vooth core-api — 도메인 문서</title>
+<link rel="stylesheet" href="assets/style.css" />
+</head>
+<body>
+<header class="topnav">
+  <div class="inner">
+    <div class="brand">Vooth <span>core-api</span> · 도메인</div>
+    <nav>
+      <a href="index.html" class="active">Overview</a>
+      <a href="account/index.html">Account</a>
+      <a href="creator/index.html">Creator</a>
+      <a href="file/index.html">File</a>
+      <a href="role/index.html">Role</a>
+      <a href="permission/index.html">Permission</a>
+      <a href="auth/index.html">Auth</a>
+      <a href="content/index.html">Content</a>
+    </nav>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="hero">
+    <div class="eyebrow">Domain Catalog</div>
+    <h1>core-api 도메인 문서</h1>
+    <p class="lead">
+      NestJS 백엔드(<code>apps/core-api</code>)의 도메인별 책임·비즈니스 규칙·라이프사이클을 정리한 문서입니다.
+      각 도메인은 DDD 레이어(domain / application / infrastructure / presentation)로 구성되며,
+      코드(<code>apps/core-api/src/modules</code>, <code>packages/shared</code>)를 source of truth로 작성했습니다.
+    </p>
+  </div>
+
+  <div class="note">
+    <span class="label">읽는 법.</span> 각 도메인 카드를 누르면 상세 문서로 이동합니다.
+    <span class="badge ok" style="vertical-align: middle">구현됨</span> 은 core-api 모듈로 존재하는 도메인,
+    <span class="badge plan" style="vertical-align: middle">설계</span> 는 문서/공유 enum 으로 확정됐지만 모듈화 전인 도메인입니다.
+  </div>
+
+  <div class="ctx-group">
+    <h2>Identity &amp; Access · RBAC</h2>
+    <p style="margin: -6px 0 16px; color: var(--muted); font-size: 13.5px">
+      관리자/크리에이터 계정과 역할·권한(RBAC), 로그인을 담당하는 바운디드 컨텍스트. 모든 표면은 <code>admins/*</code> 네임스페이스.
+    </p>
+    <div class="grid">
+      <a class="dcard" href="account/index.html">
+        <div class="top"><h3>Account</h3><span class="badge ok">구현됨</span></div>
+        <div class="ns">admins/accounts</div>
+        <p>계정 애그리게이트. 가입 승인·역할 변경·탈퇴 상태 머신과 ADMIN/CREATOR 구분.</p>
+        <div class="tags"><span>상태 머신</span><span>승인 정책</span><span>RBAC 주체</span></div>
+      </a>
+      <a class="dcard" href="role/index.html">
+        <div class="top"><h3>Role</h3><span class="badge ok">구현됨</span></div>
+        <div class="ns">admins/roles</div>
+        <p>역할군(RoleType) 1:1 + 권한(Permission) N:M. 역할당 권한 집합을 정의·수정.</p>
+        <div class="tags"><span>RoleType 유일성</span><span>권한 묶음</span></div>
+      </a>
+      <a class="dcard" href="permission/index.html">
+        <div class="top"><h3>Permission</h3><span class="badge ok">구현됨</span></div>
+        <div class="ns">admins/permissions</div>
+        <p>권한 카탈로그(코드 PK). 카테고리별 read-only 시드 데이터. 역할이 참조.</p>
+        <div class="tags"><span>카탈로그</span><span>읽기 전용</span></div>
+      </a>
+      <a class="dcard" href="auth/index.html">
+        <div class="top"><h3>Auth</h3><span class="badge ok">구현됨</span></div>
+        <div class="ns">admins/auth</div>
+        <p>Google 로그인(웹 idToken / 데스크톱 PKCE) + JWT 발급, 최초 로그인 시 계정 자동 생성.</p>
+        <div class="tags"><span>Google OAuth</span><span>JWT</span><span>auto-provisioning</span></div>
+      </a>
+    </div>
+  </div>
+
+  <div class="ctx-group">
+    <h2>Production · 제작</h2>
+    <p style="margin: -6px 0 16px; color: var(--muted); font-size: 13.5px">
+      녹음에 참여하는 성우(크리에이터)의 제작 도메인. 계정 승인 시 이벤트로 생성되며 캐스팅·녹음·정산의 참조 중심.
+    </p>
+    <div class="grid">
+      <a class="dcard" href="creator/index.html">
+        <div class="top"><h3>Creator</h3><span class="badge plan">설계</span></div>
+        <div class="ns">creators/* · directors/*</div>
+        <p>성우 프로필. Account 1:1, AccountApproved 이벤트로 멱등 생성, 삭제 없는 영속 레코드.</p>
+        <div class="tags"><span>이벤트 생성</span><span>Account 1:1</span><span>no-delete</span></div>
+      </a>
+    </div>
+  </div>
+
+  <div class="ctx-group">
+    <h2>Content · 발행</h2>
+    <p style="margin: -6px 0 16px; color: var(--muted); font-size: 13.5px">
+      웹툰 콘텐츠의 제작·검수·발행 라이프사이클. 상세 도메인 설계는 <code>docs/content-domain-design.md</code> 참고.
+    </p>
+    <div class="grid">
+      <a class="dcard" href="content/index.html">
+        <div class="top"><h3>Content</h3><span class="badge plan">설계</span></div>
+        <div class="ns">admins/contents</div>
+        <p>콘텐츠 발행 상태 머신(7상태). 녹음→검수→승인→예약→발행→보관 전이와 불변식.</p>
+        <div class="tags"><span>7-state machine</span><span>검수 롤업</span><span>스케줄 발행</span></div>
+      </a>
+    </div>
+  </div>
+
+  <div class="ctx-group">
+    <h2>Platform · 공용</h2>
+    <p style="margin: -6px 0 16px; color: var(--muted); font-size: 13.5px">
+      여러 도메인이 공유하는 인프라성 도메인. presigned 업로드 파일을 관리한다.
+    </p>
+    <div class="grid">
+      <a class="dcard" href="file/index.html">
+        <div class="top"><h3>File</h3><span class="badge ok">구현됨</span></div>
+        <div class="ns">admins/files</div>
+        <p>presigned 업로드 파일 메타. commit-on-attach 정책, fileId 참조 + 읽기 시 URL 유도.</p>
+        <div class="tags"><span>commit-on-attach</span><span>S3 presign</span><span>키만 저장</span></div>
+      </a>
+    </div>
+  </div>
+
+  <div class="note" style="margin-top: 34px">
+    <span class="label">기타.</span> <code>admins/me</code>(MeModule) 는 <code>AdminGuard</code> 가 컨텍스트에 주입한 현재 계정을 그대로
+    반환하는 얇은 엔드포인트로, 별도 애그리게이트가 없어 <a href="account/index.html">Account</a> 문서에서 함께 다룹니다.
+  </div>
+</div>
+
+<footer class="page">
+  Source of truth: <code>apps/core-api/src/modules</code> · <code>packages/shared/src</code> ·
+  <code>docs/content-domain-design.md</code>. 코드 변경 시 본 문서도 함께 갱신하세요.
+</footer>
+</body>
+</html>

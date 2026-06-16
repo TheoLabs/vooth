@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Account 도메인 — Vooth core-api</title>
+<link rel="stylesheet" href="../assets/style.css" />
+</head>
+<body>
+<header class="topnav">
+  <div class="inner">
+    <div class="brand"><a href="../index.html" style="color: inherit">Vooth <span>core-api</span> · 도메인</a></div>
+    <nav>
+      <a href="../index.html">Overview</a>
+      <a href="../account/index.html" class="active">Account</a>
+      <a href="../creator/index.html">Creator</a>
+      <a href="../file/index.html">File</a>
+      <a href="../role/index.html">Role</a>
+      <a href="../permission/index.html">Permission</a>
+      <a href="../auth/index.html">Auth</a>
+      <a href="../content/index.html">Content</a>
+    </nav>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="hero">
+    <div class="eyebrow">Identity &amp; Access</div>
+    <h1>Account · 계정</h1>
+    <p class="lead">
+      시스템의 인증·인가 <b>주체(principal)</b>. 관리자(ADMIN)와 크리에이터(CREATOR) 계정을 하나의 애그리게이트로 표현하며,
+      가입 승인 → 활성 → 탈퇴로 이어지는 상태 머신과 역할 부여를 캡슐화한다.
+    </p>
+    <div class="meta">
+      <span class="badge ok">구현됨</span>
+      <span class="badge ns">admins/accounts</span>
+      <span class="badge ctx">AdminGuard (ADMIN)</span>
+      <span class="badge ctx">AR · Account</span>
+    </div>
+  </div>
+
+  <section class="section">
+    <h2><span class="num">01</span> 책임과 특성</h2>
+    <ul class="clean">
+      <li><b>RBAC의 주체</b> — 계정은 정확히 하나의 <a href="../role/index.html">Role</a>(<code>roleId</code>)을 참조하고, 역할이 권한을 가진다.</li>
+      <li><b>타입으로 앱 경계를 가른다</b> — <code>type</code>(ADMIN/CREATOR)이 어느 앱(back-office·tool / maker)의 계정인지 결정한다. <code>(googleSub, type)</code> 유니크.</li>
+      <li><b>상태가 곧 라이프사이클</b> — 가입은 항상 <code>PENDING</code>으로 시작하고, 승인/거절/탈퇴 전이는 모두 엔티티 메서드 안에서 불변식과 함께 처리된다.</li>
+      <li><b>자가 변경 금지</b> — 역할 변경·탈퇴는 본인 계정에 대해 수행할 수 없다(애플리케이션 정책).</li>
+    </ul>
+  </section>
+
+  <section class="section">
+    <h2><span class="num">02</span> 애그리게이트 — <code>Account</code></h2>
+    <p class="desc">파일: <code>src/modules/account/domain/account.entity.ts</code></p>
+    <div class="t-scroll">
+      <table>
+        <thead><tr><th>필드</th><th>타입</th><th>설명</th></tr></thead>
+        <tbody>
+          <tr><td><code>id</code></td><td>number (PK)</td><td>자동 증가 식별자</td></tr>
+          <tr><td><code>type</code></td><td>AccountType</td><td><code>ADMIN</code> / <code>CREATOR</code>. 생성 후 불변</td></tr>
+          <tr><td><code>status</code></td><td>AccountStatus</td><td>상태 머신 값 (아래 §05)</td></tr>
+          <tr><td><code>roleId</code></td><td>number | null</td><td>부여된 역할. 승인 시 채워지고 탈퇴 시 <code>null</code></td></tr>
+          <tr><td><code>role</code></td><td>Role | null</td><td>OneToOne(FK 제약 없음, nullable)</td></tr>
+          <tr><td><code>googleSub</code></td><td>string</td><td>Google 계정 식별자(<code>sub</code>). <code>(googleSub, type)</code> 유니크</td></tr>
+          <tr><td><code>email</code></td><td>string</td><td>Google 이메일</td></tr>
+          <tr><td><code>name</code></td><td>string</td><td>표시 이름</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note">
+      <span class="label">인덱스/제약.</span> <code>idx_account_role_id(roleId)</code>,
+      유니크 <code>idx_account_google_sub_type(googleSub, type)</code> — 같은 Google 계정이 ADMIN과 CREATOR로 각각 존재할 수 있다.
+    </div>
+  </section>
+
+  <section class="section">
+    <h2><span class="num">03</span> Enum</h2>
+    <p class="desc">파일: <code>packages/shared/src/account.ts</code></p>
+    <h3>AccountStatus</h3>
+    <div class="t-scroll">
+      <table>
+        <thead><tr><th>값</th><th>의미</th></tr></thead>
+        <tbody>
+          <tr><td><code>PENDING</code> (<code>pending</code>)</td><td>가입 직후, 관리자 승인 대기</td></tr>
+          <tr><td><code>ACTIVE</code> (<code>active</code>)</td><td>승인 완료, 역할 보유, 정상 이용</td></tr>
+          <tr><td><code>REJECTED</code> (<code>rejected</code>)</td><td>가입 거절(종료 상태)</td></tr>
+          <tr><td><code>EXITED</code> (<code>exited</code>)</td><td>탈퇴/퇴사(종료 상태)</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <h3>AccountType</h3>
+    <div class="t-scroll">
+      <table>
+        <thead><tr><th>값</th><th>대상 앱</th></tr></thead>
+        <tbody>
+          <tr><td><code>ADMIN</code> (<code>admin</code>)</td><td>voot-back-office · vooth-tool(연출자/검수자도 내부 관리자)</td></tr>
+          <tr><td><code>CREATOR</code> (<code>creator</code>)</td><td>vooth-maker(성우 녹음)</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="section">
+    <h2><span class="num">04</span> 비즈니스 규칙 · 불변식</h2>
+    <ul class="clean">
+      <li><b>가입은 항상 PENDING</b> — <code>Account.of()</code> 가 무조건 <code>status=PENDING</code> 으로 생성. 클라이언트가 상태를 정하지 못한다.</li>
+      <li><b>승인(active)</b> — <code>PENDING</code> 일 때만 가능. <code>ACTIVE</code> 로 바꾸고 동시에 <code>roleId</code> 를 부여한다. (이미 활성/거절/탈퇴면 거부)</li>
+      <li><b>거절(reject)</b> — <code>PENDING</code> 일 때만 가능. <code>REJECTED</code> 로.</li>
+      <li><b>역할 변경(changeRole)</b> — <code>ACTIVE</code> 계정만 가능. 상태는 유지하고 <code>roleId</code> 만 교체.</li>
+      <li><b>탈퇴(exit)</b> — <code>ACTIVE</code> 계정만 가능. <code>EXITED</code> 로 바꾸고 <code>roleId=null</code>.</li>
+      <li><b>본인 보호</b> — 역할 변경·탈퇴 시 <code>account.id === 대상 id</code> 면 거부(자기 자신 변경 불가).</li>
+    </ul>
+    <div class="note warn">
+      <span class="label">검토 포인트.</span> 현재 <code>changeRole</code>/<code>approve</code> 는 역할 <b>존재</b>만 검증하고
+      <strong>역할 타입(RoleType)과 계정 타입(AccountType)의 정합성은 검증하지 않는다</strong> — CREATOR 계정에 ADMIN용 역할을 붙일 여지가 있다.
+      또한 목록 검색의 <code>searchKey</code> 는 화이트리스트 없이 컬럼명으로 쓰여, 정책상 검토가 필요하다.
+    </div>
+  </section>
+
+  <section class="section">
+    <h2><span class="num">05</span> 라이프사이클 (상태 머신)</h2>
+    <p class="desc">진입은 Auth 최초 로그인(또는 생성). 종료 상태(REJECTED·EXITED)에서는 재활성 경로가 없다.</p>
+    <div class="diagram-scroll">
+      <svg id="sm" class="statemachine" viewBox="0 0 760 360" role="img" aria-label="Account 상태 머신"></svg>
+    </div>
+    <div class="legend">
+      <div class="item"><span class="swatch" style="border-color: #2563eb"></span> 자동 / 시스템</div>
+      <div class="item"><span class="swatch" style="border-color: #ea580c"></span> 관리자 수동</div>
+    </div>
+  </section>
+
+  <section class="section">
+    <h2><span class="num">06</span> API 표면</h2>
+    <p class="desc">컨트롤러: <code>presentation/admin-account.controller.ts</code> · 가드: <code>AdminGuard</code> · 응답: <code>{ data }</code></p>
+    <div class="t-scroll">
+      <table>
+        <thead><tr><th>Method</th><th>Path</th><th>설명</th><th>본문</th></tr></thead>
+        <tbody>
+          <tr><td><span class="method get">GET</span></td><td><code>/admins/accounts</code></td><td>목록(검색·상태·타입 필터, 페이지네이션) → <code>{ items, total }</code></td><td>—</td></tr>
+          <tr><td><span class="method get">GET</span></td><td><code>/admins/accounts/:id</code></td><td>단건 조회(role 포함)</td><td>—</td></tr>
+          <tr><td><span class="method put">PUT</span></td><td><code>/admins/accounts/:id/approve</code></td><td>승인 → ACTIVE + 역할 부여</td><td><code>{ roleId }</code></td></tr>
+          <tr><td><span class="method put">PUT</span></td><td><code>/admins/accounts/:id/reject</code></td><td>거절 → REJECTED</td><td>—</td></tr>
+          <tr><td><span class="method put">PUT</span></td><td><code>/admins/accounts/:id/roles</code></td><td>역할 변경(ACTIVE 한정)</td><td><code>{ roleId }</code></td></tr>
+          <tr><td><span class="method put">PUT</span></td><td><code>/admins/accounts/:id/exit</code></td><td>탈퇴 → EXITED</td><td>—</td></tr>
+          <tr><td><span class="method get">GET</span></td><td><code>/admins/me</code></td><td>현재 로그인 계정(가드가 컨텍스트에 주입한 Account 반환)</td><td>—</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="section">
+    <h2><span class="num">07</span> 가드 동작 (AdminGuard)</h2>
+    <p>보호된 <code>admins/*</code> 호출마다 토큰을 검증하고 ADMIN 계정을 로드해 컨텍스트에 주입한다.</p>
+    <ul class="clean">
+      <li>Bearer 토큰 부재/위조 → <code>401</code>.</li>
+      <li><code>type=ADMIN</code> 계정이 없으면 → <code>401</code> (CREATOR 토큰으로 admin 표면 접근 불가).</li>
+      <li><code>status=EXITED</code> → <code>403</code> "퇴사한 계정".</li>
+      <li><code>roleId</code> 없음(미승인) → <code>403</code> "아직 승인받지 못한 계정".</li>
+      <li>통과 시 <code>ACCOUNT</code>, <code>ROLE</code> 을 요청 컨텍스트에 set.</li>
+    </ul>
+  </section>
+</div>
+
+<footer class="page">
+  Source: <code>src/modules/account</code>, <code>src/common/guards/admin.guard.ts</code>, <code>packages/shared/src/account.ts</code>
+</footer>
+
+<script src="../assets/diagram.js"></script>
+<script>
+  renderStateMachine(document.getElementById('sm'), {
+    initial: { to: 'PENDING', label: '가입' },
+    states: [
+      { key: 'PENDING',  label: '승인 대기', color: '#d97706', x: 175, y: 120 },
+      { key: 'ACTIVE',   label: '활성',     color: '#16a34a', x: 430, y: 120 },
+      { key: 'REJECTED', label: '거절',     color: '#dc2626', x: 175, y: 280 },
+      { key: 'EXITED',   label: '탈퇴',     color: '#475569', x: 640, y: 280 },
+    ],
+    transitions: [
+      { from: 'PENDING',  to: 'ACTIVE',   kind: 'manual', label: '승인 (+역할)', curve: -36 },
+      { from: 'PENDING',  to: 'REJECTED', kind: 'manual', label: '거절',         curve: 26 },
+      { from: 'ACTIVE',   to: 'EXITED',   kind: 'manual', label: '탈퇴',         curve: 30 },
+      { from: 'ACTIVE',   to: 'ACTIVE',   kind: 'manual', label: '역할 변경' },
+    ],
+  });
+</script>
+</body>
+</html>

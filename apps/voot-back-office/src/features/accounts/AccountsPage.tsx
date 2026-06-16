@@ -9,7 +9,7 @@ import {
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { AccountStatus, AccountType } from '@vooth/shared';
-import { FullHeightTable } from '../../components/FullHeightTable';
+import { DEFAULT_PAGE_SIZE, FullHeightTable } from '../../components/FullHeightTable';
 import { TableToolbar } from '../../components/TableToolbar';
 import { FilterBar, FilterField } from '../../components/FilterBar';
 import { useRoles } from '../roles/useRoles';
@@ -33,9 +33,6 @@ const SEARCH_KEYS = [
   { value: 'name', label: '이름' },
   { value: 'email', label: '이메일' },
 ];
-
-const DEFAULT_PAGE_SIZE = 30;
-const PAGE_SIZE_OPTIONS = ['30', '50', '100'];
 
 export function AccountsPage() {
   const { message } = AntApp.useApp();
@@ -193,8 +190,6 @@ export function AccountsPage() {
           current: page,
           pageSize,
           total: data?.total ?? 0,
-          showSizeChanger: true,
-          pageSizeOptions: PAGE_SIZE_OPTIONS,
           onChange: (nextPage, nextSize) => {
             if (nextSize !== pageSize) {
               // 페이지 크기 변경 시 1페이지로 리셋

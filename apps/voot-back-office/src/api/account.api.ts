@@ -42,9 +42,9 @@ export async function fetchAccounts(query: AccountListQuery): Promise<PaginatedR
   return response.data;
 }
 
-/** 승인 = 역할 부여 */
+/** 승인(활성화) = 역할 부여. 서버 엔드포인트: PUT /admins/accounts/:id/active */
 export async function approveAccount(id: number, roleId: number): Promise<void> {
-  await apiClient.put(`/admins/accounts/${id}/approve`, { roleId });
+  await apiClient.put(`/admins/accounts/${id}/active`, { roleId });
 }
 
 export async function rejectAccount(id: number): Promise<void> {
