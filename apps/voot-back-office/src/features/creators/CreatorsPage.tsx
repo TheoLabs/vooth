@@ -44,7 +44,10 @@ export function CreatorsPage() {
       key: 'profile',
       render: (_, c) => (
         <Space>
-          <Avatar style={{ backgroundColor: avatarColor(c.nickname), flex: 'none' }}>
+          <Avatar
+            src={c.avatarUrl ?? undefined}
+            style={{ backgroundColor: avatarColor(c.nickname), flex: 'none' }}
+          >
             {c.nickname.slice(0, 1)}
           </Avatar>
           <div style={{ lineHeight: 1.3 }}>

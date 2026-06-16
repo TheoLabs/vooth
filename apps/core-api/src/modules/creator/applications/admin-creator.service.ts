@@ -10,11 +10,12 @@ import { AccountType } from '@vooth/shared';
 import { Creator } from '../domain/creator.entity';
 import { PaginationOptions } from '@libs/utils';
 import { AdminCreatorResponseDto } from '../presentation/dto';
+import { plainToInstance } from 'class-transformer';
 
 @Injectable()
 export class AdminCreatorService extends DddService {
   constructor(
-    private readonly adminFileService: FileService,
+    private readonly fileService: FileService,
     private readonly creatorRepository: CreatorRepository,
     private readonly accountRepository: AccountRepository
   ) {
@@ -27,7 +28,15 @@ export class AdminCreatorService extends DddService {
       this.creatorRepository.count({ searchKey, searchValue }),
     ]);
 
-    return { items: creators.map((c) => c.toInstance(AdminCreatorResponseDto)), total };
+    const urls = await this.fileService.resolvePublicUrls(creators.map((c) => c.avatarFileId));
+
+    return {
+      items: creators.map((creator) => {
+        const avatarUrl = creator.avatarFileId ? (urls.get(creator.avatarFileId) ?? null) : null;
+        return plainToInstance(AdminCreatorResponseDto, { ...creator, avatarUrl });
+      }),
+      total,
+    };
   }
 
   @EventHandler(AccountActivedEvent, { description: '크리에이터 계정이 생성되면 Creator도 함께 생성해준다.' })

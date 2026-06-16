@@ -10,6 +10,7 @@ import { AccountsPage } from './features/accounts/AccountsPage';
 import { RolesPage } from './features/roles/RolesPage';
 import { PermissionsPage } from './features/permissions/PermissionsPage';
 import { CreatorsPage } from './features/creators/CreatorsPage';
+import { TagsPage } from './features/tags/TagsPage';
 
 /** 실제 구현된 화면(나머지는 PlaceholderPage). */
 const CUSTOM_PAGES: Record<string, ReactElement> = {
@@ -17,6 +18,7 @@ const CUSTOM_PAGES: Record<string, ReactElement> = {
   '/roles': <RolesPage />,
   '/permissions': <PermissionsPage />,
   '/creators': <CreatorsPage />,
+  '/contents/tags': <TagsPage />,
 };
 
 function App() {

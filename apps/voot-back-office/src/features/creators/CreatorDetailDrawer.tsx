@@ -45,7 +45,11 @@ export function CreatorDetailDrawer({ creator, open, onClose }: CreatorDetailDra
       <Space direction="vertical" size="large" style={{ width: '100%' }}>
         {/* 프로필 헤더 */}
         <Space align="center" size="middle">
-          <Avatar size={64} style={{ backgroundColor: avatarColor(creator.nickname), fontSize: 24 }}>
+          <Avatar
+            size={64}
+            src={creator.avatarUrl ?? undefined}
+            style={{ backgroundColor: avatarColor(creator.nickname), fontSize: 24 }}
+          >
             {creator.nickname.slice(0, 1)}
           </Avatar>
           <div>

@@ -23,6 +23,8 @@ export interface Creator {
   email: string;
   bio: string;
   avatarFileId: number | null;
+  /** 표시용 아바타 public URL (없으면 null) */
+  avatarUrl: string | null;
   /** 가입일(UTC ISO) */
   joinedAt: string;
   // --- 이하 mock (집계 API 준비 전) ---
@@ -75,6 +77,7 @@ export function toCreator(creator: AdminCreator): Creator {
     email: creator.account.email,
     bio: creator.bio ?? '',
     avatarFileId: creator.avatarFileId,
+    avatarUrl: creator.avatarUrl,
     joinedAt: creator.createdAt ?? '',
     // --- mock ---
     castingCount,

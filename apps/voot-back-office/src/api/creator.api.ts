@@ -11,6 +11,8 @@ export interface AdminCreator {
   /** 활동명 */
   nickname: string;
   avatarFileId: number | null;
+  /** 표시용 아바타 public URL (avatarFileId 없으면 null) */
+  avatarUrl: string | null;
   bio: string | null;
   account: { id: number; email: string; name: string };
   createdAt?: string;
