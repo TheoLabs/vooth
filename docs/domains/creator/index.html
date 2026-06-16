@@ -159,16 +159,16 @@
   </section>
 
   <section class="section">
-    <h2><span class="num">05</span> 이벤트 — <code>AccountApproved</code></h2>
+    <h2><span class="num">05</span> 이벤트 — <code>AccountActivedEvent</code></h2>
     <p>승인 시점에 Account 애그리게이트가 발행하는 도메인 이벤트. 아웃박스(<code>ddd_events</code>)에 같은 트랜잭션으로 적재되고 CDC 로 전파된다.</p>
     <div class="t-scroll">
       <table>
         <thead><tr><th>항목</th><th>내용</th></tr></thead>
         <tbody>
-          <tr><td>payload</td><td><code>{ accountId, type }</code> — 최소 정보. 핸들러가 추가 정보 필요 시 조회</td></tr>
-          <tr><td>발행 위치</td><td><code>Account.active()</code> 안에서 <code>publishEvent(new AccountApproved(...))</code> <span style="color:var(--faint)">(현재 미구현)</span></td></tr>
+          <tr><td>payload</td><td><code>{ accountId }</code> — 최소 정보. 핸들러가 <code>type=CREATOR</code> 여부 등은 재조회</td></tr>
+          <tr><td>발행 위치</td><td><code>Account.active()</code> 안에서 <code>publishEvent(new AccountActivedEvent({ accountId }))</code> <span style="color:#15803d;font-weight:700">(구현됨)</span></td></tr>
           <tr><td>전파</td><td>아웃박스 → Debezium CDC → Kafka (in-memory emit 경로 제거됨)</td></tr>
-          <tr><td>구독</td><td>Creator 모듈의 <code>@EventHandler(AccountApproved)</code> (향후 알림 등 다른 구독자도 가능 — 그래서 전용 <code>CreatorApproved</code> 보다 범용명 채택)</td></tr>
+          <tr><td>구독</td><td><code>AdminCreatorService.@EventHandler(AccountActivedEvent)</code> — CREATOR 계정만, <code>accountId</code> 멱등 체크 후 생성</td></tr>
           <tr><td>신뢰성</td><td>at-least-once · 재시도 3회(백오프) · 소진 시 DLQ(<code>&lt;topic&gt;.dlq</code>). <b>멱등성은 핸들러 책임</b></td></tr>
         </tbody>
       </table>
@@ -176,17 +176,22 @@
   </section>
 
   <section class="section">
-    <h2><span class="num">06</span> API 표면 <span style="font-size:12px;font-weight:600;color:var(--faint)">(예정)</span></h2>
+    <h2><span class="num">06</span> API 표면</h2>
     <p class="desc">생성 API 는 없다(이벤트 생성). 본인 프로필은 <code>creators/*</code>(CreatorGuard), 캐스팅 목록은 <code>directors/*</code>.</p>
     <div class="t-scroll">
       <table>
-        <thead><tr><th>Method</th><th>Path</th><th>설명</th></tr></thead>
+        <thead><tr><th>Method</th><th>Path</th><th>설명</th><th>상태</th></tr></thead>
         <tbody>
-          <tr><td><span class="method get">GET</span></td><td><code>/creators/me/profile</code></td><td>본인 Creator 프로필 조회</td></tr>
-          <tr><td><span class="method put">PUT</span></td><td><code>/creators/me/profile</code></td><td>avatar/bio/nickname 수정(변경 필드만)</td></tr>
-          <tr><td><span class="method get">GET</span></td><td><code>/directors/creators</code></td><td>캐스팅 피커용 목록(활동 중 성우, account 조인 필터)</td></tr>
+          <tr><td><span class="method get">GET</span></td><td><code>/creators/me</code></td><td>본인 Creator 프로필 조회(<code>avatarUrl</code> enrich, account 조인)</td><td><span style="color:#15803d;font-weight:700">구현됨</span></td></tr>
+          <tr><td><span class="method get">GET</span></td><td><code>/admins/creators</code></td><td>관리자용 Creator 목록(검색·페이지네이션)</td><td><span style="color:#15803d;font-weight:700">구현됨</span></td></tr>
+          <tr><td><span class="method put">PUT</span></td><td><code>/creators/me</code></td><td>avatar/bio/nickname 수정(변경 필드만, commit-on-attach)</td><td><span style="color:var(--faint)">예정</span></td></tr>
+          <tr><td><span class="method get">GET</span></td><td><code>/directors/creators</code></td><td>캐스팅 피커용 목록(활동 중 성우)</td><td><span style="color:var(--faint)">예정</span></td></tr>
         </tbody>
       </table>
+    </div>
+    <div class="note">
+      <span class="label">인증.</span> <code>creators/me</code> 는 <b>CreatorGuard</b>(<code>type=CREATOR</code> + <code>status=ACTIVE</code>) 로 보호.
+      로그인은 <a href="../auth/index.html">Auth</a> 의 <code>POST /creators/auth/login/google/desktop</code>(PKCE).
     </div>
     <div class="note">
       <span class="label">네임스페이스 규칙.</span> vooth-maker=<code>creators/*</code>(CreatorGuard), vooth-tool=<code>directors/*</code>(DirectorGuard=ADMIN).

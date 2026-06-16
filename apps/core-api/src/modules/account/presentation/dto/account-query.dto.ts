@@ -4,10 +4,6 @@ import { ToArray } from '@libs/decorators';
 import { AccountStatus, AccountType } from '@vooth/shared';
 
 export class AccountQueryDto extends PaginationDto {
-  @IsIn(['id', 'createdAt', 'updatedAt', 'name', 'status', 'type'])
-  @IsOptional()
-  sort?: string = undefined;
-
   @IsIn(['name', 'email'])
   @IsOptional()
   searchKey?: string;

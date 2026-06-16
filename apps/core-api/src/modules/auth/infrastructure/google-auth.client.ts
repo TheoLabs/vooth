@@ -25,9 +25,7 @@ export class GoogleAuthClient {
       const ticket = await this.client.verifyIdToken({
         idToken,
         // 웹(백오피스) / 데스크톱(maker) 클라이언트 둘 다 허용.
-        audience: [this.configsService.google.clientId, this.configsService.google.desktopClientId].filter(
-          Boolean
-        ),
+        audience: [this.configsService.google.clientId, this.configsService.google.desktopClientId].filter(Boolean),
       });
       payload = ticket.getPayload();
     } catch {
