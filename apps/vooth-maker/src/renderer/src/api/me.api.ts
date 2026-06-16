@@ -10,6 +10,8 @@ export interface MeCreator {
   /** 활동명 */
   nickname: string
   avatarFileId: number | null
+  /** 표시용 아바타 public URL (avatarFileId 없으면 null) */
+  avatarUrl: string | null
   bio: string | null
   createdAt?: string
   updatedAt?: string
@@ -25,8 +27,9 @@ export function fetchMe(): Promise<MeCreator> {
   return apiRequest<MeCreator>('/creators/me')
 }
 
-/** 프로필 수정 입력. 서버 `CreatorUpdateDto` 는 avatarFileId/bio 만 받는다(nickname 수정 불가). */
+/** 프로필 수정 입력. 서버 `CreatorUpdateDto`(nickname/avatarFileId/bio). */
 export interface UpdateMeInput {
+  nickname?: string
   avatarFileId?: number | null
   bio?: string | null
 }

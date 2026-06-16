@@ -75,15 +75,36 @@ export class FileService extends DddService {
   }
 
   /**
-   * fileId → 표시용 public URL 맵(enrich). 소유 도메인이 조회 응답을 만들 때 사용.
-   * 존재하지 않는 id 는 결과에서 빠진다.
+   * 단일 fileId → 표시용 public URL. 없거나(null/undefined) 파일이 없으면 null.
+   * 단건 enrich 용 — 호출부의 `id ? (map.get(id) ?? null) : null` 보일러플레이트를 대체한다.
+   *
+   * @example
+   * dto.avatarUrl = await this.fileService.resolvePublicUrl(creator.avatarFileId);
    */
-  async resolvePublicUrls(ids: number[]): Promise<Map<number, string>> {
-    if (!ids.length) {
+  async resolvePublicUrl(fileId?: number | null): Promise<string | null> {
+    if (!fileId) {
+      return null;
+    }
+
+    const urls = await this.resolvePublicUrls([fileId]);
+    return urls.get(fileId) ?? null;
+  }
+
+  /**
+   * fileId 들 → 표시용 public URL 맵(일괄, 단일 쿼리 — 목록 enrich 의 N+1 회피).
+   * null/undefined/중복은 무시하고, 존재하지 않는 id 는 결과에서 빠진다.
+   *
+   * @example
+   * const urls = await this.fileService.resolvePublicUrls(items.map((i) => i.thumbnailFileId));
+   * items.map((i) => ({ ...i, thumbnailUrl: urls.get(i.thumbnailFileId) ?? null }));
+   */
+  async resolvePublicUrls(ids: (number | null | undefined)[]): Promise<Map<number, string>> {
+    const validIds = [...new Set(ids.filter((id): id is number => id != null))];
+    if (!validIds.length) {
       return new Map();
     }
 
-    const files = await this.fileRepository.find({ ids });
+    const files = await this.fileRepository.find({ ids: validIds });
     return new Map(files.map((file) => [file.id, this.s3Service.getPublicUrl(file.key)]));
   }
 

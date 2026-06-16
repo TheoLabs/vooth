@@ -14,7 +14,7 @@ class AccountResponseDto {
 }
 
 @Exclude()
-export class AdminCreatorResponseDto extends ResponseDto {
+export class CreatorCreatorResponseDto extends ResponseDto {
   @Expose()
   id: number;
 
@@ -28,8 +28,14 @@ export class AdminCreatorResponseDto extends ResponseDto {
   avatarFileId: number | null;
 
   @Expose()
-  bio: string | null;
+  avatarUrl: string | null;
 
+  @Expose()
+  bio: string | null;
+}
+
+@Exclude()
+export class AdminCreatorResponseDto extends CreatorCreatorResponseDto {
   @Expose()
   @Type(() => AccountResponseDto)
   account: AccountResponseDto;

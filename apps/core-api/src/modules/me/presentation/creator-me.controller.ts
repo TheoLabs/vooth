@@ -14,14 +14,16 @@ export class CreatorMeController {
   ) {}
 
   @Get()
-  self() {
+  async self() {
     // 1. Destructure body, params, query
     // 2. Get context
     const creator = this.context.get<Creator>(ContextKey.CREATOR);
 
     // 3. Get result
+    const data = await this.creatorCreatorService.retrieve({ id: creator.id });
+
     // 4. Send response
-    return { data: creator };
+    return { data };
   }
 
   @Put()

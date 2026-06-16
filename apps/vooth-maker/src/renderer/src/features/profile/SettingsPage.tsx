@@ -4,10 +4,12 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useMe, useUpdateMe } from '../me/useMe'
 import { useAuth } from '../../auth/AuthContext'
+import { uploadAvatar } from '../../api/file.api'
 import './SettingsPage.css'
 
-// 서버 CreatorUpdateDto 는 bio/avatarFileId 만 수정 가능(nickname 수정 불가).
+// 서버 CreatorUpdateDto 와 동일하게 nickname/bio 수정 가능(avatar 는 별도 업로드 흐름).
 const profileSchema = z.object({
+  nickname: z.string().trim().min(1, '활동명을 입력해주세요.').max(20, '20자 이내로 입력해주세요.'),
   bio: z.string().trim().max(200, '자기소개는 200자 이내로 입력해주세요.'),
 })
 
@@ -27,8 +29,14 @@ export function SettingsPage(): React.JSX.Element {
   const { user } = useAuth()
   const update = useUpdateMe()
 
+  // 아바타: 선택한 파일(업로드 대상) + 미리보기 URL + 기존 아바타 삭제 의도
+  const [avatarFile, setAvatarFile] = useState<File | null>(null)
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
+  const [avatarCleared, setAvatarCleared] = useState(false)
+
   const [saved, setSaved] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+  const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const {
@@ -39,11 +47,15 @@ export function SettingsPage(): React.JSX.Element {
   } = useForm<ProfileForm>({
     resolver: zodResolver(profileSchema),
     // me 로드 시점에 폼을 채운다(staleTime:Infinity 라 사용자 입력을 덮어쓰지 않음).
-    values: { bio: me?.bio ?? '' },
+    values: { nickname: me?.nickname ?? '', bio: me?.bio ?? '' },
   })
 
-  const nickname = me?.nickname || '성우'
+  // 아바타 이니셜은 입력 중인 활동명을 반영
+  const nickname = watch('nickname') || me?.nickname || '성우'
   const bio = watch('bio') ?? ''
+
+  // 표시 아바타: 로컬 미리보기 > (삭제 안 했으면) 서버 저장 이미지 > 이니셜
+  const displayAvatarUrl = avatarUrl ?? (avatarCleared ? null : me?.avatarUrl ?? null)
 
   // 아바타 미리보기 objectURL 정리
   useEffect(() => {
@@ -56,23 +68,48 @@ export function SettingsPage(): React.JSX.Element {
     const file = e.target.files?.[0]
     if (!file) return
     if (avatarUrl) URL.revokeObjectURL(avatarUrl)
+    setAvatarFile(file)
     setAvatarUrl(URL.createObjectURL(file))
+    setAvatarCleared(false)
     setSaved(false)
   }
 
   const handleRemoveImage = (): void => {
     if (avatarUrl) URL.revokeObjectURL(avatarUrl)
+    setAvatarFile(null)
     setAvatarUrl(null)
+    setAvatarCleared(true)
     setSaved(false)
   }
 
-  const onSubmit = handleSubmit((values) => {
+  const avatarChanged = avatarFile !== null || avatarCleared
+  const canSave = (isDirty || avatarChanged) && !submitting
+
+  const onSubmit = handleSubmit(async (values) => {
     setSaved(false)
-    // avatarFileId 는 creators 파일 업로드 엔드포인트가 없어 아직 전송하지 않는다(bio 만 저장).
-    update.mutate(
-      { bio: values.bio },
-      { onSuccess: () => setSaved(true) }
-    )
+    setErrorMsg(null)
+    setSubmitting(true)
+    try {
+      // 아바타: 새 파일이면 업로드 후 fileId, 삭제면 null, 변경 없으면 미전송(undefined).
+      let avatarFileId: number | null | undefined
+      if (avatarFile) avatarFileId = await uploadAvatar(avatarFile)
+      else if (avatarCleared) avatarFileId = null
+
+      await update.mutateAsync({
+        nickname: values.nickname,
+        bio: values.bio,
+        ...(avatarFileId !== undefined ? { avatarFileId } : {}),
+      })
+
+      // 업로드한 파일은 채택됨 → 재업로드 방지. 미리보기는 세션 동안 유지.
+      setAvatarFile(null)
+      setAvatarCleared(false)
+      setSaved(true)
+    } catch (e) {
+      setErrorMsg(e instanceof Error ? e.message : '저장에 실패했습니다.')
+    } finally {
+      setSubmitting(false)
+    }
   })
 
   return (
@@ -86,8 +123,8 @@ export function SettingsPage(): React.JSX.Element {
         <section className="settings-section">
           <h3 className="settings-section__title">프로필 이미지</h3>
           <div className="avatar-row">
-            {avatarUrl ? (
-              <img className="avatar avatar--img" src={avatarUrl} alt="프로필 미리보기" />
+            {displayAvatarUrl ? (
+              <img className="avatar avatar--img" src={displayAvatarUrl} alt="프로필 이미지" />
             ) : (
               <span className="avatar" style={{ backgroundColor: avatarColor(nickname) }}>
                 {nickname.slice(0, 1)}
@@ -101,7 +138,7 @@ export function SettingsPage(): React.JSX.Element {
               >
                 이미지 변경
               </button>
-              {avatarUrl && (
+              {displayAvatarUrl && (
                 <button type="button" className="btn btn--ghost" onClick={handleRemoveImage}>
                   기본 이미지로
                 </button>
@@ -113,7 +150,7 @@ export function SettingsPage(): React.JSX.Element {
                 hidden
                 onChange={handlePickImage}
               />
-              <p className="field-hint">미리보기만 가능합니다. 업로드 연동 예정. (mock)</p>
+              <p className="field-hint">JPG/PNG, 정사각형 이미지를 권장합니다.</p>
             </div>
           </div>
         </section>
@@ -123,8 +160,11 @@ export function SettingsPage(): React.JSX.Element {
           <h3 className="settings-section__title">기본 정보</h3>
 
           <div className="field">
-            <label className="field-label">활동명</label>
-            <div className="field-readonly">{nickname}</div>
+            <label className="field-label" htmlFor="nickname">
+              활동명
+            </label>
+            <input id="nickname" className="field-input" type="text" {...register('nickname')} />
+            {errors.nickname && <span className="field-error">{errors.nickname.message}</span>}
           </div>
 
           <div className="field">
@@ -149,16 +189,10 @@ export function SettingsPage(): React.JSX.Element {
         </section>
 
         <div className="settings-foot">
-          {update.isError && (
-            <span className="save-err">{update.error.message}</span>
-          )}
-          {saved && !update.isPending && <span className="save-ok">저장되었습니다.</span>}
-          <button
-            type="submit"
-            className="btn btn--primary"
-            disabled={!isDirty || update.isPending}
-          >
-            {update.isPending ? '저장 중…' : '저장'}
+          {errorMsg && <span className="save-err">{errorMsg}</span>}
+          {saved && !submitting && <span className="save-ok">저장되었습니다.</span>}
+          <button type="submit" className="btn btn--primary" disabled={!canSave}>
+            {submitting ? '저장 중…' : '저장'}
           </button>
         </div>
       </form>
