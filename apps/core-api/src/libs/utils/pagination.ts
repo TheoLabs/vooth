@@ -1,5 +1,5 @@
 import { Exclude, Expose, Type } from 'class-transformer';
-import { IsNumber, IsOptional, IsString } from 'class-validator';
+import { IsEnum, IsNumber, IsOptional, IsString } from 'class-validator';
 
 export enum OrderType {
   ASC = 'ASC',
@@ -28,7 +28,7 @@ export abstract class PaginationDto implements PaginationOptions {
   @IsOptional()
   sort?: string;
 
-  @IsString()
+  @IsEnum(OrderType)
   @IsOptional()
   order?: OrderType;
 }

@@ -56,21 +56,27 @@ export function CreatorDetailDrawer({ creator, open, onClose }: CreatorDetailDra
           </div>
         </Space>
 
-        {/* 핵심 지표 */}
+        {/* 핵심 지표 (mock) */}
         <Space size="large" style={{ width: '100%' }}>
-          <Statistic title="참여 작품" value={creator.castingCount} suffix="편" />
-          <Statistic title="녹음 회차" value={creator.episodeCount} suffix="화" />
+          <Statistic title="참여 작품 (M)" value={creator.castingCount} suffix="편" />
+          <Statistic title="녹음 회차 (M)" value={creator.episodeCount} suffix="화" />
         </Space>
 
         {/* 기본 정보 */}
         <Descriptions column={1} bordered size="small">
+          <Descriptions.Item label="본명">
+            {creator.realName || <Typography.Text type="secondary">-</Typography.Text>}
+          </Descriptions.Item>
+          <Descriptions.Item label="이메일">{creator.email}</Descriptions.Item>
           <Descriptions.Item label="가입일">{formatLocal(creator.joinedAt)}</Descriptions.Item>
-          <Descriptions.Item label="소개">{creator.bio}</Descriptions.Item>
+          <Descriptions.Item label="소개">
+            {creator.bio || <Typography.Text type="secondary">-</Typography.Text>}
+          </Descriptions.Item>
         </Descriptions>
 
         {/* 최근 참여 작품 */}
         <div>
-          <Typography.Text strong>최근 참여 작품</Typography.Text>
+          <Typography.Text strong>최근 참여 작품 (M)</Typography.Text>
           <div style={{ marginTop: 8 }}>
             {creator.recentWorks.length ? (
               <List

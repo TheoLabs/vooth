@@ -7,11 +7,6 @@ import { CreatorDetailDrawer } from './CreatorDetailDrawer';
 import { useCreators } from './useCreators';
 import { avatarColor, type Creator } from './creator.types';
 
-const SEARCH_KEYS = [
-  { value: 'nickname', label: '활동명' },
-  { value: 'email', label: '이메일' },
-];
-
 /** UTC ISO → 로컬 날짜(YYYY-MM-DD). */
 function formatDate(iso: string): string {
   const d = new Date(iso);
@@ -21,7 +16,6 @@ function formatDate(iso: string): string {
 }
 
 export function CreatorsPage() {
-  const [searchKey, setSearchKey] = useState<'nickname' | 'email'>('nickname');
   const [searchInput, setSearchInput] = useState('');
   const [searchValue, setSearchValue] = useState('');
   const [page, setPage] = useState(1);
@@ -29,12 +23,11 @@ export function CreatorsPage() {
 
   const query = useMemo(
     () => ({
-      searchKey: searchValue ? searchKey : undefined,
       searchValue: searchValue || undefined,
       page,
       limit: pageSize,
     }),
-    [searchKey, searchValue, page, pageSize],
+    [searchValue, page, pageSize],
   );
 
   const { data, isLoading } = useCreators(query);
@@ -47,7 +40,7 @@ export function CreatorsPage() {
 
   const columns: ColumnsType<Creator> = [
     {
-      title: '성우',
+      title: '성우(활동명)',
       key: 'profile',
       render: (_, c) => (
         <Space>
@@ -66,19 +59,26 @@ export function CreatorsPage() {
       ),
     },
     {
-      title: '참여 작품',
+      title: '본명',
+      dataIndex: 'realName',
+      key: 'realName',
+      width: 140,
+      render: (realName: string) => realName || <Typography.Text type="secondary">-</Typography.Text>,
+    },
+    {
+      title: '참여 작품 (M)',
       dataIndex: 'castingCount',
       key: 'castingCount',
-      width: 110,
+      width: 120,
       align: 'right',
       sorter: (a, b) => a.castingCount - b.castingCount,
       render: (v: number) => `${v}편`,
     },
     {
-      title: '녹음 회차',
+      title: '녹음 회차 (M)',
       dataIndex: 'episodeCount',
       key: 'episodeCount',
-      width: 110,
+      width: 120,
       align: 'right',
       sorter: (a, b) => a.episodeCount - b.episodeCount,
       render: (v: number) => `${v}화`,
@@ -100,16 +100,13 @@ export function CreatorsPage() {
       </Typography.Title>
 
       <TableToolbar
-        searchKeys={SEARCH_KEYS}
-        searchKey={searchKey}
-        onSearchKeyChange={(v) => setSearchKey(v as 'nickname' | 'email')}
         searchValue={searchInput}
         onSearchValueChange={setSearchInput}
         onSearch={(v) => {
           setSearchValue(v);
           setPage(1);
         }}
-        placeholder="활동명 또는 이메일 검색"
+        placeholder="활동명 검색"
       />
 
       <FullHeightTable<Creator>

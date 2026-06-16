@@ -20,13 +20,10 @@ export class Creator extends DddAggregate {
   nickname: string;
 
   @Column({ type: 'int', nullable: true })
-  avartarFileId: number | null;
+  avatarFileId: number | null;
 
   @Column({ type: 'text', nullable: true })
   bio: string | null;
-
-  @Column()
-  isActive: boolean;
 
   @OneToOne(() => Account, { createForeignKeyConstraints: false })
   @JoinColumn({ name: 'accountId' })
@@ -38,7 +35,6 @@ export class Creator extends DddAggregate {
     if (args) {
       this.accountId = args.accountId;
       this.nickname = args.nickname;
-      this.isActive = false;
     }
   }
 
