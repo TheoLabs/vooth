@@ -60,4 +60,14 @@ export class CreatorReviewService extends DddService {
 
     await this.reviewRepository.save([review]);
   }
+
+  async retrieve({ creator, episodeId, id }: { creator: Creator; episodeId?: number; id?: number }) {
+    const [review] = await this.reviewRepository.find({ creatorId: creator.id, episodeId, id });
+
+    if (!review) {
+      throw new BadRequestException('등록되지 않은 에피소드입니다.', { cause: '등록되지 않은 에피소드입니다.' });
+    }
+
+    return review;
+  }
 }
