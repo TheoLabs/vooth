@@ -1,25 +1,54 @@
-import { keepPreviousData, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+  approveAccount,
+  changeAccountRole,
+  exitAccount,
   fetchAccounts,
-  type AccountListItem,
-  type FetchAccountsParams,
-} from '../../api/accounts.api';
+  rejectAccount,
+  type Account,
+  type AccountListQuery,
+} from '../../api/account.api';
 import type { PaginatedResponse } from '../../api/pagination';
 import { ApiError } from '../../lib/apiClient';
 
-export const accountsQueryKey = (params: FetchAccountsParams) =>
-  ['accounts', params] as const;
+const ACCOUNTS_KEY = 'accounts';
 
-/**
- * 관리자 계정 목록(GET /admins/accounts)을 조회한다.
- * 페이지/검색 전환 시 깜빡임이 없도록 이전 데이터를 유지한다.
- * 4xx 는 재시도하지 않는다.
- */
-export function useAccounts(params: FetchAccountsParams) {
-  return useQuery<PaginatedResponse<AccountListItem>, ApiError>({
-    queryKey: accountsQueryKey(params),
-    queryFn: () => fetchAccounts(params),
-    placeholderData: keepPreviousData,
-    retry: false,
+export function useAccounts(query: AccountListQuery) {
+  return useQuery<PaginatedResponse<Account>, ApiError>({
+    queryKey: [ACCOUNTS_KEY, query],
+    queryFn: () => fetchAccounts(query),
+    placeholderData: (prev) => prev,
+  });
+}
+
+export function useApproveAccount() {
+  const queryClient = useQueryClient();
+  return useMutation<void, ApiError, { id: number; roleId: number }>({
+    mutationFn: ({ id, roleId }) => approveAccount(id, roleId),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: [ACCOUNTS_KEY] }),
+  });
+}
+
+export function useRejectAccount() {
+  const queryClient = useQueryClient();
+  return useMutation<void, ApiError, number>({
+    mutationFn: (id) => rejectAccount(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: [ACCOUNTS_KEY] }),
+  });
+}
+
+export function useExitAccount() {
+  const queryClient = useQueryClient();
+  return useMutation<void, ApiError, number>({
+    mutationFn: (id) => exitAccount(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: [ACCOUNTS_KEY] }),
+  });
+}
+
+export function useChangeAccountRole() {
+  const queryClient = useQueryClient();
+  return useMutation<void, ApiError, { id: number; roleId: number }>({
+    mutationFn: ({ id, roleId }) => changeAccountRole(id, roleId),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: [ACCOUNTS_KEY] }),
   });
 }

@@ -2,8 +2,7 @@ import { DddAggregate } from '@libs/ddd';
 import { Role } from '@modules/role/domain/role.entity';
 import { BadRequestException } from '@nestjs/common';
 import { AccountStatus, AccountType } from '@vooth/shared';
-import { Column, Entity, JoinColumn, OneToOne, PrimaryGeneratedColumn, Unique } from 'typeorm';
-import { AccountApprovedEvent } from './events';
+import { Column, Entity, Index, JoinColumn, OneToOne, PrimaryGeneratedColumn, Unique } from 'typeorm';
 
 interface Ctor {
   googleSub: string;
@@ -13,13 +12,14 @@ interface Ctor {
 }
 
 @Entity()
+@Index('idx_account_role_id', ['roleId'])
 @Unique('idx_account_google_sub_type', ['googleSub', 'type'])
 export class Account extends DddAggregate {
   @PrimaryGeneratedColumn()
   id: number;
 
   @Column({ type: 'int', nullable: true })
-  roleId?: number | null;
+  roleId: number | null;
 
   @Column({ type: 'enum', enum: AccountType })
   type: AccountType;
@@ -38,7 +38,7 @@ export class Account extends DddAggregate {
 
   @OneToOne(() => Role, { createForeignKeyConstraints: false, nullable: true })
   @JoinColumn({ name: 'roleId' })
-  role?: Role;
+  role: Role | null;
 
   private constructor(args: Ctor) {
     super();
@@ -58,6 +58,16 @@ export class Account extends DddAggregate {
     return account;
   }
 
+  changeRole(roleId: number) {
+    if (this.status !== AccountStatus.ACTIVE) {
+      throw new BadRequestException('승인된 계정만 역할을 변경할 수 있습니다.', {
+        cause: '승인된 계정만 역할을 변경할 수 있습니다.',
+      });
+    }
+
+    this.roleId = roleId;
+  }
+
   reject() {
     if (this.status !== AccountStatus.PENDING) {
       throw new BadRequestException('대기중인 계정만 거절할 수 있습니다.', {
@@ -69,16 +79,14 @@ export class Account extends DddAggregate {
   }
 
   active(roleId: number) {
-    if (this.status === AccountStatus.REJECTED) {
-      throw new BadRequestException('거절된 계정은 승인할 수 없습니다.', {
-        cause: '거절된 계정은 승인할 수 없습니다.',
+    if (this.status !== AccountStatus.PENDING) {
+      throw new BadRequestException('승인 대기중인 계정만 승인할 수 있습니다.', {
+        cause: '승인 대기중인 계정만 승인할 수 있습니다.',
       });
     }
 
     this.status = AccountStatus.ACTIVE;
     this.roleId = roleId;
-
-    this.publishEvent(new AccountApprovedEvent({ accountId: this.id }));
   }
 
   exit() {

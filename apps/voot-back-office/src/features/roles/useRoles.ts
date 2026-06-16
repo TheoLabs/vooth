@@ -1,73 +1,37 @@
-import {
-  keepPreviousData,
-  useMutation,
-  useQuery,
-  useQueryClient,
-} from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   createRole,
   fetchRoles,
-  updateRole,
-  type CreateRolePayload,
-  type FetchRolesParams,
-  type RoleListItem,
-  type UpdateRolePayload,
-} from '../../api/roles.api';
+  updateRolePermissions,
+  type CreateRoleBody,
+  type Role,
+  type RoleListQuery,
+} from '../../api/role.api';
 import type { PaginatedResponse } from '../../api/pagination';
 import { ApiError } from '../../lib/apiClient';
 
-export const rolesQueryKey = (params: FetchRolesParams) =>
-  ['roles', params] as const;
+const ROLES_KEY = 'roles';
 
-/** 역할 목록 쿼리 전체를 무효화할 때 쓰는 prefix. */
-const ROLES_QUERY_PREFIX = ['roles'] as const;
-
-/**
- * 관리자 역할 목록(GET /admins/roles)을 조회한다.
- * 페이지/검색 전환 시 깜빡임이 없도록 이전 데이터를 유지한다.
- * 4xx 는 재시도하지 않는다.
- */
-export function useRoles(params: FetchRolesParams) {
-  return useQuery<PaginatedResponse<RoleListItem>, ApiError>({
-    queryKey: rolesQueryKey(params),
-    queryFn: () => fetchRoles(params),
-    placeholderData: keepPreviousData,
-    retry: false,
+export function useRoles(query: RoleListQuery) {
+  return useQuery<PaginatedResponse<Role>, ApiError>({
+    queryKey: [ROLES_KEY, query],
+    queryFn: () => fetchRoles(query),
+    placeholderData: (prev) => prev,
   });
 }
 
-/**
- * 역할을 생성한다(POST /admins/roles).
- * 성공 시 역할 목록 쿼리를 무효화해 최신 목록을 다시 불러온다.
- */
 export function useCreateRole() {
   const queryClient = useQueryClient();
-
-  return useMutation<void, ApiError, CreateRolePayload>({
-    mutationFn: createRole,
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ROLES_QUERY_PREFIX });
-    },
+  return useMutation<Role, ApiError, CreateRoleBody>({
+    mutationFn: (body) => createRole(body),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: [ROLES_KEY] }),
   });
 }
 
-/** useUpdateRole 의 mutate 인자: 대상 역할 id + 수정 본문. */
-export interface UpdateRoleVariables {
-  id: number;
-  payload: UpdateRolePayload;
-}
-
-/**
- * 역할의 권한을 수정한다(PUT /admins/roles/:id).
- * 성공 시 역할 목록 쿼리를 무효화해 최신 목록을 다시 불러온다.
- */
-export function useUpdateRole() {
+export function useUpdateRolePermissions() {
   const queryClient = useQueryClient();
-
-  return useMutation<void, ApiError, UpdateRoleVariables>({
-    mutationFn: ({ id, payload }) => updateRole(id, payload),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ROLES_QUERY_PREFIX });
-    },
+  return useMutation<Role, ApiError, { id: number; permissionCodes: string[] }>({
+    mutationFn: ({ id, permissionCodes }) => updateRolePermissions(id, permissionCodes),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: [ROLES_KEY] }),
   });
 }

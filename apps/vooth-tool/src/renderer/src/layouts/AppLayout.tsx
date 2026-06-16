@@ -1,40 +1,21 @@
-import { NavLink, Outlet, useLocation } from 'react-router-dom'
+import { Outlet, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 import { useMe } from '../features/me/useMe'
 import './AppLayout.css'
 
-interface NavItemDef {
-  to: string
-  label: string
-  icon: string
-  /** 아직 구현되지 않은 섹션은 비활성화로 구조만 노출한다. */
-  disabled?: boolean
-}
-
-const NAV_ITEMS: NavItemDef[] = [
-  { to: '/', label: '연출', icon: '🎬' },
-  { to: '/review', label: '검수', icon: '✅' },
-  { to: '/render', label: '렌더', icon: '🎞️' },
-  { to: '/settings', label: '설정', icon: '⚙️', disabled: true }
-]
-
-/** 현재 경로에 맞는 헤더 타이틀. */
-function titleFromPath(pathname: string): string {
-  if (pathname.startsWith('/review')) return '검수'
-  if (pathname.startsWith('/render')) return '렌더 · 제작'
-  if (pathname.startsWith('/episodes')) return '연출'
-  return '연출'
-}
-
 /**
- * 인증·승인을 통과한 사용자가 머무는 메인 데스크톱 레이아웃.
- * 좌측 사이드바(네비) + 상단 헤더(사용자/로그아웃) + 콘텐츠 영역(<Outlet/>).
- * 콘텐츠 영역만 내부 스크롤되며, 윈도우 자체에는 스크롤이 생기지 않는다.
+ * 인증·승인을 통과한 사용자의 메인 셸. 화면은 mock 으로 다시 채울 예정이라
+ * 사이드바 네비는 비우고 셸(브랜드/사용자/로그아웃)만 유지한다.
  */
 export function AppLayout(): React.JSX.Element {
-  const location = useLocation()
   const { logout } = useAuth()
   const { data: me } = useMe()
+  const navigate = useNavigate()
+
+  const handleLogout = (): void => {
+    logout()
+    navigate('/login', { replace: true })
+  }
 
   return (
     <div className="app-shell">
@@ -43,39 +24,11 @@ export function AppLayout(): React.JSX.Element {
           <span className="app-brand__mark">V</span>
           <span className="app-brand__name">Vooth Tool</span>
         </div>
-
-        <nav className="app-nav">
-          {NAV_ITEMS.map((item) =>
-            item.disabled ? (
-              <span key={item.to} className="app-nav__item app-nav__item--disabled">
-                <span className="app-nav__icon" aria-hidden="true">
-                  {item.icon}
-                </span>
-                <span className="app-nav__label">{item.label}</span>
-                <span className="app-nav__badge">준비중</span>
-              </span>
-            ) : (
-              <NavLink
-                key={item.to}
-                to={item.to}
-                end
-                className={({ isActive }) =>
-                  isActive ? 'app-nav__item app-nav__item--active' : 'app-nav__item'
-                }
-              >
-                <span className="app-nav__icon" aria-hidden="true">
-                  {item.icon}
-                </span>
-                <span className="app-nav__label">{item.label}</span>
-              </NavLink>
-            )
-          )}
-        </nav>
       </aside>
 
       <div className="app-main">
         <header className="app-header">
-          <h1 className="app-header__title">{titleFromPath(location.pathname)}</h1>
+          <h1 className="app-header__title">Vooth Tool</h1>
           <div className="app-header__user">
             {me && (
               <div className="app-header__userinfo">
@@ -83,7 +36,7 @@ export function AppLayout(): React.JSX.Element {
                 <span className="app-header__email">{me.email}</span>
               </div>
             )}
-            <button type="button" className="app-header__logout" onClick={logout}>
+            <button type="button" className="app-header__logout" onClick={handleLogout}>
               로그아웃
             </button>
           </div>

@@ -1,18 +1,21 @@
+import type { ReactElement } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { LoginPage } from './features/auth/LoginPage';
-import { DashboardPage } from './pages/DashboardPage';
-import { AccountsPage } from './pages/AccountsPage';
-import { RolesPage } from './pages/RolesPage';
-import { PermissionsPage } from './pages/PermissionsPage';
-import { ContentLayout } from './features/content/ContentStore';
-import { WebtoonsPage } from './pages/content/WebtoonsPage';
-import { ContentDetailPage } from './pages/content/ContentDetailPage';
-import { WebtoonDetailPage } from './pages/content/WebtoonDetailPage';
-import { EpisodeEditPage } from './pages/content/EpisodeEditPage';
-import { TagsPage } from './pages/content/TagsPage';
+import { PlaceholderPage } from './pages/PlaceholderPage';
 import { AppLayout } from './layouts/AppLayout';
 import { ProtectedRoute } from './routes/ProtectedRoute';
 import { ApprovalGate } from './routes/ApprovalGate';
+import { MENU_ROUTES } from './layouts/menu';
+import { AccountsPage } from './features/accounts/AccountsPage';
+import { RolesPage } from './features/roles/RolesPage';
+import { PermissionsPage } from './features/permissions/PermissionsPage';
+
+/** 실제 구현된 화면(나머지는 PlaceholderPage). */
+const CUSTOM_PAGES: Record<string, ReactElement> = {
+  '/accounts': <AccountsPage />,
+  '/roles': <RolesPage />,
+  '/permissions': <PermissionsPage />,
+};
 
 function App() {
   return (
@@ -21,18 +24,14 @@ function App() {
       <Route element={<ProtectedRoute />}>
         <Route element={<ApprovalGate />}>
           <Route element={<AppLayout />}>
-            <Route index element={<DashboardPage />} />
-            <Route path="/accounts" element={<AccountsPage />} />
-            <Route path="/roles" element={<RolesPage />} />
-            <Route path="/permissions" element={<PermissionsPage />} />
-            <Route path="/content" element={<ContentLayout />}>
-              <Route index element={<Navigate to="/content/webtoons" replace />} />
-              <Route path="webtoons" element={<WebtoonsPage />} />
-              <Route path="contents/:id" element={<ContentDetailPage />} />
-              <Route path="webtoons/:id" element={<WebtoonDetailPage />} />
-              <Route path="contents/:contentId/episodes/:episodeId" element={<EpisodeEditPage />} />
-              <Route path="tags" element={<TagsPage />} />
-            </Route>
+            {MENU_ROUTES.map(({ path, label }) => {
+              const element = CUSTOM_PAGES[path] ?? <PlaceholderPage title={label} />;
+              return path === '/' ? (
+                <Route key={path} index element={element} />
+              ) : (
+                <Route key={path} path={path} element={element} />
+              );
+            })}
           </Route>
         </Route>
       </Route>

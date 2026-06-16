@@ -5,7 +5,9 @@
 > 본 문서는 **작품·회차·컷·대사·캐스팅·녹음** 의 애그리게이트 경계와 컬럼 설계를 정의한다.
 >
 > ⚠️ **1~10절은 초기 초안**(Webtoon/ULID/fractional position 기준)이며 실제 구현과 일부 다르다.
-> **실제 구현 현황·확정 사항은 [11절](#11-구현-현황--오늘-확정-2026-06-10) 참고.**
+>
+> 🟥 **2026-06-16 대규모 리셋됨.** 아래 §4~15는 **리셋 전 설계·구현 기록(코드엔 현재 없음, 재구축 참고용)** 이다.
+> **현재 코드 상태와 최신 확정 설계는 [16절(현재 기준)](#16-리셋--현재-기준-2026-06-16) 을 먼저 보라.**
 
 ## 1. 바운디드 컨텍스트
 | BC | 책임 | 주 사용처 |
@@ -454,3 +456,91 @@ Render (AR)
 - `viewportH`(미리보기/렌더 세로 가시 영역) 기준값 — 렌더 폭 대비 비율로 둘지(예 16:10), 별도 설정할지.
 - 키프레임 이징 종류(선형/smoothstep)와 컷 진입 시 "스크롤 vs 컷전환" 기본 모드.
 - 채택이 안 된 라인의 렌더 처리(placeholder 무음 + 균등 길이 vs 렌더 차단).
+
+---
+
+## 16. 리셋 & 현재 기준 (2026-06-16)
+
+> §4~15 는 **리셋 전 설계/구현 기록**이다(코드엔 현재 없음, 재구축 참고용). 이 절이 **현재 코드 상태 + 최신 확정 설계**다.
+
+### 16.1 현재 코드 상태 (리셋 결과)
+account/role/admin(+role이 의존하는 permission) **만 남기고 전부 삭제**했다. mock UI로 화면을 다시 시작하는 게 목표.
+
+- **core-api**: `account / role / permission / auth(admin) / me(admin)` 만. 삭제: `casting, character, content, creator, episode, file, line-take, recording, review, tag`.
+  - auth: `admins/auth/login/google`(웹 idToken) + `admins/me` 만. creator/director auth·me·guard 삭제(`AdminGuard`만 유지).
+  - `entities.ts` = DddEvent/Account/Role/Permission. `domain.module` = account/role/permission/auth/me.
+- **@vooth/shared**: `account`(AccountStatus·AccountType) / `role`(RoleType) / `permission`(PermissionCategory) 만. 삭제: episode/review/recording/content(+TagColor)/character/type(CalendarDate).
+- **프론트 3앱**: 모두 **로그인 + 인증 게이트 + 빈 셸**로 리셋(각 `AppLayout` 최소화, `HomePage`/PlaceholderPage).
+  - ⚠️ maker/tool 로그인은 삭제된 `creators|directors/auth/.../desktop`·`creators|directors/me` 를 호출 → **런타임 미동작(인증 정책 재설계 필요)**. back-office(admin 웹)만 정상.
+- **back-office 메뉴 IA(신규)**: `대시보드 · 컨텐츠 · 크리에이터 · 검수 · 정산 · 마케팅 · 분석 · 계정관리 · 고객지원 · 설정`. (`layouts/menu.ts` 단일 정의 → 사이드바·라우팅 공유, 화면은 PlaceholderPage부터 채움.)
+
+### 16.2 회차 상태 (EpisodeStatus) — 확정안 (재구축 기준)
+`@vooth/shared`(리셋으로 현재 삭제됨, 재도입 시 이 정의):
+```
+DRAFT=10 → READY=20 → RECORDING=30 → REVIEWING=40 → PUBLISHED=60   (50=과거 APPROVED, 제거/공백)
+전이: DRAFT→READY→RECORDING→REVIEWING→PUBLISHED, REVIEWING→RECORDING(역방향)
+```
+- **회차 단위 APPROVED 없음.** 승인은 (회차×성우) 검수 단위(§16.3)에만 존재. `REVIEWING` = "한 캐스팅이라도 검수요청됨" 롤업.
+- `validRecordable` = `READY|RECORDING|REVIEWING` 허용(한 성우 검수요청 후에도 다른 성우는 계속 녹음/채택 가능).
+- 자동전이: 첫 녹음 생성 시 `READY→RECORDING`(RecordingCreatedEvent 핸들러, await + 멱등).
+
+### 16.3 검수 = (회차 × 성우 캐스팅) 단위 — Review(EpisodeReview) 도메인 (확정안)
+검수는 회차 전체가 아니라 **(회차 × 성우)** 단위다. 성우마다 완료 시점이 달라, **성우가 직접 검수 요청**한다. ([[project_episode-review-per-casting]] 메모리 참조)
+
+- 엔티티 `Review`: `id, contentId, episodeId, creatorId, status, reviewerId?, rejectReason?, reviewedOn?` + `UNIQUE(episodeId, creatorId)`.
+- `ReviewStatus`(shared): `REQUESTED=10 / APPROVED=20 / REJECTED=30`. 전이: `REQUESTED→APPROVED|REJECTED`, `REJECTED→REQUESTED`(재요청).
+- **완성 판정(성우별)**: 그 성우가 캐스팅된 캐릭터의 라인 수 == 그 성우의 LineTake 수 (Casting→characterIds→라인 필터 후 채택 카운트 비교). 단위는 (episode×creator) — 한 성우가 여러 캐릭터 맡으면 묶어서 한 번 검수.
+- **엔드포인트**: `POST /creators/reviews`(최초 요청, 기존 행 있으면 거부) · `GET /creators/reviews/episodes/:id`(내 검수상태; 미요청 시 현재 400 → **200+null 로 개선 권장**). 예정: 재검토 요청(REJECTED 전용, 분리), directors 승인/반려 + 회차의 캐스팅별 검수 목록.
+- **롤업**: Review REQUESTED 발생/소멸 → episode `RECORDING↔REVIEWING`(이벤트 기반 권장, 순환의존 회피).
+
+### 16.4 녹음/채택 (Recording / LineTake) — 확정 규칙
+- `Recording`: (line × creator), `take`는 **서버 부여**(해당 (line,creator) max take+1). 프론트는 take 안 보냄.
+- `LineTake`: `UNIQUE(lineId, creatorId) → recordingId`. 성우 본인이 채택.
+- **녹음 삭제**: `DELETE /creators/recordings/:id` — 소유권(creatorId) 검증, **그 recording을 가리키는 LineTake만** 해제(`remove({lineId,creatorId,recordingId})`로 정확히 1행), `softRemove`, `@Transactional`(순차 실행). (S3 오디오 정리·마지막 녹음 삭제 시 상태 롤백은 `RecordingDeletedEvent` 비동기로 — 예정.)
+
+### 16.5 콘텐츠 상태 lifecycle (ContentStatus) — 확정안 (2026-06-16)
+§14를 대체. 콘텐츠 7상태 풀 파이프라인. (값은 문자열 enum 컨벤션 유지: `draft/recording/reviewing/approved/scheduled/published/archived`)
+
+| 상태 | 라벨 | 의미 |
+|---|---|---|
+| `DRAFT` | 초안 | 생성 직후, 편집 단계 |
+| `RECORDING` | 녹음 중 | 성우 녹음/채택 진행 |
+| `REVIEWING` | 검수 중 | 검수 진행(회차 검수와 연동) |
+| `APPROVED` | 검수 완료 | 전 회차 검수 통과 |
+| `SCHEDULED` | 발행 대기 | 발행 예정일 예약됨 |
+| `PUBLISHED` | 발행 | 사용자 공개 |
+| `ARCHIVED` | 보관 | 보관(비공개) |
+
+**전이 화이트리스트 + 트리거** (`CONTENT_STATUS_TRANSITIONS` / `canTransitionContent`) — 2026-06-16 확정:
+
+| from → to | 트리거 |
+|---|---|
+| `DRAFT → RECORDING` | **자동**: 콘텐츠의 회차 하나라도 RECORDING 진입 시 |
+| `RECORDING → REVIEWING` | **자동**: 모든 회차 검수 완료 시(콘텐츠 단위 검수 게이트 오픈) |
+| `REVIEWING → RECORDING` | **자동**: 회차가 다시 검수 미완으로 회귀 시 |
+| `REVIEWING → APPROVED` | **수동**: 검수자가 콘텐츠 검수 완료 처리 |
+| `APPROVED → REVIEWING` | 되돌리기(재검수) — 허용 |
+| `APPROVED → SCHEDULED` | **수동**: 검수자가 발행 예정일(`scheduledPublishAt`) 설정 시 |
+| `SCHEDULED → APPROVED` | **자동**: 발행 예정일이 비워지면 |
+| `SCHEDULED → PUBLISHED` | **자동**: 스케줄러가 예정일 도달 시 |
+| `PUBLISHED ⇄ ARCHIVED` | **수동**: 관리자 |
+
+```
+DRAFT → RECORDING → REVIEWING → APPROVED → SCHEDULED → PUBLISHED ⇄ ARCHIVED
+                       ⇅(회귀)              ⇅(예약취소)
+                    RECORDING             APPROVED
+   (APPROVED → REVIEWING 재검수 가능)
+```
+
+**🔒 핵심 불변식 — 발행 후 회귀 금지**: `PUBLISHED` 도달 이후에는 **발행 이전 상태(DRAFT~SCHEDULED)로 절대 회귀하지 않는다.** 화이트리스트가 `PUBLISHED→ARCHIVED`/`ARCHIVED→PUBLISHED`만 허용해 구조적으로 막고, **모든 자동 롤업 핸들러는 "현재 상태가 발행 이전일 때만" 작동**하도록 가드한다(연재 중 회차 문제가 생겨도 콘텐츠 상태는 회귀 X — 별도 운영으로 관리).
+
+**2단계 검수 구조(해석)**: 회차(EpisodeReview, (회차×성우)) 검수가 모두 끝나면 → 콘텐츠가 `REVIEWING`(콘텐츠 단위 최종 검수 게이트) 진입 → 검수자가 수동으로 `APPROVED`. "모든 회차 검수 완료"의 정확한 정의(전 회차의 전 캐스팅 EpisodeReview APPROVED 등)는 episode 모델(§16.2~16.3)과 맞춰 확정.
+
+**발행 예정일 연동**: `scheduledPublishAt`(datetime nullable) — 설정 시 `APPROVED→SCHEDULED`, 비우면 `SCHEDULED→APPROVED`. 스케줄러가 `scheduledPublishAt <= now` 인 SCHEDULED 콘텐츠를 `PUBLISHED`로.
+
+**필요 백엔드**: `scheduledPublishAt` 컬럼, `content.transitionTo(next)`+`canTransitionContent`(발행 후 회귀 차단 포함), `PUT /admins/contents/:id/status`(수동 전이: REVIEWING→APPROVED, APPROVED→REVIEWING, PUBLISHED⇄ARCHIVED), 발행 예정일 설정 엔드포인트, 스케줄러, 회차 검수 롤업 **이벤트 핸들러**(DRAFT→RECORDING / RECORDING↔REVIEWING, 발행 이전 가드 포함).
+
+### 16.6 다음 작업 후보
+1. 인증 정책 재설계(maker/tool 로그인 — admin 통일 vs creator/director 데스크톱 재도입).
+2. back-office 화면 mock부터 재구축(메뉴별 PlaceholderPage 채우기). 계정관리는 현존 account/role/permission 도메인 기준으로 우선 구현 가능.
+3. content/episode/recording/review 도메인 재도입 시 §16.2~16.5 기준 적용.

@@ -1,15 +1,7 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { LoginPage } from './features/auth/LoginPage'
 import { AppLayout } from './layouts/AppLayout'
-import { WorkListPage } from './pages/WorkListPage'
-import { WebtoonListPage } from './pages/WebtoonListPage'
-import { ContentDetailPage } from './pages/ContentDetailPage'
-import { RecordingPage } from './pages/RecordingPage'
-import { EpisodeViewerPage } from './pages/EpisodeViewerPage'
-import { ReviewLayout } from './features/review/ReviewContext'
-import { ReviewWebtoonsPage } from './pages/ReviewWebtoonsPage'
-import { ReviewEpisodesPage } from './pages/ReviewEpisodesPage'
-import { ReviewEpisodePage } from './pages/ReviewEpisodePage'
+import { HomePage } from './pages/HomePage'
 import { ProtectedRoute } from './routes/ProtectedRoute'
 import { ApprovalGate } from './routes/ApprovalGate'
 
@@ -20,16 +12,7 @@ function App(): React.JSX.Element {
       <Route element={<ProtectedRoute />}>
         <Route element={<ApprovalGate />}>
           <Route element={<AppLayout />}>
-            <Route index element={<WorkListPage />} />
-            <Route path="webtoons" element={<WebtoonListPage />} />
-            <Route path="webtoons/:id" element={<ContentDetailPage />} />
-            <Route path="recording/:id" element={<RecordingPage />} />
-            <Route path="review" element={<ReviewLayout />}>
-              <Route index element={<ReviewWebtoonsPage />} />
-              <Route path="webtoons/:id" element={<ReviewEpisodesPage />} />
-              <Route path="episodes/:id" element={<ReviewEpisodePage />} />
-            </Route>
-            <Route path="episodes/:id" element={<EpisodeViewerPage />} />
+            <Route index element={<HomePage />} />
           </Route>
         </Route>
       </Route>

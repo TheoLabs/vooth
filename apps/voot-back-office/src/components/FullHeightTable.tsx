@@ -1,62 +1,60 @@
-import { useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Table, Typography } from 'antd';
 import type { TableProps } from 'antd';
 
+interface FullHeightTableProps<T> extends TableProps<T> {
+  /** 서버 응답 total (총 N건 표시용) */
+  total?: number;
+}
+
 /**
- * 백오피스 레이아웃 룰용 테이블.
- * 남은 높이를 모두 채우고, 스크롤은 테이블 "내부 body" 에만 생기게 한다.
- * (헤더/페이지네이션은 고정, 바깥 페이지 스크롤 없음)
- *
- * 부모는 높이가 제한된 flex 컨테이너여야 한다(.bo-page 안의 flex:1 영역).
- *
- * 모든 리스트/테이블 페이지는 상단에 항상 "총 N건" 합계를 표시한다.
- * 합계는 서버 페이지네이션의 `pagination.total` 을 우선 사용하고,
- * 페이지네이션이 없으면 현재 행 수(`dataSource.length`)로 대체한다.
+ * 백오피스 공용 목록 테이블.
+ * - 남은 높이를 모두 채우고, 스크롤은 테이블 body 내부에만 생긴다(바깥 스크롤 금지).
+ * - 상단에 항상 `총 N건` 합계를 렌더링한다.
+ * - 일반 antd <Table> 대신 모든 리스트 화면에서 이 컴포넌트를 쓴다.
  */
-export function FullHeightTable<T extends object>(props: TableProps<T>) {
-  const ref = useRef<HTMLDivElement>(null);
-  const [bodyHeight, setBodyHeight] = useState<number>();
+export function FullHeightTable<T extends object>({
+  total,
+  pagination,
+  ...rest
+}: FullHeightTableProps<T>) {
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const [scrollY, setScrollY] = useState<number>(320);
 
-  useLayoutEffect(() => {
-    const el = ref.current;
-    if (!el) return;
+  useEffect(() => {
+    const wrapper = wrapperRef.current;
+    if (!wrapper) return;
 
-    const compute = () => {
-      const total = el.clientHeight;
-      // 상단 합계 라벨 영역 높이.
-      const summary =
-        el.querySelector<HTMLElement>('.bo-table-summary')?.offsetHeight ?? 0;
-      // 스크롤이 설정되면 헤더가 별도 테이블로 분리된다(.ant-table-header).
-      const header =
-        el.querySelector<HTMLElement>('.ant-table-header')?.offsetHeight ??
-        el.querySelector<HTMLElement>('.ant-table-thead')?.offsetHeight ??
-        55;
-      const pagination = el.querySelector<HTMLElement>('.ant-pagination');
-      // 페이지네이션 높이 + 상단 마진(16) 보정.
-      const paginationHeight = pagination ? pagination.offsetHeight + 16 : 0;
-      setBodyHeight(Math.max(120, total - summary - header - paginationHeight));
+    const recalc = () => {
+      const wrapperHeight = wrapper.clientHeight;
+      // header(테이블 헤더) + pagination 영역을 제외한 높이를 body 스크롤에 할당.
+      const header = wrapper.querySelector<HTMLElement>('.ant-table-thead');
+      const pager = wrapper.querySelector<HTMLElement>('.ant-pagination');
+      const headerH = header?.offsetHeight ?? 55;
+      const pagerH = pager ? pager.offsetHeight + 16 : 0;
+      const next = Math.max(120, wrapperHeight - headerH - pagerH);
+      setScrollY(next);
     };
 
-    compute();
-    const observer = new ResizeObserver(compute);
-    observer.observe(el);
+    recalc();
+    const observer = new ResizeObserver(recalc);
+    observer.observe(wrapper);
     return () => observer.disconnect();
   }, []);
 
-  // 합계: 서버 페이지네이션 total 우선, 없으면 현재 행 수.
-  const totalCount =
-    props.pagination && props.pagination.total != null
-      ? props.pagination.total
-      : (props.dataSource?.length ?? 0);
-
   return (
-    <div ref={ref} className="bo-table-fill">
+    <div className="bo-table-fill">
       <div className="bo-table-summary">
-        <Typography.Text type="secondary">
-          총 {totalCount.toLocaleString()}건
-        </Typography.Text>
+        <Typography.Text type="secondary">총 {total ?? 0}건</Typography.Text>
       </div>
-      <Table<T> {...props} scroll={{ ...props.scroll, y: bodyHeight }} />
+      <div ref={wrapperRef} style={{ flex: 1, minHeight: 0 }}>
+        <Table<T>
+          size="middle"
+          scroll={{ y: scrollY }}
+          pagination={pagination}
+          {...rest}
+        />
+      </div>
     </div>
   );
 }

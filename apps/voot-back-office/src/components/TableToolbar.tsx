@@ -1,55 +1,59 @@
 import type { ReactNode } from 'react';
-import { Flex, Input, Select, Space } from 'antd';
+import { Input, Select, Space } from 'antd';
 
-export interface SearchFieldOption<F extends string> {
-  value: F;
+export interface SearchKeyOption {
+  value: string;
   label: string;
 }
 
-interface TableToolbarProps<F extends string> {
-  fields: SearchFieldOption<F>[];
-  searchField: F;
-  onSearchFieldChange: (field: F) => void;
-  keyword: string;
-  onKeywordChange: (keyword: string) => void;
-  /** 검색 제출(엔터/검색 버튼) 시 호출. 미지정 시 클라이언트 필터링 동작 유지. */
-  onSearch?: (keyword: string) => void;
-  right?: ReactNode;
+interface TableToolbarProps {
+  /** 검색 기준(searchKey) 옵션. 1개 이상이면 select 노출 */
+  searchKeys?: SearchKeyOption[];
+  searchKey?: string;
+  onSearchKeyChange?: (value: string) => void;
+  searchValue: string;
+  onSearchValueChange: (value: string) => void;
+  /** 엔터/검색 버튼 시 */
+  onSearch: (value: string) => void;
+  placeholder?: string;
+  /** 우측 액션(예: 추가 버튼) */
+  actions?: ReactNode;
 }
 
-export function TableToolbar<F extends string>({
-  fields,
-  searchField,
-  onSearchFieldChange,
-  keyword,
-  onKeywordChange,
+/**
+ * 목록 화면 상단 검색 영역.
+ * 필터는 이 아래 별도 FilterBar 에 둔다(여기 같은 줄에 붙이지 않는다).
+ */
+export function TableToolbar({
+  searchKeys,
+  searchKey,
+  onSearchKeyChange,
+  searchValue,
+  onSearchValueChange,
   onSearch,
-  right,
-}: TableToolbarProps<F>) {
+  placeholder = '검색',
+  actions,
+}: TableToolbarProps) {
   return (
-    <Flex
-      align="center"
-      justify="flex-start"
-      gap={8}
-      style={{ width: '100%', marginBottom: 8 }}
-    >
-      <Space.Compact>
-        <Select<F>
-          value={searchField}
-          onChange={onSearchFieldChange}
-          options={fields}
-          style={{ width: 120 }}
-        />
+    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+      <Space.Compact style={{ flex: 1, maxWidth: 480 }}>
+        {searchKeys && searchKeys.length > 0 ? (
+          <Select
+            value={searchKey}
+            onChange={onSearchKeyChange}
+            options={searchKeys}
+            style={{ width: 140 }}
+          />
+        ) : null}
         <Input.Search
           allowClear
-          placeholder="검색어를 입력하세요"
-          value={keyword}
-          onChange={(event) => onKeywordChange(event.target.value)}
+          value={searchValue}
+          placeholder={placeholder}
+          onChange={(e) => onSearchValueChange(e.target.value)}
           onSearch={onSearch}
-          style={{ width: 260 }}
         />
       </Space.Compact>
-      {right}
-    </Flex>
+      {actions ? <Space>{actions}</Space> : null}
+    </div>
   );
 }
