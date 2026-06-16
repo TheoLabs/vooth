@@ -87,7 +87,7 @@ export class AdminAccountService extends DddService {
   }
 
   @Transactional()
-  async approve({ id, roleId }: { id: number; roleId: number }) {
+  async active({ id, roleId }: { id: number; roleId: number }) {
     const [[account], [role]] = await Promise.all([
       this.accountRepository.find({ ids: [id] }),
       this.roleRepository.find({ ids: [roleId] }),

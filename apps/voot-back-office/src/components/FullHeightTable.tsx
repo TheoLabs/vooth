@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Table, Typography } from 'antd';
 import type { TableProps } from 'antd';
+import type { ColumnsType } from 'antd/es/table';
 
 interface FullHeightTableProps<T> extends TableProps<T> {
   /** 서버 응답 total (총 N건 표시용) */
@@ -16,10 +17,28 @@ interface FullHeightTableProps<T> extends TableProps<T> {
 export function FullHeightTable<T extends object>({
   total,
   pagination,
+  columns,
   ...rest
 }: FullHeightTableProps<T>) {
   const wrapperRef = useRef<HTMLDivElement>(null);
   const [scrollY, setScrollY] = useState<number>(320);
+
+  // 현재 페이지 오프셋을 반영한 순번(#) 컬럼을 항상 맨 앞에 붙인다.
+  const columnsWithIndex = useMemo<ColumnsType<T>>(() => {
+    const current = (pagination && pagination.current) || 1;
+    const pageSize = (pagination && pagination.pageSize) || 0;
+    const offset = (current - 1) * pageSize;
+    const indexColumn: ColumnsType<T>[number] = {
+      title: '#',
+      key: '__index',
+      width: 60,
+      align: 'center',
+      render: (_value, _record, index) => (
+        <Typography.Text type="secondary">{offset + index + 1}</Typography.Text>
+      ),
+    };
+    return [indexColumn, ...(columns ?? [])];
+  }, [columns, pagination]);
 
   useEffect(() => {
     const wrapper = wrapperRef.current;
@@ -52,6 +71,7 @@ export function FullHeightTable<T extends object>({
           size="middle"
           scroll={{ y: scrollY }}
           pagination={pagination}
+          columns={columnsWithIndex}
           {...rest}
         />
       </div>

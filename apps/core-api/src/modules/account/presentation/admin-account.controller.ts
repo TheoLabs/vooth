@@ -51,11 +51,11 @@ export class AdminAccountController {
   }
 
   @Put(':id/approve')
-  async approve(@Param('id', ParseIntPipe) id: number, @Body() body: AccountApproveDto) {
+  async active(@Param('id', ParseIntPipe) id: number, @Body() body: AccountApproveDto) {
     // 1. Destructure body, params, query
     // 2. Get context
     // 3. Get result
-    await this.adminAccountService.approve({ id, ...body });
+    await this.adminAccountService.active({ id, ...body });
 
     // 4. Send response
     return { data: {} };

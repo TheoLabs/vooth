@@ -7,7 +7,11 @@ import { TableToolbar } from '../../components/TableToolbar';
 import { FilterBar, FilterField } from '../../components/FilterBar';
 import type { Permission } from '../../api/permission.api';
 import { usePermissions } from './usePermissions';
-import { PERMISSION_CATEGORY_LABEL, PERMISSION_CATEGORY_OPTIONS } from '../accounts/labels';
+import {
+  PERMISSION_CATEGORY_COLOR,
+  PERMISSION_CATEGORY_LABEL,
+  PERMISSION_CATEGORY_OPTIONS,
+} from '../accounts/labels';
 
 const PAGE_SIZE = 20;
 
@@ -31,18 +35,43 @@ export function PermissionsPage() {
   const { data, isLoading } = usePermissions(query);
 
   const columns: ColumnsType<Permission> = [
-    { title: '코드', dataIndex: 'code', key: 'code', width: 220 },
-    { title: '이름', dataIndex: 'name', key: 'name', width: 220 },
+    {
+      title: '코드',
+      dataIndex: 'code',
+      key: 'code',
+      width: 220,
+      render: (code: string) => (
+        <Typography.Text code copyable={{ text: code }} style={{ fontSize: 13 }}>
+          {code}
+        </Typography.Text>
+      ),
+    },
+    {
+      title: '이름',
+      dataIndex: 'name',
+      key: 'name',
+      width: 220,
+      render: (name: string) => <Typography.Text strong>{name}</Typography.Text>,
+    },
     {
       title: '카테고리',
       dataIndex: 'category',
       key: 'category',
       width: 140,
       render: (category: PermissionCategory) => (
-        <Tag>{PERMISSION_CATEGORY_LABEL[category]}</Tag>
+        <Tag color={PERMISSION_CATEGORY_COLOR[category]}>
+          {PERMISSION_CATEGORY_LABEL[category]}
+        </Tag>
       ),
     },
-    { title: '설명', dataIndex: 'description', key: 'description' },
+    {
+      title: '설명',
+      dataIndex: 'description',
+      key: 'description',
+      render: (description: string) => (
+        <Typography.Text type="secondary">{description}</Typography.Text>
+      ),
+    },
   ];
 
   return (

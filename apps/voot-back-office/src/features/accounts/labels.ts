@@ -45,6 +45,17 @@ export const PERMISSION_CATEGORY_LABEL: Record<PermissionCategory, string> = {
   [PermissionCategory.SYSTEM]: '시스템',
 };
 
+export const PERMISSION_CATEGORY_COLOR: Record<PermissionCategory, string> = {
+  [PermissionCategory.ACCOUNT]: 'blue',
+  [PermissionCategory.ROLE]: 'geekblue',
+  [PermissionCategory.PERMISSION]: 'purple',
+  [PermissionCategory.CONTENT]: 'green',
+  [PermissionCategory.SETTLEMENT]: 'gold',
+  [PermissionCategory.STATS]: 'cyan',
+  [PermissionCategory.NOTIFICATION]: 'volcano',
+  [PermissionCategory.SYSTEM]: 'red',
+};
+
 export const ACCOUNT_STATUS_OPTIONS = Object.values(AccountStatus).map((value) => ({
   value,
   label: ACCOUNT_STATUS_LABEL[value],
