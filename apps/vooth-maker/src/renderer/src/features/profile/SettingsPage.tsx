@@ -2,11 +2,12 @@ import { useEffect, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { useMe } from '../me/useMe'
+import { useMe, useUpdateMe } from '../me/useMe'
+import { useAuth } from '../../auth/AuthContext'
 import './SettingsPage.css'
 
+// 서버 CreatorUpdateDto 는 bio/avatarFileId 만 수정 가능(nickname 수정 불가).
 const profileSchema = z.object({
-  nickname: z.string().trim().min(1, '활동명을 입력해주세요.').max(20, '20자 이내로 입력해주세요.'),
   bio: z.string().trim().max(200, '자기소개는 200자 이내로 입력해주세요.'),
 })
 
@@ -20,14 +21,11 @@ function avatarColor(seed: string): string {
   return AVATAR_COLORS[hash % AVATAR_COLORS.length]
 }
 
-// 현재 프로필 mock (Creator.nickname/bio/avatar — /creators/me 에 아직 없어 목 값으로 시작)
-const MOCK_PROFILE: ProfileForm = {
-  nickname: '레이첼',
-  bio: '청량한 음색을 강점으로 로맨스·판타지 장르를 주로 녹음합니다.',
-}
-
 export function SettingsPage(): React.JSX.Element {
-  const { data: account } = useMe()
+  // 자기소개는 GET /creators/me 실데이터, 이메일은 토큰(useAuth)에서 사용.
+  const { data: me } = useMe()
+  const { user } = useAuth()
+  const update = useUpdateMe()
 
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
   const [saved, setSaved] = useState(false)
@@ -40,10 +38,11 @@ export function SettingsPage(): React.JSX.Element {
     formState: { errors, isDirty },
   } = useForm<ProfileForm>({
     resolver: zodResolver(profileSchema),
-    defaultValues: MOCK_PROFILE,
+    // me 로드 시점에 폼을 채운다(staleTime:Infinity 라 사용자 입력을 덮어쓰지 않음).
+    values: { bio: me?.bio ?? '' },
   })
 
-  const nickname = watch('nickname') || MOCK_PROFILE.nickname
+  const nickname = me?.nickname || '성우'
   const bio = watch('bio') ?? ''
 
   // 아바타 미리보기 objectURL 정리
@@ -67,16 +66,19 @@ export function SettingsPage(): React.JSX.Element {
     setSaved(false)
   }
 
-  const onSubmit = handleSubmit(() => {
-    // TODO: creators/* 프로필 수정 API 연동 (nickname/bio/avatar). 현재는 mock 저장.
-    setSaved(true)
+  const onSubmit = handleSubmit((values) => {
+    setSaved(false)
+    // avatarFileId 는 creators 파일 업로드 엔드포인트가 없어 아직 전송하지 않는다(bio 만 저장).
+    update.mutate(
+      { bio: values.bio },
+      { onSuccess: () => setSaved(true) }
+    )
   })
 
   return (
     <div className="settings">
       <div className="settings__greeting">
         <h2 className="settings__title">설정 · 내 정보</h2>
-        <span className="settings__mock-tag">MOCK</span>
       </div>
 
       <form className="settings-card" onSubmit={onSubmit}>
@@ -111,7 +113,7 @@ export function SettingsPage(): React.JSX.Element {
                 hidden
                 onChange={handlePickImage}
               />
-              <p className="field-hint">JPG/PNG, 정사각형 이미지를 권장합니다.</p>
+              <p className="field-hint">미리보기만 가능합니다. 업로드 연동 예정. (mock)</p>
             </div>
           </div>
         </section>
@@ -121,11 +123,8 @@ export function SettingsPage(): React.JSX.Element {
           <h3 className="settings-section__title">기본 정보</h3>
 
           <div className="field">
-            <label className="field-label" htmlFor="nickname">
-              활동명
-            </label>
-            <input id="nickname" className="field-input" type="text" {...register('nickname')} />
-            {errors.nickname && <span className="field-error">{errors.nickname.message}</span>}
+            <label className="field-label">활동명</label>
+            <div className="field-readonly">{nickname}</div>
           </div>
 
           <div className="field">
@@ -145,14 +144,21 @@ export function SettingsPage(): React.JSX.Element {
 
           <div className="field">
             <label className="field-label">이메일</label>
-            <div className="field-readonly">{account?.email ?? '-'}</div>
+            <div className="field-readonly">{user?.email ?? '-'}</div>
           </div>
         </section>
 
         <div className="settings-foot">
-          {saved && <span className="save-ok">저장되었습니다. (mock)</span>}
-          <button type="submit" className="btn btn--primary" disabled={!isDirty && !avatarUrl}>
-            저장
+          {update.isError && (
+            <span className="save-err">{update.error.message}</span>
+          )}
+          {saved && !update.isPending && <span className="save-ok">저장되었습니다.</span>}
+          <button
+            type="submit"
+            className="btn btn--primary"
+            disabled={!isDirty || update.isPending}
+          >
+            {update.isPending ? '저장 중…' : '저장'}
           </button>
         </div>
       </form>

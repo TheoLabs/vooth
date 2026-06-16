@@ -17,7 +17,7 @@ export function AppLayout(): React.JSX.Element {
     navigate('/login', { replace: true })
   }
 
-  const displayName = account?.name ?? user?.email ?? '사용자'
+  const displayName = account?.nickname ?? user?.email ?? '사용자'
 
   return (
     <div className="app-shell">
@@ -58,7 +58,7 @@ export function AppLayout(): React.JSX.Element {
           <div className="app-header__user">
             <div className="app-header__userinfo">
               <span className="app-header__name">{displayName}</span>
-              {account?.email && <span className="app-header__email">{account.email}</span>}
+              {user?.email && <span className="app-header__email">{user.email}</span>}
             </div>
             <button type="button" className="app-header__logout" onClick={handleLogout}>
               로그아웃

@@ -1,14 +1,20 @@
-import { useQuery, type UseQueryResult } from '@tanstack/react-query'
-import { fetchMe, type MeAccount } from '../../api/me.api'
+import {
+  useMutation,
+  useQuery,
+  useQueryClient,
+  type UseMutationResult,
+  type UseQueryResult
+} from '@tanstack/react-query'
+import { fetchMe, updateMe, type MeCreator, type UpdateMeInput } from '../../api/me.api'
 import { ApiError } from '../../lib/apiClient'
 import { useAuth } from '../../auth/AuthContext'
 
 export const ME_QUERY_KEY = ['me'] as const
 
-export function useMe(): UseQueryResult<MeAccount, ApiError> {
+export function useMe(): UseQueryResult<MeCreator, ApiError> {
   const { user } = useAuth()
 
-  return useQuery<MeAccount, ApiError>({
+  return useQuery<MeCreator, ApiError>({
     queryKey: ME_QUERY_KEY,
     queryFn: fetchMe,
     enabled: Boolean(user),
@@ -24,5 +30,15 @@ export function useMe(): UseQueryResult<MeAccount, ApiError> {
     // retryOnMount(기본 true) 가 지배 → 옵저버 마운트마다 /creators/me 재요청(무한 루프).
     // 끄면 에러 상태에서 마운트 재페치를 막는다(다시 확인 버튼/invalidate 는 동작).
     retryOnMount: false
+  })
+}
+
+/** 내 프로필 수정(PUT /creators/me). 성공 시 ['me'] 무효화로 최신화. */
+export function useUpdateMe(): UseMutationResult<void, ApiError, UpdateMeInput> {
+  const queryClient = useQueryClient()
+
+  return useMutation<void, ApiError, UpdateMeInput>({
+    mutationFn: updateMe,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ME_QUERY_KEY })
   })
 }

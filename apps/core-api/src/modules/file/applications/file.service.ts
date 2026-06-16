@@ -7,7 +7,7 @@ import { FileRepository } from '../infrastructure/file.repository';
 import { File } from '../domain/file.entity';
 
 @Injectable()
-export class AdminFileService extends DddService {
+export class FileService extends DddService {
   constructor(
     private readonly fileRepository: FileRepository,
     private readonly s3Service: S3Service

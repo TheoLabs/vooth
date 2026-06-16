@@ -1,11 +1,11 @@
-import { AdminGuard } from '@common/guards';
+import { CreatorGuard } from '@common/guards';
 import { Body, Controller, Post, UseGuards } from '@nestjs/common';
 import { FileService } from '../applications/file.service';
 import { FilePresignDto } from './dto';
 
-@Controller('admins/files')
-@UseGuards(AdminGuard)
-export class AdminFileController {
+@Controller('creators/files')
+@UseGuards(CreatorGuard)
+export class CreatorFileController {
   constructor(private readonly fileService: FileService) {}
 
   @Post('presign')

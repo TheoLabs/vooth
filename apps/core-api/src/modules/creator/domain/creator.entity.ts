@@ -41,4 +41,14 @@ export class Creator extends DddAggregate {
   static of(args: Ctor) {
     return new Creator(args);
   }
+
+  update(args: { nickname?: string; avatarFileId?: number | null; bio?: string | null }) {
+    const changed = this.stripUnchanged(args);
+
+    if (!changed) {
+      return;
+    }
+
+    Object.assign(this, changed);
+  }
 }

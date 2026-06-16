@@ -1,7 +1,7 @@
 import { DddService } from '@libs/ddd';
 import { Injectable } from '@nestjs/common';
 import { CreatorRepository } from '../infrastructure/creator.repository';
-import { AdminFileService } from '@modules/file/applications/admin-file.service';
+import { FileService } from '@modules/file/applications/file.service';
 import { Transactional } from '@libs/decorators';
 import { EventHandler } from '@libs/decorators/event-handler.decorator';
 import { AccountActivedEvent } from '@modules/account/domain/events';
@@ -14,7 +14,7 @@ import { AdminCreatorResponseDto } from '../presentation/dto';
 @Injectable()
 export class AdminCreatorService extends DddService {
   constructor(
-    private readonly adminFileService: AdminFileService,
+    private readonly adminFileService: FileService,
     private readonly creatorRepository: CreatorRepository,
     private readonly accountRepository: AccountRepository
   ) {

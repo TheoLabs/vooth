@@ -94,7 +94,7 @@ export function HomePage(): React.JSX.Element {
   const { data: account } = useMe()
   const episodes = MOCK_EPISODES
   const summary = summarize(episodes)
-  const greetingName = account?.name ?? '성우님'
+  const greetingName = account?.nickname ?? '성우님'
 
   return (
     <div className="home">
