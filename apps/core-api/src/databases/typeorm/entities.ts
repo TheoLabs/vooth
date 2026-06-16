@@ -4,5 +4,6 @@ import { Permission } from '@modules/permission/domain/permission.entity';
 import { Role } from '@modules/role/domain/role.entity';
 import { File } from '@modules/file/domain/file.entity';
 import { Creator } from '@modules/creator/domain/creator.entity';
+import { Tag } from '@modules/tag/domain/tag.entity';
 
-export default [DddEvent, Account, Role, Permission, File, Creator];
+export default [DddEvent, Account, Role, Permission, File, Creator, Tag];
