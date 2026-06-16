@@ -182,16 +182,16 @@
       <table>
         <thead><tr><th>Method</th><th>Path</th><th>설명</th><th>상태</th></tr></thead>
         <tbody>
-          <tr><td><span class="method get">GET</span></td><td><code>/creators/me</code></td><td>본인 Creator 프로필 조회(<code>avatarUrl</code> enrich, account 조인)</td><td><span style="color:#15803d;font-weight:700">구현됨</span></td></tr>
           <tr><td><span class="method get">GET</span></td><td><code>/admins/creators</code></td><td>관리자용 Creator 목록(검색·페이지네이션)</td><td><span style="color:#15803d;font-weight:700">구현됨</span></td></tr>
+          <tr><td><span class="method get">GET</span></td><td><code>/creators/me</code></td><td>본인 Creator 프로필 조회(<code>avatarUrl</code> enrich)</td><td><span style="color:var(--faint)">예정</span></td></tr>
           <tr><td><span class="method put">PUT</span></td><td><code>/creators/me</code></td><td>avatar/bio/nickname 수정(변경 필드만, commit-on-attach)</td><td><span style="color:var(--faint)">예정</span></td></tr>
           <tr><td><span class="method get">GET</span></td><td><code>/directors/creators</code></td><td>캐스팅 피커용 목록(활동 중 성우)</td><td><span style="color:var(--faint)">예정</span></td></tr>
         </tbody>
       </table>
     </div>
     <div class="note">
-      <span class="label">인증.</span> <code>creators/me</code> 는 <b>CreatorGuard</b>(<code>type=CREATOR</code> + <code>status=ACTIVE</code>) 로 보호.
-      로그인은 <a href="../auth/index.html">Auth</a> 의 <code>POST /creators/auth/login/google/desktop</code>(PKCE).
+      <span class="label">인증.</span> <code>creators/*</code> 는 <b>CreatorGuard</b>(<code>type=CREATOR</code> + <code>status=ACTIVE</code>) 로 보호 예정.
+      로그인은 <a href="../auth/index.html">Auth</a> 의 <code>POST /creators/auth/login/google/desktop</code>(PKCE, 구현됨).
     </div>
     <div class="note">
       <span class="label">네임스페이스 규칙.</span> vooth-maker=<code>creators/*</code>(CreatorGuard), vooth-tool=<code>directors/*</code>(DirectorGuard=ADMIN).
