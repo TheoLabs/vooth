@@ -11,7 +11,7 @@ import type { ColumnsType } from 'antd/es/table';
 import { AccountStatus, AccountType } from '@vooth/shared';
 import { DEFAULT_PAGE_SIZE, FullHeightTable } from '../../components/FullHeightTable';
 import { TableToolbar } from '../../components/TableToolbar';
-import { FilterBar, FilterField } from '../../components/FilterBar';
+import { FilterSelect } from '../../components/FilterSelect';
 import { useRoles } from '../roles/useRoles';
 import type { Account } from '../../api/account.api';
 import { AccountDetailDrawer } from './AccountDetailDrawer';
@@ -143,38 +143,35 @@ export function AccountsPage() {
           setPage(1);
         }}
         placeholder="이름 또는 이메일 검색"
+        filters={[
+          {
+            label: '상태',
+            control: (
+              <FilterSelect
+                value={statuses}
+                options={ACCOUNT_STATUS_OPTIONS}
+                onChange={(v) => {
+                  setStatuses(v);
+                  setPage(1);
+                }}
+              />
+            ),
+          },
+          {
+            label: '타입',
+            control: (
+              <FilterSelect
+                value={types}
+                options={ACCOUNT_TYPE_OPTIONS}
+                onChange={(v) => {
+                  setTypes(v);
+                  setPage(1);
+                }}
+              />
+            ),
+          },
+        ]}
       />
-
-      <FilterBar>
-        <FilterField label="상태">
-          <Select
-            mode="multiple"
-            allowClear
-            placeholder="전체"
-            style={{ minWidth: 220 }}
-            value={statuses}
-            options={ACCOUNT_STATUS_OPTIONS}
-            onChange={(v) => {
-              setStatuses(v);
-              setPage(1);
-            }}
-          />
-        </FilterField>
-        <FilterField label="타입">
-          <Select
-            mode="multiple"
-            allowClear
-            placeholder="전체"
-            style={{ minWidth: 220 }}
-            value={types}
-            options={ACCOUNT_TYPE_OPTIONS}
-            onChange={(v) => {
-              setTypes(v);
-              setPage(1);
-            }}
-          />
-        </FilterField>
-      </FilterBar>
 
       <FullHeightTable<Account>
         rowKey="id"

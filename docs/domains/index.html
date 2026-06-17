@@ -19,6 +19,7 @@
       <a href="permission/index.html">Permission</a>
       <a href="auth/index.html">Auth</a>
       <a href="content/index.html">Content</a>
+      <a href="tag/index.html">Tag</a>
     </nav>
   </div>
 </header>
@@ -99,6 +100,12 @@
         <div class="ns">admins/contents</div>
         <p>콘텐츠 발행 상태 머신(7상태). 녹음→검수→승인→예약→발행→보관 전이와 불변식.</p>
         <div class="tags"><span>7-state machine</span><span>검수 롤업</span><span>스케줄 발행</span></div>
+      </a>
+      <a class="dcard" href="tag/index.html">
+        <div class="top"><h3>Tag</h3><span class="badge ok">구현됨</span></div>
+        <div class="ns">admins/tags</div>
+        <p>콘텐츠 분류 태그 마스터. CRUD + 자유 문자열 color. usageCount는 이벤트 재계산(Content 대기).</p>
+        <div class="tags"><span>전역 태그 풀</span><span>hard delete</span><span>usageCount 파생</span></div>
       </a>
     </div>
   </div>

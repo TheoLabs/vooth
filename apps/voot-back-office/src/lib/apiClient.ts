@@ -1,5 +1,5 @@
 import axios, { AxiosError } from 'axios';
-import { getAccessToken } from '../auth/token';
+import { clearAccessToken, getAccessToken } from '../auth/token';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:3000';
 
@@ -74,6 +74,13 @@ apiClient.interceptors.response.use(
   (error: unknown) => {
     if (axios.isAxiosError(error)) {
       const axiosError = error as AxiosError<ApiErrorBody>;
+      // 401(토큰 없음/만료) → 세션 정리 후 로그인 페이지로 이동.
+      if (axiosError.response?.status === 401) {
+        clearAccessToken();
+        if (window.location.pathname !== '/login') {
+          window.location.assign('/login');
+        }
+      }
       return Promise.reject(
         new ApiError(axiosError.response?.status, resolveErrorMessage(axiosError)),
       );

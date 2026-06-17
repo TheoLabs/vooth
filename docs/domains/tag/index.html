@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Tag 도메인 — Vooth core-api</title>
+<link rel="stylesheet" href="../assets/style.css" />
+</head>
+<body>
+<header class="topnav">
+  <div class="inner">
+    <div class="brand"><a href="../index.html" style="color: inherit">Vooth <span>core-api</span> · 도메인</a></div>
+    <nav>
+      <a href="../index.html">Overview</a>
+      <a href="../account/index.html">Account</a>
+      <a href="../creator/index.html">Creator</a>
+      <a href="../file/index.html">File</a>
+      <a href="../role/index.html">Role</a>
+      <a href="../permission/index.html">Permission</a>
+      <a href="../auth/index.html">Auth</a>
+      <a href="../content/index.html">Content</a>
+      <a href="../tag/index.html" class="active">Tag</a>
+    </nav>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="hero">
+    <div class="eyebrow">Content · 발행</div>
+    <h1>Tag · 태그</h1>
+    <p class="lead">
+      콘텐츠 분류용 <b>전역 태그 마스터</b>. 콘텐츠들이 N:M으로 공유하며, back-office에서 등록·관리한다.
+      <code>usageCount</code>는 연결된 콘텐츠 수의 <b>파생 캐시</b>(이벤트로 재계산).
+    </p>
+    <div class="meta">
+      <span class="badge ok">구현됨</span>
+      <span class="badge ns">admins/tags</span>
+      <span class="badge ctx">AR · Tag</span>
+      <span class="badge ctx">hard delete</span>
+    </div>
+  </div>
+
+  <div class="note warn">
+    <span class="label">부분 구현.</span> Tag CRUD(<code>admins/tags</code>)는 <strong>구현됨</strong>.
+    단 <b>Content↔Tag N:M(<code>content_tag</code>)과 <code>usageCount</code> 이벤트 재계산</b>은 <strong>Content 도메인 대기</strong> —
+    Content 모듈이 없어 현재 <code>usageCount</code>는 0 고정.
+  </div>
+
+  <section class="section">
+    <h2><span class="num">01</span> 책임과 특성</h2>
+    <ul class="clean">
+      <li><b>전역 태그 풀</b> — 콘텐츠마다 새로 만드는 게 아니라, 등록된 태그를 콘텐츠가 N:M으로 붙인다.</li>
+      <li><b>연결의 소유는 Content</b> — 태그를 다는 행위는 "콘텐츠 편집"이라 join(<code>content_tag</code>)의 owning side는 Content.</li>
+      <li><b><code>usageCount</code>는 파생 캐시</b> — 정렬·인기태그 표시용. 진실의 원천은 join 테이블이고, 이 값은 이벤트로 재계산.</li>
+      <li><b>마스터 데이터</b> — 이력 보존 의무 없음 → 삭제는 하드삭제.</li>
+    </ul>
+  </section>
+
+  <section class="section">
+    <h2><span class="num">02</span> 애그리게이트 — <code>Tag</code></h2>
+    <p class="desc">파일: <code>src/modules/tag/domain/tag.entity.ts</code></p>
+    <div class="t-scroll">
+      <table>
+        <thead><tr><th>필드</th><th>타입</th><th>설명</th></tr></thead>
+        <tbody>
+          <tr><td><code>id</code></td><td>number (PK)</td><td>자동 증가 식별자</td></tr>
+          <tr><td><code>name</code></td><td>string · <b>unique</b></td><td>태그명. 중복 불가</td></tr>
+          <tr><td><code>color</code></td><td>string</td><td>색상. <b>자유 문자열</b>(enum 아님) — §03</td></tr>
+          <tr><td><code>usageCount</code></td><td>int</td><td>연결된 콘텐츠 수. <b>파생값</b>(클라 입력 금지, 이벤트로만 변경). 생성 시 0</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="section">
+    <h2><span class="num">03</span> color — 자유 문자열</h2>
+    <p>
+      색상은 <b>자유 문자열</b>로 저장한다. (이전 설계의 <code>TagColor</code> enum은 채택하지 않음 — shared에서도 제거됨.)
+      백엔드는 색을 검증·해석하지 않고, <b>표시·매핑은 FE 책임</b>이다.
+    </p>
+    <div class="note">
+      <span class="label">트레이드오프.</span> enum 검증이 없어 임의 문자열이 들어올 수 있다(오타·무효 색 가능).
+      엄격한 팔레트 제약이 필요해지면 그때 enum 또는 화이트리스트로 좁힐 수 있다.
+    </div>
+  </section>
+
+  <section class="section">
+    <h2><span class="num">04</span> usageCount — 이벤트 기반 재계산 <span style="font-size:12px;font-weight:600;color:var(--faint)">(Content 대기)</span></h2>
+    <ul class="clean">
+      <li>Content가 태그를 바꾸면 <code>ContentSetTagEvent { addedTagIds, removedTagIds }</code> 발행(예정).</li>
+      <li>Tag 측 <code>@EventHandler</code>가 영향받은 태그를 <b>COUNT로 SET</b>: <code>usageCount = count(활성 Content where tags contains tagId)</code>.</li>
+      <li><b>+1/-1 증분이 아니라 COUNT-SET</b> → at-least-once 재전송·순서꼬임에도 <b>멱등·무drift</b>.</li>
+      <li>왜 캐시? 태그 목록 인기순 정렬/표시 시 매번 join-count를 피하려는 read 최적화.</li>
+    </ul>
+    <div class="note warn">
+      <span class="label">현재 상태.</span> Content 모듈·<code>content_tag</code>·이벤트가 아직 없어 <b>핸들러 미구현, <code>usageCount</code>=0 고정</b>.
+      Content 도메인 작업 때 연결한다.
+    </div>
+  </section>
+
+  <section class="section">
+    <h2><span class="num">05</span> 라이프사이클 · 삭제</h2>
+    <ul class="clean">
+      <li><b>생성</b> — name(유니크)+color. 동일 name 존재 시 거부.</li>
+      <li><b>수정</b> — name/color 부분 수정(변경 필드만, <code>stripUnchanged</code>). name 변경 시 중복 검사.</li>
+      <li><b>삭제 = 하드삭제</b> — 마스터 데이터라 이력 보존 의무 없음. <code>content_tag</code> FK <code>ON DELETE CASCADE</code>로 연결 자동 정리(Content 생기면). FE는 삭제 전 "연결 N개 작품에서 제거" 경고(usageCount 사용).</li>
+    </ul>
+    <div class="note">
+      <span class="label">Creator와 대비.</span> Creator는 참여 이력 때문에 <b>삭제 금지(영속)</b>인 반면, Tag는 분류 라벨이라 <b>하드삭제</b>가 맞다.
+    </div>
+  </section>
+
+  <section class="section">
+    <h2><span class="num">06</span> API 표면 — <code>admins/tags</code></h2>
+    <p class="desc">컨트롤러: <code>presentation/admin-tag.controller.ts</code> · 가드: <code>AdminGuard</code></p>
+    <div class="t-scroll">
+      <table>
+        <thead><tr><th>Method</th><th>Path</th><th>설명</th><th>본문</th></tr></thead>
+        <tbody>
+          <tr><td><span class="method post">POST</span></td><td><code>/admins/tags</code></td><td>생성(name 중복 거부)</td><td><code>{ name, color }</code></td></tr>
+          <tr><td><span class="method get">GET</span></td><td><code>/admins/tags</code></td><td>목록(name 검색, 페이지네이션) → <code>{ items, total }</code></td><td>—</td></tr>
+          <tr><td><span class="method put">PUT</span></td><td><code>/admins/tags/:id</code></td><td>수정(name/color, 변경 필드만)</td><td><code>{ name?, color? }</code></td></tr>
+          <tr><td><span class="method del">DELETE</span></td><td><code>/admins/tags/:id</code></td><td>하드삭제</td><td>—</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note">
+      <span class="label">검색.</span> <code>searchKey</code>는 <code>@IsIn(['name'])</code>로 화이트리스트 — 임의 컬럼 검색/500 차단.
+    </div>
+  </section>
+
+  <section class="section">
+    <h2><span class="num">07</span> 의존 · 경계</h2>
+    <ul class="clean">
+      <li><b>← Content</b> (예정): Content가 <code>content_tag</code>(owning)로 Tag를 N:M 참조. 태그 변경 시 <code>ContentSetTagEvent</code> 발행 → Tag usageCount 재계산.</li>
+      <li>현재는 다른 도메인 의존 없는 독립 CRUD(말단 마스터).</li>
+    </ul>
+  </section>
+</div>
+
+<footer class="page">
+  Source: <code>src/modules/tag</code> · 설계 참고 <code>docs/content-domain-design.md</code> §11.2
+</footer>
+</body>
+</html>

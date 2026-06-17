@@ -1,10 +1,10 @@
 import { useMemo, useState } from 'react';
-import { Select, Tag, Typography } from 'antd';
+import { Tag, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { PermissionCategory } from '@vooth/shared';
 import { DEFAULT_PAGE_SIZE, FullHeightTable } from '../../components/FullHeightTable';
 import { TableToolbar } from '../../components/TableToolbar';
-import { FilterBar, FilterField } from '../../components/FilterBar';
+import { FilterSelect } from '../../components/FilterSelect';
 import type { Permission } from '../../api/permission.api';
 import { usePermissions } from './usePermissions';
 import {
@@ -87,24 +87,22 @@ export function PermissionsPage() {
           setPage(1);
         }}
         placeholder="권한 이름 검색"
+        filters={[
+          {
+            label: '카테고리',
+            control: (
+              <FilterSelect
+                value={categories}
+                options={PERMISSION_CATEGORY_OPTIONS}
+                onChange={(v) => {
+                  setCategories(v);
+                  setPage(1);
+                }}
+              />
+            ),
+          },
+        ]}
       />
-
-      <FilterBar>
-        <FilterField label="카테고리">
-          <Select
-            mode="multiple"
-            allowClear
-            placeholder="전체"
-            style={{ minWidth: 260 }}
-            value={categories}
-            options={PERMISSION_CATEGORY_OPTIONS}
-            onChange={(v) => {
-              setCategories(v);
-              setPage(1);
-            }}
-          />
-        </FilterField>
-      </FilterBar>
 
       <FullHeightTable<Permission>
         rowKey="code"

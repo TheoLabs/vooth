@@ -5,6 +5,7 @@ import { Transactional } from '@libs/decorators';
 import { Tag } from '../domain/tag.entity';
 import { PaginationOptions } from '@libs/utils';
 import { AdminTagResponseDto } from '../presentation/dto';
+import { EventHandler } from '@libs/decorators/event-handler.decorator';
 
 @Injectable()
 export class AdminTagService extends DddService {
@@ -62,4 +63,9 @@ export class AdminTagService extends DddService {
 
     await this.tagRepository.remove([tag]);
   }
+
+  // TODO: content domain이 만들어지면 할 예정.
+  // @EventHandler()
+  // @Transactional()
+  // async handleContentSetTagEvent() {}
 }

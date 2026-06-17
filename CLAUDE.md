@@ -49,9 +49,9 @@ pnpm + Turborepo 모노레포. `apps/` 에 4개 애플리케이션, 공유 코�
   - 모든 리스트/테이블 페이지의 루트는 `.bo-page`(flex 컬럼, `height: 100%`).
   - 테이블은 `<FullHeightTable>`(`components/FullHeightTable.tsx`)을 쓴다 — 남은 높이를 채우고 내부 body 스크롤 높이를 계산한다. 일반 `<Table>` 을 직접 쓰지 않는다.
   - 관련 클래스는 `src/index.css` 에 정의돼 있다.
-- **필터 배치 룰: 목록 필터는 검색창(`TableToolbar`) 하단의 필터 바에 둔다.** 검색창 오른쪽이나 같은 줄에 붙이지 않는다.
-  - 필터 바는 `<FilterBar>`, 각 필터는 `<FilterField label="...">`(`components/FilterBar.tsx`)로 감싼다. **form-label 은 컨트롤 상단**에 온다.
-  - 필터 축이 늘면 `FilterField` 를 추가하면 된다.
+- **필터 배치 룰: 목록 필터는 `TableToolbar` 의 `filters` prop 으로 넘긴다.** 개수에 따라 위치가 자동 결정된다 — **3개 이하면 검색창 바로 오른쪽(인라인), 3개 초과면 검색창 아래 필터 바**. 이 분기는 `TableToolbar` 가 처리하므로 페이지는 `filters={[{ label, control }]}` 만 넘기면 된다(페이지에서 `FilterBar` 를 직접 쓰지 않는다).
+  - 각 필터는 `{ label, control }`(`ToolbarFilter`) 형태. 내부적으로 `<FilterField label="...">`(`components/FilterBar.tsx`)로 감싸 **form-label 은 컨트롤 상단**에 온다.
+  - 인라인/하단 임계값은 `TableToolbar.tsx` 의 `INLINE_FILTER_MAX`(=3).
 - **API 통신 룰: axios 인스턴스(`src/lib/apiClient.ts`) + 인터셉터로 일원화한다.** 개별 API 함수에서 쿼리스트링/헤더를 수동 조립하지 않는다.
   - 배열 쿼리 파라미터는 **반복 파라미터(`?a=1&a=2`)** 로 직렬화한다 — axios `paramsSerializer` 에서 일괄 처리(브래킷 `a[]` 금지).
   - 요청 인터셉터에서 Bearer 토큰 첨부, 응답 인터셉터에서 `{ data }` 언랩 + `ApiError`(status/message) 정규화.

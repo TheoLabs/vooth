@@ -13,7 +13,7 @@ import type { ColumnsType } from 'antd/es/table';
 import { RoleType } from '@vooth/shared';
 import { DEFAULT_PAGE_SIZE, FullHeightTable } from '../../components/FullHeightTable';
 import { TableToolbar } from '../../components/TableToolbar';
-import { FilterBar, FilterField } from '../../components/FilterBar';
+import { FilterSelect } from '../../components/FilterSelect';
 import { PermissionPicker } from './PermissionPicker';
 import type { Role } from '../../api/role.api';
 import { useCreateRole, useRoles, useUpdateRolePermissions } from './useRoles';
@@ -149,29 +149,27 @@ export function RolesPage() {
           setPage(1);
         }}
         placeholder="역할명 검색"
+        filters={[
+          {
+            label: '타입',
+            control: (
+              <FilterSelect
+                value={typeFilter}
+                options={ROLE_TYPE_OPTIONS}
+                onChange={(v) => {
+                  setTypeFilter(v);
+                  setPage(1);
+                }}
+              />
+            ),
+          },
+        ]}
         actions={
           <Button type="primary" onClick={() => setCreateOpen(true)}>
             역할 추가
           </Button>
         }
       />
-
-      <FilterBar>
-        <FilterField label="타입">
-          <Select
-            mode="multiple"
-            allowClear
-            placeholder="전체"
-            style={{ minWidth: 260 }}
-            value={typeFilter}
-            options={ROLE_TYPE_OPTIONS}
-            onChange={(v) => {
-              setTypeFilter(v);
-              setPage(1);
-            }}
-          />
-        </FilterField>
-      </FilterBar>
 
       <FullHeightTable<Role>
         rowKey="id"
