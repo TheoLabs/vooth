@@ -33,7 +33,7 @@
     </p>
     <div class="meta">
       <span class="badge ok">구현됨</span>
-      <span class="badge ns">admins/auth</span>
+      <span class="badge ns">admins/auth · creators/auth</span>
       <span class="badge ctx">No Guard (공개)</span>
       <span class="badge ctx">Google OAuth · JWT</span>
     </div>
@@ -74,7 +74,7 @@
   <section class="section">
     <h2><span class="num">03</span> 비즈니스 규칙 · 정책</h2>
     <ul class="clean">
-      <li><b>가입 상태는 PENDING 고정</b> — 로그인만으로 접근 권한이 생기지 않는다. 관리자가 <a href="../account/index.html">승인(approve)</a> 해야 <code>roleId</code> 가 생기고 <code>AdminGuard</code> 를 통과한다.</li>
+      <li><b>가입 상태는 PENDING 고정</b> — 로그인만으로 접근 권한이 생기지 않는다. 관리자가 <a href="../account/index.html">승인(active)</a> 해야 <code>roleId</code> 가 생기고 가드를 통과한다.</li>
       <li><b>타입 분리</b> — admin 로그인은 <code>type=ADMIN</code> 계정만 조회/생성. (creator/director 표면은 각자 네임스페이스에서 동일 패턴.)</li>
       <li><b>실패 응답</b> — 토큰 위조/만료 또는 필수 클레임(sub·email·name) 누락 시 <code>401</code>("유효하지 않은 Google 토큰").</li>
       <li><b>트랜잭션</b> — 로그인(조회+생성)은 <code>@Transactional()</code>.</li>
@@ -87,18 +87,19 @@
 
   <section class="section">
     <h2><span class="num">04</span> API 표면</h2>
-    <p class="desc">컨트롤러: <code>presentation/admin-auth.controller.ts</code> · 가드 없음(로그인 자체가 인증 진입점)</p>
+    <p class="desc">컨트롤러: <code>admin-auth.controller.ts</code> · <code>creator-auth.controller.ts</code> · 가드 없음(로그인 자체가 인증 진입점)</p>
     <div class="t-scroll">
       <table>
         <thead><tr><th>Method</th><th>Path</th><th>설명</th><th>본문</th></tr></thead>
         <tbody>
-          <tr><td><span class="method post">POST</span></td><td><code>/admins/auth/login/google</code></td><td>웹 idToken 로그인 → access token</td><td><code>{ idToken }</code></td></tr>
+          <tr><td><span class="method post">POST</span></td><td><code>/admins/auth/login/google</code></td><td>back-office 웹 idToken 로그인 → access token</td><td><code>{ idToken }</code></td></tr>
+          <tr><td><span class="method post">POST</span></td><td><code>/creators/auth/login/google/desktop</code></td><td>vooth-maker 데스크톱 PKCE 로그인 → access token (CREATOR 계정 자동 생성·PENDING)</td><td><code>{ code, codeVerifier, redirectUri }</code></td></tr>
         </tbody>
       </table>
     </div>
     <p style="margin-top: 12px; color: var(--muted); font-size: 13px">
-      데스크톱 PKCE 교환 로직(<code>exchangeCode</code>)은 <code>GoogleAuthClient</code> 에 구현돼 있으며,
-      creators/directors 네임스페이스의 desktop 엔드포인트에서 사용한다.
+      웹은 idToken 검증(<code>verify</code>), 데스크톱은 PKCE code 교환(<code>exchangeCode</code>) — 둘 다 <code>GoogleAuthClient</code>.
+      maker(<code>creators/auth</code>)는 구현됨, tool(<code>directors/auth</code>)은 동일 패턴으로 예정.
     </p>
   </section>
 

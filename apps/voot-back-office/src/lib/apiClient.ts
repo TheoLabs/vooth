@@ -8,9 +8,13 @@ interface ApiEnvelope<T> {
   data: T;
 }
 
-/** core-api 에러 응답 본문 (message 는 string 또는 string[]). */
+/**
+ * core-api 에러 응답 본문.
+ * 전역 ExceptionFilter 가 `{ data: { message } }` 형태로 내려준다(성공 응답과 동일하게 data 봉투).
+ * message 는 string 또는 string[](검증 에러).
+ */
 interface ApiErrorBody {
-  message?: string | string[];
+  data?: { message?: string | string[] };
 }
 
 /**
@@ -29,7 +33,7 @@ export class ApiError extends Error {
 
 /** 백엔드 message(string | string[]) 를 단일 문자열로 정규화한다. */
 function resolveErrorMessage(error: AxiosError<ApiErrorBody>): string {
-  const message = error.response?.data?.message;
+  const message = error.response?.data?.data?.message;
   if (Array.isArray(message)) {
     return message.join(', ');
   }

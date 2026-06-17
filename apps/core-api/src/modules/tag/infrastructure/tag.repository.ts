@@ -30,4 +30,8 @@ export class TagRepository extends DddRepository<Tag> {
       }),
     });
   }
+
+  async remove(tags: Tag[]) {
+    return this.entityManager.remove(this.entityClass, tags);
+  }
 }

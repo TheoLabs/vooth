@@ -13,7 +13,9 @@ import {
 import type { ColumnsType } from 'antd/es/table';
 import { DEFAULT_PAGE_SIZE, FullHeightTable } from '../../components/FullHeightTable';
 import { TableToolbar } from '../../components/TableToolbar';
-import { MOCK_TAGS, TAG_PRESET_COLORS, type Tag } from './tag.types';
+import { TAG_PRESET_COLORS } from './tag.types';
+import { useCreateTag, useDeleteTag, useTags, useUpdateTag } from './useTags';
+import type { AdminTag, UpdateTagInput } from '../../api/tag.api';
 
 const DEFAULT_COLOR = TAG_PRESET_COLORS[0];
 
@@ -26,34 +28,43 @@ function formatDate(iso: string): string {
 }
 
 interface EditState {
-  /** null = 추가, Tag = 수정 */
-  target: Tag | null;
+  /** null = 추가, AdminTag = 수정 */
+  target: AdminTag | null;
   open: boolean;
 }
 
 export function TagsPage() {
   const { message } = AntApp.useApp();
-
-  // 목 데이터 로컬 상태(추가/수정/삭제). core-api 연동 시 react-query 로 교체.
-  const [tags, setTags] = useState<Tag[]>(MOCK_TAGS);
+  const createTag = useCreateTag();
+  const updateTag = useUpdateTag();
+  const deleteTag = useDeleteTag();
 
   const [searchInput, setSearchInput] = useState('');
   const [searchValue, setSearchValue] = useState('');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
 
+  const query = useMemo(
+    () => ({
+      searchKey: searchValue ? ('name' as const) : undefined,
+      searchValue: searchValue || undefined,
+      page,
+      limit: pageSize,
+    }),
+    [searchValue, page, pageSize],
+  );
+
+  const { data, isLoading } = useTags(query);
+  const items = data?.items ?? [];
+  const total = data?.total ?? 0;
+
+  // 막대 바 기준 최대 사용 수(현재 페이지 기준 상대 비율)
+  const maxUsage = useMemo(() => Math.max(1, ...items.map((t) => t.usageCount)), [items]);
+
   // 추가/수정 모달
   const [edit, setEdit] = useState<EditState>({ target: null, open: false });
   const [nameDraft, setNameDraft] = useState('');
   const [colorDraft, setColorDraft] = useState(DEFAULT_COLOR);
-
-  const filtered = useMemo(() => {
-    const needle = searchValue.trim().toLowerCase();
-    return needle ? tags.filter((t) => t.name.toLowerCase().includes(needle)) : tags;
-  }, [tags, searchValue]);
-
-  // 막대 바의 기준이 되는 최대 사용 수(상대 비율 계산용)
-  const maxUsage = useMemo(() => Math.max(1, ...tags.map((t) => t.usageCount)), [tags]);
 
   const openAdd = () => {
     setEdit({ target: null, open: true });
@@ -61,7 +72,7 @@ export function TagsPage() {
     setColorDraft(DEFAULT_COLOR);
   };
 
-  const openEdit = (tag: Tag) => {
+  const openEdit = (tag: AdminTag) => {
     setEdit({ target: tag, open: true });
     setNameDraft(tag.name);
     setColorDraft(tag.color);
@@ -69,50 +80,51 @@ export function TagsPage() {
 
   const closeEdit = () => setEdit({ target: null, open: false });
 
-  const submitEdit = () => {
+  const submitEdit = async () => {
     const name = nameDraft.trim();
     if (!name) {
       message.warning('태그명을 입력해주세요.');
       return;
     }
-    // 중복 검사(자기 자신 제외)
-    const dup = tags.some(
-      (t) => t.name.toLowerCase() === name.toLowerCase() && t.id !== edit.target?.id,
-    );
-    if (dup) {
-      message.warning('이미 존재하는 태그명입니다.');
-      return;
-    }
 
     if (edit.target) {
-      // 수정: 변경된 필드만 — 바뀐 게 없으면 종료
-      if (name === edit.target.name && colorDraft === edit.target.color) {
+      // 수정: 변경된 필드만 전송 — 바뀐 게 없으면 종료
+      const changed: UpdateTagInput = {};
+      if (name !== edit.target.name) changed.name = name;
+      if (colorDraft !== edit.target.color) changed.color = colorDraft;
+      if (!changed.name && !changed.color) {
         message.info('변경된 내용이 없습니다.');
         return;
       }
-      setTags((prev) =>
-        prev.map((t) => (t.id === edit.target!.id ? { ...t, name, color: colorDraft } : t)),
-      );
-      message.success('태그를 수정했습니다.');
-    } else {
-      // 추가
-      const nextId = tags.reduce((max, t) => Math.max(max, t.id), 0) + 1;
-      setTags((prev) => [
-        { id: nextId, name, color: colorDraft, usageCount: 0, createdAt: new Date().toISOString() },
-        ...prev,
-      ]);
+      try {
+        await updateTag.mutateAsync({ id: edit.target.id, input: changed });
+        message.success('태그를 수정했습니다.');
+        closeEdit();
+      } catch (e) {
+        message.error(e instanceof Error ? e.message : '태그 수정에 실패했습니다.');
+      }
+      return;
+    }
+
+    // 추가: POST /admins/tags
+    try {
+      await createTag.mutateAsync({ name, color: colorDraft });
       setPage(1);
       message.success('태그를 추가했습니다.');
+      closeEdit();
+    } catch (e) {
+      message.error(e instanceof Error ? e.message : '태그 추가에 실패했습니다.');
     }
-    closeEdit();
   };
 
-  const removeTag = (tag: Tag) => {
-    setTags((prev) => prev.filter((t) => t.id !== tag.id));
-    message.success('태그를 삭제했습니다.');
+  const removeTag = (tag: AdminTag) => {
+    deleteTag.mutate(tag.id, {
+      onSuccess: () => message.success('태그를 삭제했습니다.'),
+      onError: (e) => message.error(e.message),
+    });
   };
 
-  const columns: ColumnsType<Tag> = [
+  const columns: ColumnsType<AdminTag> = [
     {
       title: '태그',
       dataIndex: 'name',
@@ -195,10 +207,12 @@ export function TagsPage() {
           </Button>
           <Popconfirm
             title="이 태그를 삭제하시겠습니까?"
-            description={tag.usageCount > 0 ? `${tag.usageCount}개 콘텐츠에서 사용 중입니다.` : undefined}
+            description={
+              tag.usageCount > 0 ? `${tag.usageCount}개 콘텐츠에서 사용 중입니다.` : undefined
+            }
             okText="삭제"
             cancelText="취소"
-            okButtonProps={{ danger: true }}
+            okButtonProps={{ danger: true, loading: deleteTag.isPending }}
             onConfirm={() => removeTag(tag)}
           >
             <Button size="small" danger>
@@ -231,15 +245,16 @@ export function TagsPage() {
         }
       />
 
-      <FullHeightTable<Tag>
+      <FullHeightTable<AdminTag>
         rowKey="id"
+        loading={isLoading}
         columns={columns}
-        dataSource={filtered}
-        total={filtered.length}
+        dataSource={items}
+        total={total}
         pagination={{
           current: page,
           pageSize,
-          total: filtered.length,
+          total,
           onChange: (nextPage, nextSize) => {
             if (nextSize !== pageSize) {
               setPageSize(nextSize);
@@ -256,9 +271,10 @@ export function TagsPage() {
         open={edit.open}
         maskClosable={false}
         onCancel={closeEdit}
-        onOk={submitEdit}
+        onOk={() => void submitEdit()}
         okText={edit.target ? '수정' : '추가'}
         cancelText="취소"
+        confirmLoading={createTag.isPending || updateTag.isPending}
       >
         <Space direction="vertical" size="middle" style={{ width: '100%', marginTop: 8 }}>
           <div>
@@ -268,25 +284,27 @@ export function TagsPage() {
               onChange={(e) => setNameDraft(e.target.value)}
               placeholder="예: 로맨스"
               maxLength={20}
-              onPressEnter={submitEdit}
+              onPressEnter={() => void submitEdit()}
             />
           </div>
-          <div>
-            <span className="form-label">색상</span>
+          <div style={{ display: 'flex', gap: 24 }}>
             <div>
-              <ColorPicker
-                value={colorDraft}
-                onChange={(c) => setColorDraft(c.toHexString())}
-                presets={[{ label: '추천', colors: TAG_PRESET_COLORS }]}
-                showText
-                disabledAlpha
-              />
+              <span className="form-label">색상</span>
+              <div>
+                <ColorPicker
+                  value={colorDraft}
+                  onChange={(c) => setColorDraft(c.toHexString())}
+                  presets={[{ label: '추천', colors: TAG_PRESET_COLORS }]}
+                  showText
+                  disabledAlpha
+                />
+              </div>
             </div>
-          </div>
-          <div>
-            <span className="form-label">미리보기</span>
             <div>
-              <AntTag color={colorDraft}>{nameDraft.trim() || '태그'}</AntTag>
+              <span className="form-label">미리보기</span>
+              <div style={{ paddingTop: 4 }}>
+                <AntTag color={colorDraft}>{nameDraft.trim() || '태그'}</AntTag>
+              </div>
             </div>
           </div>
         </Space>

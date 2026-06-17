@@ -80,9 +80,9 @@
     </p>
     <div class="grid">
       <a class="dcard" href="creator/index.html">
-        <div class="top"><h3>Creator</h3><span class="badge plan">설계</span></div>
-        <div class="ns">creators/* · directors/*</div>
-        <p>성우 프로필. Account 1:1, AccountApproved 이벤트로 멱등 생성, 삭제 없는 영속 레코드.</p>
+        <div class="top"><h3>Creator</h3><span class="badge ok">구현됨</span></div>
+        <div class="ns">creators/me · admins/creators</div>
+        <p>성우 프로필. Account 1:1, AccountActivedEvent 로 멱등 생성, 삭제 없는 영속 레코드. creators/me 조회·수정(commit-on-attach).</p>
         <div class="tags"><span>이벤트 생성</span><span>Account 1:1</span><span>no-delete</span></div>
       </a>
     </div>

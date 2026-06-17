@@ -32,17 +32,17 @@
       계정 승인 시 <b>이벤트 기반</b>으로 생성되며 <b>삭제되지 않는</b> 영속 레코드다(참여 이력 보존).
     </p>
     <div class="meta">
-      <span class="badge plan">설계</span>
-      <span class="badge ns">creators/* · directors/*</span>
+      <span class="badge ok">구현됨</span>
+      <span class="badge ns">creators/me · admins/creators</span>
       <span class="badge ctx">AR · Creator</span>
       <span class="badge ctx">Account 1:1</span>
     </div>
   </div>
 
-  <div class="note warn">
-    <span class="label">구현 상태.</span> 본 문서는 <strong>설계</strong> 단계다. core-api 에 Creator 모듈은 아직 없고,
-    생성 트리거인 <code>Account.active()</code> 의 <strong>이벤트 발행도 미구현</strong>(현재 <code>active()</code> 는 상태만 바꾸고
-    <code>AccountApproved</code> 를 publish 하지 않음). 구현은 별도 승인 후 진행.
+  <div class="note">
+    <span class="label">구현 상태.</span> Creator 모듈 구현됨 — <code>Account.active()</code> 가 <code>AccountActivedEvent</code> 를 발행하고,
+    <code>AdminCreatorService.@EventHandler</code> 가 CREATOR 계정에 한해 멱등 생성. <code>GET/PUT /creators/me</code>(CreatorGuard) + <code>GET /admins/creators</code> 동작.
+    <strong>예정</strong>: 캐스팅용 <code>directors/creators</code>, File 고아 cron.
   </div>
 
   <section class="section">
@@ -57,7 +57,7 @@
   </section>
 
   <section class="section">
-    <h2><span class="num">02</span> 애그리게이트 — <code>Creator</code> <span style="font-size:12px;font-weight:600;color:var(--faint)">(제안)</span></h2>
+    <h2><span class="num">02</span> 애그리게이트 — <code>Creator</code></h2>
     <p class="desc">Account↔Role 패턴을 따른 soft 1:1 (<code>createForeignKeyConstraints: false</code> + <code>accountId</code> unique)</p>
     <div class="t-scroll">
       <table>
@@ -97,7 +97,7 @@
     <ul class="clean">
       <li>① <code>POST /…/files/presign {originalName, mimeType, size, prefix?}</code> → File(<code>isCommit=false</code>) + presigned PUT URL + <code>fileId</code>.</li>
       <li>② FE 가 presigned URL 로 S3 직접 PUT(Content-Type = mimeType 일치).</li>
-      <li>③ <code>PUT /creators/me/profile { avatarFileId }</code> → 서버가 <b>같은 트랜잭션</b>에서
+      <li>③ <code>PUT /creators/me { avatarFileId }</code> → 서버가 <b>같은 트랜잭션</b>에서
         <code>FileService.commit(fileId, { mimePrefix: 'image/' })</code> 호출:
         <b>S3 HEAD 검증 → <code>isCommit=true</code></b> → <code>creator.avatarFileId</code> 저장.</li>
       <li>④ 이전 <code>avatarFileId</code> 의 File 은 미참조 → cron 정리.</li>
@@ -107,7 +107,7 @@
       클라 주장을 신뢰하지 않고, <b>채택(프로필 저장) 시점에 서버가 HEAD 로 직접 확인</b>해 커밋한다. <a href="../file/index.html">File 도메인</a> 참고.
     </div>
     <div class="note warn">
-      <span class="label">트랜잭션 합성 주의.</span> <code>CreatorService.updateProfile</code> 의 <code>@Transactional</code> 단 하나가 트랜잭션을 연다.
+      <span class="label">트랜잭션 합성 주의.</span> <code>CreatorCreatorService.update</code> 의 <code>@Transactional</code> 단 하나가 트랜잭션을 연다.
       <code>FileService.commit</code> 에는 <b><code>@Transactional</code> 을 붙이지 않는다</b> — 이 데코레이터는 전파(join)를 지원하지 않아 중첩하면
       별도 트랜잭션이 열리고 <code>finally</code> 가 <code>Context.ENTITY_MANAGER</code> 를 비워 <b>바깥 트랜잭션을 깨뜨린다</b>.
       repository 가 컨텍스트 EM 을 읽으므로 commit 은 호출자 트랜잭션에 자연 합성된다.
@@ -118,7 +118,7 @@
     </div>
     <div class="note warn">
       <span class="label">구현 상태.</span> <a href="../file/index.html">File 모듈</a>(<code>admins/files/presign</code> + <code>FileService.commit/resolvePublicUrls</code>)은
-      <strong>구현됨</strong>. 단 <b>creator 측 <code>avatarFileId</code> 컬럼·<code>creators/*</code> presign·고아 cron</b> 은 예정.
+      <strong>구현됨</strong> + Creator 의 <code>avatarFileId</code> 컬럼·<code>PUT /creators/me</code> commit-on-attach 도 구현됨. 단 <b>아바타 업로드용 <code>creators/*</code> presign·고아 cron</b> 은 예정.
     </div>
   </section>
 
@@ -128,7 +128,7 @@
       <table>
         <thead><tr><th>단계</th><th>트리거</th><th>처리</th></tr></thead>
         <tbody>
-          <tr><td><b>생성</b></td><td><code>type=CREATOR</code> &amp; Account → <code>ACTIVE</code>(승인)</td><td><code>AccountApproved</code> 이벤트 → 멱등 핸들러가 빈 프로필 생성</td></tr>
+          <tr><td><b>생성</b></td><td><code>type=CREATOR</code> &amp; Account → <code>ACTIVE</code>(승인)</td><td><code>AccountActivedEvent</code> 이벤트 → 멱등 핸들러가 빈 프로필 생성</td></tr>
           <tr><td><b>프로필 작성</b></td><td>본인(<code>creators/*</code>)</td><td>avatar/bio/nickname 등 채움(여러 번)</td></tr>
           <tr><td><b>하차</b></td><td>Account <code>exit()</code> → <code>EXITED</code></td><td><b>Creator 는 그대로</b>. 별도 이벤트 없음. 활동 후보에서만 제외(account.status 기준)</td></tr>
           <tr><td><b>삭제</b></td><td>—</td><td><b>없음.</b> hard/soft delete 모두 안 함(참여 이력 보존)</td></tr>
@@ -151,7 +151,7 @@
       <li>🔒 <b>삭제 금지</b> — Creator 는 영속 레코드. 캐스팅/녹음/채택이 <code>creatorId</code> 로 참조하므로 항상 resolve 가능해야 한다.</li>
       <li><b>1:1 보장</b> — <code>accountId</code> 유니크. 한 계정에 Creator 는 최대 하나.</li>
       <li><b>멱등 생성</b> — 승인 재호출·at-least-once 대비. <code>accountId</code> 로 이미 있으면 skip(+ 유니크 제약 이중 안전).</li>
-      <li><b>CREATOR 한정</b> — <code>AccountApproved</code> 핸들러는 <code>type === CREATOR</code> 일 때만 생성. ADMIN 승인엔 반응하지 않음.</li>
+      <li><b>CREATOR 한정</b> — <code>AccountActivedEvent</code> 핸들러는 <code>type === CREATOR</code> 일 때만 생성. ADMIN 승인엔 반응하지 않음.</li>
       <li><b>활동 여부 유도</b> — 하차/활성은 Account.status 로 판단. 캐스팅 피커는 <code>Creator JOIN Account WHERE account.status = ACTIVE</code>.</li>
       <li><b>재활성 시 이력 보존</b> — 동일 계정이 다시 활성화돼도 <code>accountId</code> 유니크+멱등으로 <b>같은 Creator 재사용</b> → 과거 참여 이력 유지.</li>
       <li><b>name/email 비복제</b> — Account 에서 조회. 정산 정보도 Creator 가 아니라 별도 Settlement.</li>
@@ -183,14 +183,14 @@
         <thead><tr><th>Method</th><th>Path</th><th>설명</th><th>상태</th></tr></thead>
         <tbody>
           <tr><td><span class="method get">GET</span></td><td><code>/admins/creators</code></td><td>관리자용 Creator 목록(검색·페이지네이션)</td><td><span style="color:#15803d;font-weight:700">구현됨</span></td></tr>
-          <tr><td><span class="method get">GET</span></td><td><code>/creators/me</code></td><td>본인 Creator 프로필 조회(<code>avatarUrl</code> enrich)</td><td><span style="color:var(--faint)">예정</span></td></tr>
-          <tr><td><span class="method put">PUT</span></td><td><code>/creators/me</code></td><td>avatar/bio/nickname 수정(변경 필드만, commit-on-attach)</td><td><span style="color:var(--faint)">예정</span></td></tr>
+          <tr><td><span class="method get">GET</span></td><td><code>/creators/me</code></td><td>본인 Creator 프로필 조회(<code>avatarUrl</code> enrich)</td><td><span style="color:#15803d;font-weight:700">구현됨</span></td></tr>
+          <tr><td><span class="method put">PUT</span></td><td><code>/creators/me</code></td><td>nickname/bio/avatarFileId 수정(변경 필드만, commit-on-attach)</td><td><span style="color:#15803d;font-weight:700">구현됨</span></td></tr>
           <tr><td><span class="method get">GET</span></td><td><code>/directors/creators</code></td><td>캐스팅 피커용 목록(활동 중 성우)</td><td><span style="color:var(--faint)">예정</span></td></tr>
         </tbody>
       </table>
     </div>
     <div class="note">
-      <span class="label">인증.</span> <code>creators/*</code> 는 <b>CreatorGuard</b>(<code>type=CREATOR</code> + <code>status=ACTIVE</code>) 로 보호 예정.
+      <span class="label">인증.</span> <code>creators/*</code> 는 <b>CreatorGuard</b>(<code>type=CREATOR</code> + <code>status=ACTIVE</code>, Creator 를 <code>ContextKey.CREATOR</code> 로 주입) 로 보호.
       로그인은 <a href="../auth/index.html">Auth</a> 의 <code>POST /creators/auth/login/google/desktop</code>(PKCE, 구현됨).
     </div>
     <div class="note">
@@ -221,11 +221,11 @@
     const svg = document.getElementById('flow');
     const C = { manual: '#ea580c', auto: '#2563eb' };
     const STEPS = [
-      { kind: 'manual', title: '승인 요청', sub: 'ADMIN · PUT /admins/accounts/:id/approve' },
-      { kind: 'manual', title: 'Account.active(roleId)', sub: 'status → ACTIVE · publishEvent(AccountApproved{accountId, type})' },
+      { kind: 'manual', title: '승인 요청', sub: 'ADMIN · PUT /admins/accounts/:id/active' },
+      { kind: 'manual', title: 'Account.active(roleId)', sub: 'status → ACTIVE · publishEvent(AccountActivedEvent{accountId, type})' },
       { kind: 'auto', title: '아웃박스 적재', sub: 'DddRepository.save → ddd_events (계정과 같은 트랜잭션)' },
       { kind: 'auto', title: 'CDC 전파', sub: 'Debezium → Kafka' },
-      { kind: 'auto', title: '@EventHandler(AccountApproved)', sub: 'type === CREATOR ? · accountId 멱등 체크' },
+      { kind: 'auto', title: '@EventHandler(AccountActivedEvent)', sub: 'type === CREATOR ? · accountId 멱등 체크' },
       { kind: 'auto', title: 'Creator 생성', sub: 'Creator.of({ accountId }) 저장 · 빈 프로필' },
     ];
     const el = (n, a, t) => {

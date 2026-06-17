@@ -33,4 +33,14 @@ export class Tag extends DddAggregate {
   static of(args: Ctor) {
     return new Tag(args);
   }
+
+  update(args: { name?: string; color?: string; usageCount?: number }) {
+    const changed = this.stripUnchanged(args);
+
+    if (!changed) {
+      return;
+    }
+
+    Object.assign(this, changed);
+  }
 }

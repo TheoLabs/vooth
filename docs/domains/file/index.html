@@ -133,7 +133,8 @@
         <tbody>
           <tr><td><code>presign(input)</code></td><td>키 생성 + File 적재 + presigned URL. (컨트롤러도 이걸 사용)</td></tr>
           <tr><td><code>commit(fileId, { mimePrefix? })</code></td><td><b>commit-on-attach seam.</b> 소유 도메인 저장 트랜잭션에서 호출 — HEAD 검증 후 <code>isCommit=true</code>. <b><code>@Transactional</code> 미부착</b>(호출자 트랜잭션에 합성 — 중첩 시 분리·컨텍스트 손상 방지)</td></tr>
-          <tr><td><code>resolvePublicUrls(ids)</code></td><td>읽기 enrich. <code>fileId[] → Map&lt;id, publicUrl&gt;</code> (응답에 URL 동봉용)</td></tr>
+          <tr><td><code>resolvePublicUrl(fileId?)</code></td><td><b>단건 enrich.</b> <code>fileId → string | null</code>. 없으면 null — 호출부 ternary 제거(예: <code>dto.avatarUrl = await fileService.resolvePublicUrl(creator.avatarFileId)</code>)</td></tr>
+          <tr><td><code>resolvePublicUrls(ids)</code></td><td><b>목록 enrich(일괄, 단일 쿼리).</b> nullable 배열 그대로 받아 필터·중복제거 → <code>Map&lt;id, publicUrl&gt;</code>. N+1 회피</td></tr>
         </tbody>
       </table>
     </div>
