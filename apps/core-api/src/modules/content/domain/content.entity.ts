@@ -3,6 +3,7 @@ import { Tag } from '@modules/tag/domain/tag.entity';
 import { CalendarDate, ContentStatus, type CropBox } from '@vooth/shared';
 import { Column, Entity, JoinTable, ManyToMany, PrimaryGeneratedColumn } from 'typeorm';
 import { ContentSetTagEvent } from './events';
+import { BadRequestException } from '@nestjs/common';
 
 type Ctor = {
   title: string;
@@ -76,5 +77,26 @@ export class Content extends DddAggregate {
     if (addedTagIds.length > 0 || removedTagIds.length > 0) {
       this.publishEvent(new ContentSetTagEvent({ addedTagIds, removedTagIds }));
     }
+  }
+
+  update(args: { title?: string; description?: string; thumbnailFileId?: number; thumbnailCropBox?: CropBox }) {
+    const changed = this.stripUnchanged(args);
+
+    if (!changed) {
+      return;
+    }
+
+    Object.assign(this, changed);
+  }
+
+  remove() {
+    if (this.status !== ContentStatus.DRAFT) {
+      throw new BadRequestException('초안 상태인 컨텐츠만 삭제 가능합니다.', {
+        cause: '초안 상태인 컨텐츠만 삭제 가능합니다. 개발팀에 문의주세요.',
+      });
+    }
+
+    this.deletedAt = new Date();
+    this.publishEvent(new ContentSetTagEvent({ addedTagIds: [], removedTagIds: this.tags.map((t) => t.id) }));
   }
 }

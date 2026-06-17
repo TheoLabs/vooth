@@ -81,6 +81,10 @@ apiClient.interceptors.response.use(
           window.location.assign('/login');
         }
       }
+      // 404 → "페이지를 찾을 수 없습니다" 페이지로 이동.
+      if (axiosError.response?.status === 404 && window.location.pathname !== '/404') {
+        window.location.assign('/404');
+      }
       return Promise.reject(
         new ApiError(axiosError.response?.status, resolveErrorMessage(axiosError)),
       );

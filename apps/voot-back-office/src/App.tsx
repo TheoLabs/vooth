@@ -1,7 +1,8 @@
 import type { ReactElement } from 'react';
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { Route, Routes } from 'react-router-dom';
 import { LoginPage } from './features/auth/LoginPage';
 import { PlaceholderPage } from './pages/PlaceholderPage';
+import { NotFoundPage } from './pages/NotFoundPage';
 import { AppLayout } from './layouts/AppLayout';
 import { ProtectedRoute } from './routes/ProtectedRoute';
 import { ApprovalGate } from './routes/ApprovalGate';
@@ -28,6 +29,7 @@ function App() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/404" element={<NotFoundPage />} />
       <Route element={<ProtectedRoute />}>
         <Route element={<ApprovalGate />}>
           <Route element={<AppLayout />}>
@@ -44,7 +46,7 @@ function App() {
           </Route>
         </Route>
       </Route>
-      <Route path="*" element={<Navigate to="/" replace />} />
+      <Route path="*" element={<NotFoundPage />} />
     </Routes>
   );
 }

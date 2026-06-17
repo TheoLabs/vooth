@@ -1,18 +1,27 @@
 import { useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { useQueryClient } from '@tanstack/react-query';
-import { App as AntApp, Button, Empty, Progress, Select, Space, Tag, Typography } from 'antd';
+import {
+  App as AntApp,
+  Button,
+  Empty,
+  Popconfirm,
+  Progress,
+  Space,
+  Spin,
+  Tag,
+  Typography,
+} from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import { ContentStatus, CONTENT_STATUS_LABEL, CONTENT_STATUS_TRANSITIONS } from '@vooth/shared';
+import { ContentStatus } from '@vooth/shared';
 import { DEFAULT_PAGE_SIZE, FullHeightTable } from '../../components/FullHeightTable';
 import { TableToolbar } from '../../components/TableToolbar';
 import { FilterSelect } from '../../components/FilterSelect';
 import { ContentStatusBadge } from './ContentStatusBadge';
 import { ContentThumb } from './ContentThumb';
 import { ContentFormDrawer, type ContentFormPayload } from './ContentFormDrawer';
-import { CONTENTS_KEY } from './useContents';
-import type { AdminContent } from '../../api/content.api';
-import type { PaginatedResponse } from '../../api/pagination';
+import { useContent, useDeleteContent, useUpdateContent } from './useContents';
+import { uploadImage } from '../../api/file.api';
+import type { UpdateContentInput } from '../../api/content.api';
 import {
   EPISODE_STATUS_DOT,
   EPISODE_STATUS_LABEL,
@@ -28,6 +37,12 @@ function formatDate(iso: string | null): string {
   if (Number.isNaN(d.getTime())) return '-';
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+function sameSet(a: number[], b: number[]): boolean {
+  if (a.length !== b.length) return false;
+  const s = new Set(a);
+  return b.every((x) => s.has(x));
 }
 
 function EpisodeStatusBadge({ status }: { status: EpisodeStatus }) {
@@ -52,34 +67,24 @@ export function ContentDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { message } = AntApp.useApp();
-  const queryClient = useQueryClient();
+  const numId = Number(id);
 
-  // 상세 조회 엔드포인트가 아직 스텁이라, 목록(['contents']) 캐시에서 작품을 찾는다.
-  const base = useMemo(() => {
-    const numId = Number(id);
-    const caches = queryClient.getQueriesData<PaginatedResponse<AdminContent>>({
-      queryKey: [CONTENTS_KEY],
-    });
-    for (const [, data] of caches) {
-      const found = data?.items.find((c) => c.id === numId);
-      if (found) return found;
-    }
-    return null;
-  }, [id, queryClient]);
+  const { data: content, isLoading } = useContent(numId);
+  const update = useUpdateContent();
+  const remove = useDeleteContent();
 
-  const [content, setContent] = useState<AdminContent | null>(base);
-  // 회차는 mock(집계 API 준비 전). 작품 상태에 맞춰 적당한 회차 수를 생성.
-  const [episodes] = useState<Episode[]>(() => {
-    if (!base) return [];
-    const count =
-      base.status === ContentStatus.DRAFT || base.status === ContentStatus.READY
-        ? 0
-        : 8 + (base.id % 6);
-    return makeEpisodes(base, count);
-  });
-
-  const [nextStatus, setNextStatus] = useState<ContentStatus | undefined>();
   const [editOpen, setEditOpen] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+
+  // 회차는 mock(집계 API 준비 전). 작품 상태에 맞춰 적당한 회차 수를 생성.
+  const episodes = useMemo<Episode[]>(() => {
+    if (!content) return [];
+    const count =
+      content.status === ContentStatus.DRAFT || content.status === ContentStatus.READY
+        ? 0
+        : 8 + (content.id % 6);
+    return makeEpisodes(content, count);
+  }, [content]);
 
   // 회차 목록: 검색/필터/페이지네이션
   const [searchInput, setSearchInput] = useState('');
@@ -97,10 +102,18 @@ export function ContentDetailPage() {
     });
   }, [episodes, searchValue, epStatuses]);
 
+  if (isLoading) {
+    return (
+      <div className="bo-page" style={{ alignItems: 'center', justifyContent: 'center' }}>
+        <Spin />
+      </div>
+    );
+  }
+
   if (!content) {
     return (
       <div className="bo-page">
-        <Empty description="존재하지 않는 작품입니다.">
+        <Empty description="작품을 불러오지 못했습니다.">
           <Button type="primary" onClick={() => navigate('/contents')}>
             목록으로
           </Button>
@@ -109,25 +122,41 @@ export function ContentDetailPage() {
     );
   }
 
-  const transitions = CONTENT_STATUS_TRANSITIONS[content.status];
+  const submitEdit = async (payload: ContentFormPayload) => {
+    setSubmitting(true);
+    try {
+      const input: UpdateContentInput = {};
+      if (payload.title !== content.title) input.title = payload.title;
+      if (payload.description !== content.description) input.description = payload.description;
+      if (!sameSet(payload.tagIds, content.tags.map((t) => t.id))) input.tagIds = payload.tagIds;
+      if (payload.thumbnailFile) {
+        input.thumbnailFileId = await uploadImage(payload.thumbnailFile);
+        input.thumbnailCropBox = payload.cropBox ?? { x: 0, y: 0, w: 1, h: 1 };
+      }
 
-  const changeStatus = () => {
-    if (nextStatus === undefined) return;
-    setContent({ ...content, status: nextStatus });
-    message.success(`상태를 '${CONTENT_STATUS_LABEL[nextStatus]}' (으)로 변경했습니다.`);
-    setNextStatus(undefined);
+      if (Object.keys(input).length === 0) {
+        message.info('변경된 내용이 없습니다.');
+        return;
+      }
+
+      await update.mutateAsync({ id: content.id, input });
+      message.success('작품을 수정했습니다.');
+      setEditOpen(false);
+    } catch (e) {
+      message.error(e instanceof Error ? e.message : '작품 수정에 실패했습니다.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
-  const submitEdit = (payload: ContentFormPayload) => {
-    // 수정 엔드포인트 준비 전 → 로컬 mock 반영(제목/소개/태그)
-    setContent({
-      ...content,
-      title: payload.title,
-      description: payload.description,
-      tags: payload.tags,
+  const handleDelete = () => {
+    remove.mutate(content.id, {
+      onSuccess: () => {
+        message.success('작품을 삭제했습니다.');
+        navigate('/contents');
+      },
+      onError: (e) => message.error(e.message),
     });
-    setEditOpen(false);
-    message.success('작품을 수정했습니다.');
   };
 
   const episodeColumns: ColumnsType<Episode> = [
@@ -179,9 +208,18 @@ export function ContentDetailPage() {
         <Button type="text" onClick={() => navigate('/contents')}>
           ← 작품 목록
         </Button>
-        <Button type="primary" onClick={() => setEditOpen(true)}>
-          수정
-        </Button>
+        <Space>
+          <Button onClick={() => setEditOpen(true)}>수정</Button>
+          <Popconfirm
+            title="이 작품을 삭제하시겠습니까?"
+            okText="삭제"
+            cancelText="취소"
+            okButtonProps={{ danger: true, loading: remove.isPending }}
+            onConfirm={handleDelete}
+          >
+            <Button danger>삭제</Button>
+          </Popconfirm>
+        </Space>
       </Space>
 
       {/* 헤더 카드 */}
@@ -218,7 +256,11 @@ export function ContentDetailPage() {
               </Tag>
             ))}
           </div>
-          <Typography.Paragraph type="secondary" style={{ margin: '10px 0 0' }} ellipsis={{ rows: 2 }}>
+          <Typography.Paragraph
+            type="secondary"
+            style={{ margin: '10px 0 0' }}
+            ellipsis={{ rows: 2 }}
+          >
             {content.description}
           </Typography.Paragraph>
 
@@ -230,34 +272,6 @@ export function ContentDetailPage() {
               등록일 <strong>{formatDate(content.createdAt)}</strong>
             </Typography.Text>
           </Space>
-
-          {/* 상태 전이 */}
-          <div style={{ marginTop: 14 }}>
-            {transitions.length ? (
-              <Space>
-                <Select
-                  size="small"
-                  style={{ minWidth: 160 }}
-                  placeholder="상태 전이"
-                  value={nextStatus}
-                  onChange={setNextStatus}
-                  options={transitions.map((s) => ({ value: s, label: CONTENT_STATUS_LABEL[s] }))}
-                />
-                <Button
-                  size="small"
-                  type="primary"
-                  disabled={nextStatus === undefined}
-                  onClick={changeStatus}
-                >
-                  상태 변경
-                </Button>
-              </Space>
-            ) : (
-              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                전이 가능한 상태가 없습니다.
-              </Typography.Text>
-            )}
-          </div>
         </div>
       </div>
 
@@ -295,6 +309,7 @@ export function ContentDetailPage() {
                 <FilterSelect
                   value={epStatuses}
                   options={EPISODE_STATUS_OPTIONS}
+                  dotColorOf={(v) => EPISODE_STATUS_DOT[v]}
                   onChange={(v) => {
                     setEpStatuses(v);
                     setPage(1);
@@ -329,6 +344,7 @@ export function ContentDetailPage() {
       <ContentFormDrawer
         open={editOpen}
         target={content}
+        submitting={submitting}
         onClose={() => setEditOpen(false)}
         onSubmit={submitEdit}
       />

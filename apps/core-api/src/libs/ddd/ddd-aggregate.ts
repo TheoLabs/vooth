@@ -8,19 +8,19 @@ export abstract class DddAggregate {
   private events: DddEvent[] = [];
 
   @CreateDateColumn()
-  readonly createdAt!: Date;
+  readonly createdAt: Date;
 
   @Column({ select: false, nullable: true })
   private createdBy?: string;
 
   @UpdateDateColumn()
-  readonly updatedAt!: Date;
+  readonly updatedAt: Date;
 
   @Column({ select: false, nullable: true })
   private updatedBy?: string;
 
-  @DeleteDateColumn()
-  deletedAt!: Date | null;
+  @DeleteDateColumn({ nullable: true })
+  deletedAt: Date | null;
 
   publishEvent(event: DddEvent) {
     this.events.push(event);

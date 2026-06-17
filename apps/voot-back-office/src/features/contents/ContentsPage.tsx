@@ -10,6 +10,7 @@ import { ContentFormDrawer, type ContentFormPayload } from './ContentFormDrawer'
 import { ContentStatusBadge } from './ContentStatusBadge';
 import { ContentThumb } from './ContentThumb';
 import { useContents, useCreateContent } from './useContents';
+import { useTags } from '../tags/useTags';
 import { uploadImage } from '../../api/file.api';
 import { CONTENT_STATUS_DOT, CONTENT_STATUS_OPTIONS } from './content.types';
 import type { AdminContent } from '../../api/content.api';
@@ -29,6 +30,7 @@ export function ContentsPage() {
   const [searchInput, setSearchInput] = useState('');
   const [searchValue, setSearchValue] = useState('');
   const [statuses, setStatuses] = useState<ContentStatus[]>([]);
+  const [tagIds, setTagIds] = useState<number[]>([]);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
 
@@ -36,15 +38,25 @@ export function ContentsPage() {
   const [submitting, setSubmitting] = useState(false);
   const createContent = useCreateContent();
 
+  // 태그 필터 옵션(실제 태그)
+  const { data: tagData } = useTags({ page: 1, limit: 100 });
+  const tagOptions = (tagData?.items ?? []).map((t) => ({ value: t.id, label: t.name }));
+  const tagColorById = useMemo(() => {
+    const map = new Map<number, string>();
+    (tagData?.items ?? []).forEach((t) => map.set(t.id, t.color));
+    return map;
+  }, [tagData]);
+
   const query = useMemo(
     () => ({
       searchKey: searchValue ? ('title' as const) : undefined,
       searchValue: searchValue || undefined,
       statuses: statuses.length ? statuses : undefined,
+      tagIds: tagIds.length ? tagIds : undefined,
       page,
       limit: pageSize,
     }),
-    [searchValue, statuses, page, pageSize],
+    [searchValue, statuses, tagIds, page, pageSize],
   );
 
   const { data, isLoading } = useContents(query);
@@ -165,6 +177,20 @@ export function ContentsPage() {
                 dotColorOf={(v) => CONTENT_STATUS_DOT[v]}
                 onChange={(v) => {
                   setStatuses(v);
+                  setPage(1);
+                }}
+              />
+            ),
+          },
+          {
+            label: '태그',
+            control: (
+              <FilterSelect
+                value={tagIds}
+                options={tagOptions}
+                dotColorOf={(v) => tagColorById.get(v)}
+                onChange={(v) => {
+                  setTagIds(v);
                   setPage(1);
                 }}
               />

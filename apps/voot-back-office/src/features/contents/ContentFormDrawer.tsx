@@ -4,7 +4,7 @@ import type { CropBox } from '@vooth/shared';
 import { ContentStatus, CONTENT_STATUS_LABEL } from '@vooth/shared';
 import { useTags } from '../tags/useTags';
 import { ThumbnailCropper } from './ThumbnailCropper';
-import { thumbGradient } from './content.types';
+import { ContentThumb } from './ContentThumb';
 import type { AdminContent, ContentTagRef } from '../../api/content.api';
 
 export interface ContentFormPayload {
@@ -117,23 +117,13 @@ export function ContentFormDrawer({
             <ThumbnailCropper file={thumbFile} onChange={setCropBox} />
           ) : (
             <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-              <div
-                style={{
-                  width: 108,
-                  height: 144,
-                  borderRadius: 10,
-                  background: thumbGradient(title || 'vooth'),
-                  flex: 'none',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: '#fff',
-                  fontSize: 30,
-                  fontWeight: 800,
-                }}
-              >
-                {(title || '?').slice(0, 1)}
-              </div>
+              <ContentThumb
+                url={target?.thumbnailUrl ?? null}
+                crop={target?.thumbnailCropBox}
+                title={title || '?'}
+                width={108}
+                height={144}
+              />
               {isEdit && (
                 <Typography.Text type="secondary" style={{ fontSize: 12 }}>
                   현재 썸네일 유지. 변경하려면 이미지를 선택하세요.

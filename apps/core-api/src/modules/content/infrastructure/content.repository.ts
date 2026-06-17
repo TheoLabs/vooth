@@ -40,12 +40,14 @@ export class ContentRepository extends DddRepository<Content> {
     statuses?: ContentStatus[];
     searchKey?: string;
     searchValue?: string;
+    tagIds?: number[];
   }) {
     return this.entityManager.count(this.entityClass, {
       where: stripUndefined({
         id: conditions.id,
         title: conditions.title,
         status: checkInValue(conditions.statuses),
+        tags: { id: checkInValue(conditions.tagIds) },
         ...checkLikeValue({
           searchKey: conditions.searchKey,
           searchValue: conditions.searchValue,

@@ -30,6 +30,7 @@ export interface ContentListQuery {
   searchKey?: 'title';
   searchValue?: string;
   statuses?: ContentStatus[];
+  tagIds?: number[];
   page?: number;
   limit?: number;
   sort?: string;
@@ -58,4 +59,29 @@ export interface CreateContentInput {
 /** 작품 생성. POST /admins/contents */
 export async function createContent(input: CreateContentInput): Promise<void> {
   await apiClient.post('/admins/contents', input);
+}
+
+/** 작품 상세. GET /admins/contents/:id */
+export async function fetchContent(id: number): Promise<AdminContent> {
+  const res = await apiClient.get<AdminContent>(`/admins/contents/${id}`);
+  return res.data;
+}
+
+/** 부분 수정: 변경된 필드만 보낸다. */
+export interface UpdateContentInput {
+  title?: string;
+  description?: string;
+  thumbnailFileId?: number;
+  thumbnailCropBox?: CropBox;
+  tagIds?: number[];
+}
+
+/** 작품 수정. PUT /admins/contents/:id */
+export async function updateContent(id: number, input: UpdateContentInput): Promise<void> {
+  await apiClient.put(`/admins/contents/${id}`, input);
+}
+
+/** 작품 삭제. DELETE /admins/contents/:id */
+export async function deleteContent(id: number): Promise<void> {
+  await apiClient.delete(`/admins/contents/${id}`);
 }

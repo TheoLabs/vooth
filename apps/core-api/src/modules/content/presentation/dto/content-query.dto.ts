@@ -1,7 +1,7 @@
 import { ToArray } from '@libs/decorators';
 import { PaginationDto } from '@libs/utils';
 import { ContentStatus } from '@vooth/shared';
-import { IsEnum, IsIn, IsOptional, IsString } from 'class-validator';
+import { IsEnum, IsIn, IsInt, IsOptional, IsString } from 'class-validator';
 
 class BaseContentQueryDto extends PaginationDto {
   @IsIn(['title'])
@@ -19,4 +19,9 @@ export class AdminContentQueryDto extends BaseContentQueryDto {
   @IsEnum(ContentStatus, { each: true })
   @IsOptional()
   statuses?: ContentStatus[];
+
+  @ToArray('number')
+  @IsInt({ each: true })
+  @IsOptional()
+  tagIds?: number[];
 }
