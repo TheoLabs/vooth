@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Character 도메인 — Vooth core-api</title>
+<link rel="stylesheet" href="../assets/style.css" />
+</head>
+<body>
+<header class="topnav">
+  <div class="inner">
+    <div class="brand"><a href="../index.html" style="color: inherit">Vooth <span>core-api</span> · 도메인</a></div>
+    <nav>
+      <a href="../index.html">Overview</a>
+      <a href="../account/index.html">Account</a>
+      <a href="../creator/index.html">Creator</a>
+      <a href="../file/index.html">File</a>
+      <a href="../role/index.html">Role</a>
+      <a href="../permission/index.html">Permission</a>
+      <a href="../auth/index.html">Auth</a>
+      <a href="../content/index.html">Content</a>
+      <a href="../tag/index.html">Tag</a>
+      <a href="../character/index.html" class="active">Character</a>
+      <a href="../playback/index.html">Playback</a>
+    </nav>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="hero">
+    <div class="eyebrow">Composition · 구성·재생</div>
+    <h1>Character · 등장인물</h1>
+    <p class="lead">
+      작품(Content)의 등장인물. <b>Casting(성우 버전)의 부모</b>이자 <b>대사(Line)가 화자로 참조</b>하는 중심축이다.
+      멀티버전 보이스툰에서 "이 캐릭터를 어떤 성우들이 연기하는가"의 뿌리. 해설(내레이터)도 캐릭터로 둔다.
+    </p>
+    <div class="meta">
+      <span class="badge plan">설계</span>
+      <span class="badge ns">admins/characters</span>
+      <span class="badge ctx">Content 소속</span>
+      <span class="badge ctx">Casting 부모</span>
+    </div>
+  </div>
+
+  <div class="note warn">
+    <span class="label">구현 상태 = 설계.</span> Character는 아직 core-api 모듈로 존재하지 않는다. 본 문서는 합의된 필드·정책을 못 박는 설계 기준이며,
+    상위 구성·재생 모델은 <a href="../playback/index.html">Playback</a> 참고.
+  </div>
+
+  <section class="section">
+    <h2><span class="num">01</span> 책임과 특성</h2>
+    <ul class="clean">
+      <li><b>작품 단위 인물</b> — 캐릭터는 회차(Episode)가 아니라 <b>Content 소속</b>. 성우는 작품 전체에서 그 캐릭터를 연기한다.</li>
+      <li><b>Casting의 부모</b> — 한 캐릭터에 성우 여럿이 붙는다(멀티버전). <code>Character 1:N Casting</code>.</li>
+      <li><b>대사의 화자</b> — <code>Line.characterId</code>가 캐릭터를 참조. 음성 길이는 <i>선택된 Casting의 채택 Recording</i>에서 파생.</li>
+      <li><b>해설도 캐릭터</b> — 내레이션 대사도 Line이라 화자가 필요. <code>NARRATOR</code> 타입 캐릭터로 두어 캐스팅·멀티버전이 그대로 적용된다.</li>
+    </ul>
+  </section>
+
+  <section class="section">
+    <h2><span class="num">02</span> 애그리게이트 — <code>Character</code></h2>
+    <p class="desc">공통 베이스 <code>DddAggregate</code>(<code>id</code>, <code>createdAt/updatedAt/deletedAt</code>, 이벤트)는 생략.</p>
+    <div class="t-scroll">
+      <table>
+        <thead><tr><th>필드</th><th>타입</th><th>null</th><th>설명</th></tr></thead>
+        <tbody>
+          <tr><td><code>contentId</code></td><td>number FK</td><td>✗</td><td>소속 작품(Content 1:N Character)</td></tr>
+          <tr><td><code>name</code></td><td>string</td><td>✗</td><td>캐릭터명. <code>(contentId, name)</code> <b>unique</b></td></tr>
+          <tr><td><code>type</code></td><td>enum</td><td>✗</td><td><code>CharacterType</code> — MAIN/SUPPORTING/EXTRA/NARRATOR (§03)</td></tr>
+          <tr><td><code>description</code></td><td>text</td><td>✓</td><td>성격·배경. <b>성우 연기 맥락</b> + 관리용</td></tr>
+          <tr><td><code>portraitFileId</code></td><td>number</td><td>✓</td><td>캐릭터 참조 이미지(File). 컷 패널과 별개. <b>commit-on-attach</b></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note">
+      <span class="label">제외한 것.</span> <code>order</code>(정렬은 type 우선순위로 대체 §03), <code>gender</code>(필요 시 description), <code>color</code>(연출 UI 필요 시 후속) — MVP에서 의도적으로 뺐다.
+    </div>
+  </section>
+
+  <section class="section">
+    <h2><span class="num">03</span> type — <code>CharacterType</code> &amp; 정렬</h2>
+    <p class="desc">파일: <code>packages/shared/src/character.ts</code> (예정) — 문자열 enum</p>
+    <div class="t-scroll">
+      <table>
+        <thead><tr><th>값</th><th>라벨</th><th>정렬 우선순위</th></tr></thead>
+        <tbody>
+          <tr><td><code>MAIN</code></td><td>주연</td><td>10</td></tr>
+          <tr><td><code>SUPPORTING</code></td><td>조연</td><td>20</td></tr>
+          <tr><td><code>EXTRA</code></td><td>엑스트라</td><td>90</td></tr>
+          <tr><td><code>NARRATOR</code></td><td>내레이터</td><td>95</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <ul class="clean" style="margin-top:14px">
+      <li><b>문자열 enum + append-only</b> — 역할군이 늘면 <b>ENUM 끝에 추가</b>(싼 ALTER). 중간 삽입·재배열(테이블 리빌드) 안 함.</li>
+      <li><b>정렬은 ENUM 순서가 아니라 코드 우선순위 맵</b> — <code>CHARACTER_TYPE_ORDER</code>. ENUM 선언 순서에 정렬을 묶으면 새 역할 추가가 깨지므로 분리한다.</li>
+      <li>우선순위를 <b>띄워서(10/20/90/95)</b> 두어 사이 끼움 여지 확보. 조회: <code>ORDER BY FIELD(type, …), name</code> 또는 앱 메모리 정렬.</li>
+    </ul>
+    <div class="note">
+      <span class="label">역할군 확장 정책.</span> 추가는 <b>dev 수준(가끔)</b>으로 가정 → enum + 코드 맵으로 충분. 운영자가 배포 없이 직접 추가/순서변경하는 그림이 되면 <code>CharacterRole</code> 룩업 테이블(<code>name, priority</code>)로 승격한다.
+    </div>
+  </section>
+
+  <section class="section">
+    <h2><span class="num">04</span> 라이프사이클 · 삭제</h2>
+    <ul class="clean">
+      <li><b>생성</b> — back-office 등록(name, type, 선택 description/portrait). 동일 작품 내 name 중복 거부.</li>
+      <li><b>수정</b> — 부분 수정(변경 필드만, <code>stripUnchanged</code>). name 변경 시 중복 검사.</li>
+      <li><b>삭제 = 보수적</b> — <code>Line.characterId</code>·Casting이 엮이므로 <b>참조 Line이 있으면 삭제 차단</b>. 대사·녹음이 사라지면 안 되기 때문. (Tag의 하드삭제와 대비)</li>
+    </ul>
+    <div class="note">
+      <span class="label">Tag와 대비.</span> Tag는 분류 라벨이라 하드삭제가 맞지만, Character는 대사·캐스팅·녹음이 매달려 있어 <b>참조 무결성을 우선</b>한다.
+    </div>
+  </section>
+
+  <section class="section">
+    <h2><span class="num">05</span> 관계 · 경계</h2>
+    <ul class="clean">
+      <li><b>← Content</b>: <code>contentId</code>로 소속. 작품 삭제/보관과 라이프사이클 연동.</li>
+      <li><b>→ Casting</b>: <code>Character 1:N Casting</code>(성우 후보 = 버전). 캐스팅·검수·멀티버전의 시작점. <a href="../playback/index.html">Playback §02·§04</a>.</li>
+      <li><b>← Line</b>: <code>Line.characterId</code>가 화자로 참조. NARRATOR 포함 모든 대사의 주체.</li>
+      <li><b>화면</b>: 등록·관리는 <b>back-office(admins/characters)</b>. 캐스팅·녹음 화면(maker/tool)은 조회로 참조.</li>
+    </ul>
+  </section>
+
+  <section class="section">
+    <h2><span class="num">06</span> API 표면 — <code>admins/characters</code> <span style="font-size:12px;font-weight:600;color:var(--faint)">(예정)</span></h2>
+    <p class="desc">컨트롤러: <code>presentation/admin-character.controller.ts</code>(예정) · 가드: <code>AdminGuard</code></p>
+    <div class="t-scroll">
+      <table>
+        <thead><tr><th>Method</th><th>Path</th><th>설명</th><th>본문</th></tr></thead>
+        <tbody>
+          <tr><td><span class="method post">POST</span></td><td><code>/admins/characters</code></td><td>생성(작품 내 name 중복 거부)</td><td><code>{ contentId, name, type, description?, portraitFileId? }</code></td></tr>
+          <tr><td><span class="method get">GET</span></td><td><code>/admins/characters?contentId=</code></td><td>작품별 목록(type 우선순위·name 정렬) → <code>{ items, total }</code></td><td>—</td></tr>
+          <tr><td><span class="method put">PUT</span></td><td><code>/admins/characters/:id</code></td><td>수정(변경 필드만)</td><td><code>{ name?, type?, description?, portraitFileId? }</code></td></tr>
+          <tr><td><span class="method del">DELETE</span></td><td><code>/admins/characters/:id</code></td><td>삭제(참조 Line 있으면 차단)</td><td>—</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>
+
+<footer class="page">
+  Source: 설계 합의 (미구현) · 상위 모델 <a href="../playback/index.html">Playback</a> · enum 예정 <code>packages/shared/src/character.ts</code>
+</footer>
+</body>
+</html>

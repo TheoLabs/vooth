@@ -20,6 +20,8 @@
       <a href="auth/index.html">Auth</a>
       <a href="content/index.html">Content</a>
       <a href="tag/index.html">Tag</a>
+      <a href="character/index.html">Character</a>
+      <a href="playback/index.html">Playback</a>
     </nav>
   </div>
 </header>
@@ -106,6 +108,27 @@
         <div class="ns">admins/tags</div>
         <p>콘텐츠 분류 태그 마스터. CRUD + 자유 문자열 color. usageCount는 이벤트 재계산(Content 대기).</p>
         <div class="tags"><span>전역 태그 풀</span><span>hard delete</span><span>usageCount 파생</span></div>
+      </a>
+    </div>
+  </div>
+
+  <div class="ctx-group">
+    <h2>Composition · 구성·재생</h2>
+    <p style="margin: -6px 0 16px; color: var(--muted); font-size: 13.5px">
+      보이스툰의 구성·재생 모델. Content 아래 Character/Episode/Cut, 그리고 컷 타임라인 위의 대사·효과음·시각효과. 전 도메인 설계 단계.
+    </p>
+    <div class="grid">
+      <a class="dcard" href="character/index.html">
+        <div class="top"><h3>Character</h3><span class="badge plan">설계</span></div>
+        <div class="ns">admins/characters</div>
+        <p>작품 등장인물. Casting(성우 버전)의 부모이자 대사(Line)의 화자. 해설은 NARRATOR 타입. type enum + 코드 우선순위 정렬.</p>
+        <div class="tags"><span>Content 소속</span><span>Casting 부모</span><span>NARRATOR</span></div>
+      </a>
+      <a class="dcard" href="playback/index.html">
+        <div class="top"><h3>Playback</h3><span class="badge plan">설계</span></div>
+        <div class="ns">Character · Casting · Episode · Cut · Line · Recording · SoundEffect · CutEffect</div>
+        <p>세로 스크롤 보이스툰의 구성·재생 모델. 멀티버전(시청자 선택) + 풀 앵커 타이밍 — 한 번 저작하고 버전마다 실제 시간으로 해석.</p>
+        <div class="tags"><span>멀티버전</span><span>full-anchor</span><span>캐스팅/녹음/효과</span></div>
       </a>
     </div>
   </div>

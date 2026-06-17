@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>보이스툰 구성·재생 모델 — Vooth core-api</title>
+<link rel="stylesheet" href="../assets/style.css" />
+<style>
+  /* 이 페이지 전용 — 타임라인/구성 시각화 */
+  .tl-legend { display: flex; gap: 20px; flex-wrap: wrap; margin-top: 14px; font-size: 13px; color: var(--muted); }
+  .tl-legend .item { display: flex; align-items: center; gap: 7px; }
+  .tl-legend .chip { width: 14px; height: 14px; border-radius: 4px; border: 1px solid; }
+  .chip-line { background: #eef2ff; border-color: #4f46e5; }
+  .chip-sfx  { background: #fef3c7; border-color: #d97706; }
+  .chip-fx   { background: #f3e8ff; border-color: #7c3aed; }
+  svg.figure { display: block; min-width: 720px; }
+</style>
+</head>
+<body>
+<header class="topnav">
+  <div class="inner">
+    <div class="brand"><a href="../index.html" style="color: inherit">Vooth <span>core-api</span> · 도메인</a></div>
+    <nav>
+      <a href="../index.html">Overview</a>
+      <a href="../account/index.html">Account</a>
+      <a href="../creator/index.html">Creator</a>
+      <a href="../file/index.html">File</a>
+      <a href="../role/index.html">Role</a>
+      <a href="../permission/index.html">Permission</a>
+      <a href="../auth/index.html">Auth</a>
+      <a href="../content/index.html">Content</a>
+      <a href="../tag/index.html">Tag</a>
+      <a href="../character/index.html">Character</a>
+      <a href="../playback/index.html" class="active">Playback</a>
+    </nav>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="hero">
+    <div class="eyebrow">Composition · 구성·재생</div>
+    <h1>보이스툰 구성·재생 모델</h1>
+    <p class="lead">
+      세로 스크롤 웹툰의 각 <b>컷(Cut)</b>에 성우 <b>대사(Line)</b>·효과음(<b>SoundEffect</b>)·시각효과(<b>CutEffect</b>)를 얹어 재생한다.
+      한 캐릭터에 여러 성우 버전이 공존하는 <b>멀티버전(시청자 선택)</b>이라, 타이밍은 절대값이 아니라
+      <b>풀 앵커(anchor) 기반</b>으로 저작하고 <b>버전마다 실제 시간으로 해석(resolve)</b>한다.
+    </p>
+    <div class="meta">
+      <span class="badge plan">설계</span>
+      <span class="badge ctx">멀티버전</span>
+      <span class="badge ctx">full-anchor timing</span>
+      <span class="badge ctx">Character · Casting · Episode · Cut</span>
+      <span class="badge ctx">Line · Recording · SoundEffect · CutEffect</span>
+    </div>
+  </div>
+
+  <div class="note warn">
+    <span class="label">구현 상태 = 전부 설계.</span> 이 페이지의 도메인(Character / Casting / Episode / Cut / Line / Recording / SoundEffect / CutEffect)은
+    <strong>아직 core-api 모듈로 존재하지 않는다.</strong> 서비스 정의를 토대로 합의한 <b>구성·재생 모델</b>을 못 박는 문서이며,
+    각 도메인 구현 시 별도 상세 페이지로 분리한다. 상위 발행 상태 머신은 <a href="../content/index.html">Content</a> 참고.
+  </div>
+
+  <section class="section">
+    <h2><span class="num">01</span> 서비스 정의</h2>
+    <p>
+      <b>보이스툰</b> = 세로 스크롤 웹툰의 각 컷 대사에 성우 목소리를 입히고, 컷 단위 시각 효과·비대사 효과음까지 얹어 재생하는 콘텐츠.
+      한 컷 안에서 일어나는 일은 성격이 다른 <b>세 종류</b>로 나뉜다.
+    </p>
+    <div class="t-scroll">
+      <table>
+        <thead><tr><th>요소</th><th>성격</th><th>캐릭터/성우</th><th>버전</th><th>검수</th><th>만드는 화면</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><code>Line</code> · 대사</td><td>텍스트 + 음성</td>
+            <td>⭕ 캐릭터, 성우(캐스팅)</td><td>⭕ 성우별</td><td>⭕</td>
+            <td>back-office 등록 → vooth-maker 녹음</td>
+          </tr>
+          <tr>
+            <td><code>SoundEffect</code> · 효과음</td><td>오디오(에셋)</td>
+            <td>❌</td><td>❌ 공용</td><td>❌</td>
+            <td>vooth-tool 연출</td>
+          </tr>
+          <tr>
+            <td><code>CutEffect</code> · 시각효과</td><td>비주얼(흔들림 등)</td>
+            <td>❌</td><td>❌ 공용</td><td>❌</td>
+            <td>vooth-tool 연출</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note">
+      <span class="label">멀티버전 = (나).</span> 한 캐릭터에 성우 여럿이 녹음하고, <b>승인된 버전이 모두 발행</b>된다. 시청자는 재생 시 <b>캐릭터별로 들을 성우를 선택</b>한다.
+      그래서 "최종 1명 채택"으로 수렴하지 않고, 같은 컷의 타임라인이 <b>버전마다 다른 실제 시간으로 펼쳐진다</b>(§03).
+    </div>
+  </section>
+
+  <section class="section">
+    <h2><span class="num">02</span> 도메인 맵</h2>
+    <p class="desc">Content 아래 형제로 <b>Character</b>·<b>Episode</b>. 캐릭터의 성우 후보는 <b>Casting</b>(= 버전), 음성은 <b>Recording</b>(Line × Casting)으로 버전별로 존재한다.</p>
+    <div class="diagram-scroll">
+      <svg class="figure" viewBox="0 0 1000 470" role="img" aria-label="보이스툰 도메인 맵">
+        <defs>
+          <marker id="ah" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 Z" fill="#94a3b8" /></marker>
+          <marker id="ahg" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 Z" fill="#16a34a" /></marker>
+          <marker id="ahi" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 Z" fill="#6366f1" /></marker>
+        </defs>
+
+        <!-- structural edges -->
+        <g fill="none" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#ah)">
+          <path d="M500,82 L292,126" />
+          <path d="M500,82 L708,126" />
+          <path d="M270,172 L270,210" />
+          <path d="M730,172 L730,210" />
+          <path d="M715,258 L575,298" />
+          <path d="M728,258 L725,298" />
+          <path d="M745,258 L880,298" />
+          <path d="M542,348 L480,390" />
+        </g>
+        <!-- casting -> creator (성우 선택) -->
+        <path d="M205,235 L127,160" fill="none" stroke="#16a34a" stroke-width="1.6" stroke-dasharray="5 4" marker-end="url(#ahg)" />
+        <!-- casting -> recording (버전) -->
+        <path d="M272,258 C300,330 360,360 432,392" fill="none" stroke="#6366f1" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#ahi)" />
+
+        <!-- edge labels -->
+        <text x="372" y="100" font-size="10.5" fill="#94a3b8">1 : N</text>
+        <text x="592" y="100" font-size="10.5" fill="#94a3b8">1 : N</text>
+        <text x="278" y="196" font-size="10.5" fill="#94a3b8">1 : N</text>
+        <text x="738" y="196" font-size="10.5" fill="#94a3b8">1 : N</text>
+        <text x="492" y="378" font-size="10.5" fill="#94a3b8">1 : N</text>
+        <text x="150" y="190" font-size="10.5" fill="#16a34a" font-weight="700">성우</text>
+        <text x="338" y="356" font-size="10.5" fill="#6366f1" font-weight="700">버전</text>
+
+        <!-- Content -->
+        <g>
+          <rect x="425" y="36" width="150" height="46" rx="9" fill="#fff" stroke="#cbd5e1" stroke-width="1.6" />
+          <text x="500" y="58" text-anchor="middle" font-size="13.5" font-weight="800" fill="#0f172a">Content</text>
+          <text x="500" y="73" text-anchor="middle" font-size="10.5" fill="#64748b">작품 · 발행 단위</text>
+        </g>
+        <!-- Creator -->
+        <g>
+          <rect x="15" y="114" width="112" height="46" rx="9" fill="#fff" stroke="#16a34a" stroke-width="1.6" />
+          <text x="71" y="136" text-anchor="middle" font-size="13" font-weight="800" fill="#0f172a">Creator</text>
+          <text x="71" y="151" text-anchor="middle" font-size="10.5" fill="#64748b">성우</text>
+        </g>
+        <!-- Character -->
+        <g>
+          <rect x="205" y="126" width="130" height="46" rx="9" fill="#fff" stroke="#cbd5e1" stroke-width="1.6" />
+          <text x="270" y="148" text-anchor="middle" font-size="13" font-weight="800" fill="#0f172a">Character</text>
+          <text x="270" y="163" text-anchor="middle" font-size="10.5" fill="#64748b">등장인물</text>
+        </g>
+        <!-- Casting -->
+        <g>
+          <rect x="205" y="212" width="130" height="46" rx="9" fill="#ecfdf5" stroke="#16a34a" stroke-width="1.5" />
+          <text x="270" y="234" text-anchor="middle" font-size="12.5" font-weight="800" fill="#065f46">Casting</text>
+          <text x="270" y="249" text-anchor="middle" font-size="10" fill="#16a34a">버전 = 캐릭터×성우</text>
+        </g>
+        <!-- Episode -->
+        <g>
+          <rect x="665" y="126" width="130" height="46" rx="9" fill="#fff" stroke="#cbd5e1" stroke-width="1.6" />
+          <text x="730" y="148" text-anchor="middle" font-size="13" font-weight="800" fill="#0f172a">Episode</text>
+          <text x="730" y="163" text-anchor="middle" font-size="10.5" fill="#64748b">회차</text>
+        </g>
+        <!-- Cut -->
+        <g>
+          <rect x="665" y="212" width="130" height="46" rx="9" fill="#fff" stroke="#cbd5e1" stroke-width="1.6" />
+          <text x="730" y="234" text-anchor="middle" font-size="13" font-weight="800" fill="#0f172a">Cut</text>
+          <text x="730" y="249" text-anchor="middle" font-size="10.5" fill="#64748b">컷 · 앵커 타임라인</text>
+        </g>
+        <!-- Line -->
+        <g>
+          <rect x="498" y="300" width="120" height="48" rx="9" fill="#eef2ff" stroke="#4f46e5" stroke-width="1.6" />
+          <text x="558" y="322" text-anchor="middle" font-size="13" font-weight="800" fill="#3730a3">Line</text>
+          <text x="558" y="337" text-anchor="middle" font-size="10.5" fill="#6366f1">대사(텍스트)</text>
+        </g>
+        <!-- SoundEffect -->
+        <g>
+          <rect x="658" y="300" width="134" height="48" rx="9" fill="#fef3c7" stroke="#d97706" stroke-width="1.6" />
+          <text x="725" y="322" text-anchor="middle" font-size="13" font-weight="800" fill="#92400e">SoundEffect</text>
+          <text x="725" y="337" text-anchor="middle" font-size="10.5" fill="#b45309">효과음</text>
+        </g>
+        <!-- CutEffect -->
+        <g>
+          <rect x="820" y="300" width="134" height="48" rx="9" fill="#f3e8ff" stroke="#7c3aed" stroke-width="1.6" />
+          <text x="887" y="322" text-anchor="middle" font-size="13" font-weight="800" fill="#6b21a8">CutEffect</text>
+          <text x="887" y="337" text-anchor="middle" font-size="10.5" fill="#7c3aed">시각효과</text>
+        </g>
+        <!-- Recording -->
+        <g>
+          <rect x="388" y="392" width="156" height="48" rx="9" fill="#e0e7ff" stroke="#4f46e5" stroke-width="1.4" />
+          <text x="466" y="414" text-anchor="middle" font-size="12.5" font-weight="800" fill="#3730a3">Recording</text>
+          <text x="466" y="429" text-anchor="middle" font-size="10" fill="#6366f1">Line × Casting · 음성 · take 채택</text>
+        </g>
+      </svg>
+    </div>
+    <div class="note">
+      <span class="label">"성우"는 Casting에서.</span> Content에 성우를 직접 붙이지 않는다. <b>Character → Casting(성우 후보, =버전) → Creator</b>.
+      검수 단위 <a href="../content/index.html">EpisodeReview</a>(회차×성우)는 <b>버전(Casting)별</b>로 돌고, 승인된 버전은 <code>isPublished</code>로 라이브가 된다. Line은 <code>characterId</code>로 캐릭터를 참조한다.
+    </div>
+  </section>
+
+  <section class="section">
+    <h2><span class="num">03</span> 타이밍 — 풀 앵커 + 버전별 해석</h2>
+    <p class="desc">
+      성우마다 같은 대사의 음성 길이가 달라 <b>절대 시간(startAt ms)은 못 쓴다.</b> 모든 요소를 <b>다른 요소(또는 CUT_START)에 앵커</b>로 걸어 한 번만 저작하고,
+      재생할 버전의 음성 길이를 넣어 <b>실제 시간을 그 자리에서 계산(resolve)</b>한다.
+    </p>
+
+    <h3>① 한 번만 저작 — 앵커 그래프 <span style="font-size:12px;color:var(--faint)">(버전 독립)</span></h3>
+    <div class="diagram-scroll">
+      <svg class="figure" viewBox="0 0 1000 240" role="img" aria-label="앵커 그래프 저작">
+        <defs>
+          <marker id="g-ah" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 Z" fill="#94a3b8" /></marker>
+        </defs>
+        <g fill="none" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#g-ah)">
+          <path d="M120,116 L188,95" />
+          <path d="M320,95 L418,95" />
+          <path d="M318,108 C360,150 380,168 416,178" />
+          <path d="M488,118 C520,150 560,166 616,178" />
+        </g>
+        <!-- labels -->
+        <text x="128" y="88"  font-size="10.5" fill="#475569">START +0</text>
+        <text x="338" y="84"  font-size="10.5" fill="#475569">END +200 (gap)</text>
+        <text x="330" y="150" font-size="10.5" fill="#b45309">Line1.END +200</text>
+        <text x="520" y="150" font-size="10.5" fill="#7c3aed">Line2.START −100</text>
+
+        <!-- CUT_START -->
+        <rect x="24" y="96" width="96" height="40" rx="20" fill="#f1f5f9" stroke="#94a3b8" stroke-width="1.4" />
+        <text x="72" y="120" text-anchor="middle" font-size="11.5" font-weight="700" fill="#475569">CUT_START</text>
+        <!-- Line1 -->
+        <rect x="190" y="70" width="130" height="46" rx="9" fill="#eef2ff" stroke="#4f46e5" stroke-width="1.5" />
+        <text x="255" y="90" text-anchor="middle" font-size="12.5" font-weight="800" fill="#3730a3">Line1 "안녕"</text>
+        <text x="255" y="105" text-anchor="middle" font-size="10" fill="#6366f1">char A · 길이=버전</text>
+        <!-- Line2 -->
+        <rect x="420" y="70" width="130" height="46" rx="9" fill="#eef2ff" stroke="#4f46e5" stroke-width="1.5" />
+        <text x="485" y="90" text-anchor="middle" font-size="12.5" font-weight="800" fill="#3730a3">Line2 "뭐야?"</text>
+        <text x="485" y="105" text-anchor="middle" font-size="10" fill="#6366f1">char A · 길이=버전</text>
+        <!-- 두둥 -->
+        <rect x="416" y="158" width="130" height="42" rx="9" fill="#fef3c7" stroke="#d97706" stroke-width="1.5" />
+        <text x="481" y="184" text-anchor="middle" font-size="12" font-weight="700" fill="#92400e">🔊 두둥! (400ms)</text>
+        <!-- SHAKE -->
+        <rect x="616" y="158" width="150" height="42" rx="9" fill="#f3e8ff" stroke="#7c3aed" stroke-width="1.5" />
+        <text x="691" y="184" text-anchor="middle" font-size="12" font-weight="700" fill="#6b21a8">✦ SHAKE (500ms)</text>
+      </svg>
+    </div>
+    <p class="desc" style="margin-top:12px">
+      각 요소는 <code>anchorType</code>·<code>anchorTargetId</code>·<code>anchorEdge(START/END)</code>·<code>offsetMs</code>를 갖는다.
+      <b>풀 앵커</b>라 대사끼리도 서로 앵커할 수 있다 — 예: Line2를 <code>Line1.END −200</code>으로 걸면 두 대사가 200ms <b>겹쳐</b> 말한다.
+    </p>
+
+    <h3>② 버전별 해석 — 같은 저작, 다른 실제 시간</h3>
+    <div class="t-scroll">
+      <table>
+        <thead><tr><th>요소 (앵커)</th><th>성우A <span style="color:#94a3b8">Line1=1000 / Line2=800</span></th><th>성우B <span style="color:#94a3b8">Line1=1300 / Line2=600</span></th></tr></thead>
+        <tbody>
+          <tr><td>Line1 — <code>CUT_START +0</code></td><td>0 – 1000</td><td>0 – 1300</td></tr>
+          <tr><td>Line2 — <code>Line1.END +200</code></td><td>1200 – 2000</td><td>1500 – 2100</td></tr>
+          <tr><td>🔊 두둥 — <code>Line1.END +200</code></td><td>1200 – 1600</td><td>1500 – 1900</td></tr>
+          <tr><td>✦ SHAKE — <code>Line2.START −100</code></td><td>1100 – 1600</td><td>1400 – 1900</td></tr>
+          <tr><td><b>cut hold</b> = max(end)</td><td><b>2000</b></td><td><b>2100</b></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>③ 성우A 해석 결과 (예시)</h3>
+    <div class="diagram-scroll">
+      <svg class="figure" viewBox="0 0 980 230" role="img" aria-label="성우A 해석 타임라인">
+        <text x="14" y="84"  font-size="12.5" font-weight="700" fill="#334155">대사 Line</text>
+        <text x="14" y="128" font-size="12.5" font-weight="700" fill="#334155">효과음 SFX</text>
+        <text x="14" y="172" font-size="12.5" font-weight="700" fill="#334155">시각효과 FX</text>
+        <g fill="#f8fafc">
+          <rect x="120" y="62"  width="820" height="36" rx="6" />
+          <rect x="120" y="106" width="820" height="36" rx="6" />
+          <rect x="120" y="150" width="820" height="36" rx="6" />
+        </g>
+        <!-- Line lane -->
+        <rect x="120.0" y="64" width="372.7" height="32" rx="6" fill="#eef2ff" stroke="#4f46e5" stroke-width="1.4" />
+        <text x="132" y="84" font-size="12" fill="#3730a3">🗣 "안녕" <tspan fill="#6366f1">0–1000</tspan></text>
+        <rect x="567.2" y="64" width="298.2" height="32" rx="6" fill="#eef2ff" stroke="#4f46e5" stroke-width="1.4" />
+        <text x="579" y="84" font-size="12" fill="#3730a3">🗣 "뭐야?" <tspan fill="#6366f1">1200–2000</tspan></text>
+        <!-- SFX lane -->
+        <rect x="567.2" y="108" width="149.1" height="32" rx="6" fill="#fef3c7" stroke="#d97706" stroke-width="1.4" />
+        <text x="579" y="128" font-size="12" fill="#92400e">🔊 두둥!</text>
+        <!-- FX lane -->
+        <rect x="530.0" y="152" width="186.3" height="32" rx="6" fill="#f3e8ff" stroke="#7c3aed" stroke-width="1.4" />
+        <text x="542" y="172" font-size="12" fill="#6b21a8">✦ SHAKE</text>
+        <!-- hold -->
+        <line x1="865.4" y1="52" x2="865.4" y2="200" stroke="#dc2626" stroke-width="1.4" stroke-dasharray="4 3" />
+        <text x="865.4" y="46" text-anchor="middle" font-size="11" font-weight="700" fill="#dc2626">hold = 2000</text>
+        <!-- axis -->
+        <line x1="120" y1="206" x2="940" y2="206" stroke="#cbd5e1" stroke-width="1" />
+        <g font-size="10.5" fill="#94a3b8" text-anchor="middle">
+          <line x1="120"   y1="206" x2="120"   y2="211" stroke="#cbd5e1" /><text x="120"   y="224">0</text>
+          <line x1="306.4" y1="206" x2="306.4" y2="211" stroke="#cbd5e1" /><text x="306.4" y="224">500</text>
+          <line x1="492.7" y1="206" x2="492.7" y2="211" stroke="#cbd5e1" /><text x="492.7" y="224">1000</text>
+          <line x1="679.1" y1="206" x2="679.1" y2="211" stroke="#cbd5e1" /><text x="679.1" y="224">1500</text>
+          <line x1="865.4" y1="206" x2="865.4" y2="211" stroke="#cbd5e1" /><text x="865.4" y="224">2000 (ms)</text>
+        </g>
+      </svg>
+    </div>
+    <div class="tl-legend">
+      <div class="item"><span class="chip chip-line"></span> Line — 캐릭터 대사(음성=버전)</div>
+      <div class="item"><span class="chip chip-sfx"></span> SoundEffect — 효과음</div>
+      <div class="item"><span class="chip chip-fx"></span> CutEffect — 시각 효과</div>
+    </div>
+    <div class="note">
+      <span class="label">핵심.</span> 연출자는 앵커로 <b>한 번만</b> 깐다. 버전 전환은 시스템이 음성 길이를 넣어 다시 계산하므로 성우 수만큼 타임라인을 손대지 않는다.
+      절대 <code>startAt</code>·<code>hold</code>는 <b>저장하지 않는 파생값</b>(버전별 런타임 산출). 앵커 그래프는 <b>비순환(DAG)</b>이어야 한다(검증 필요).
+    </div>
+    <div class="note">
+      <span class="label">연산 위치.</span> 앵커 <b>해석(resolve)·버전 전환 미리보기·렌더</b>는 <b>vooth-tool(Electron 데스크톱)</b> 클라이언트에서 수행한다 —
+      데스크톱 리소스를 쓰므로 버전 조합·실시간 계산 비용은 부담이 아니다. <b>core-api는 저작 데이터(앵커·Recording 메타)만 저장·제공</b>하고
+      절대 시간 계산은 하지 않는다(파생값 미저장과 일관).
+    </div>
+  </section>
+
+  <section class="section">
+    <h2><span class="num">04</span> 구성 요소 — 필드 설계</h2>
+    <p class="desc">공통 베이스 <code>DddAggregate</code>(<code>id</code>, <code>createdAt/updatedAt/deletedAt</code>, 이벤트)는 생략. 파생값은 클라 입력 금지.</p>
+
+    <h3>앵커 (timed element 공통 임베드)</h3>
+    <div class="t-scroll">
+      <table>
+        <thead><tr><th>필드</th><th>타입</th><th>설명</th></tr></thead>
+        <tbody>
+          <tr><td><code>anchorType</code></td><td>enum</td><td><code>CUT_START</code> | <code>LINE</code> | <code>SOUND_EFFECT</code> | <code>CUT_EFFECT</code> — 무엇에 거나</td></tr>
+          <tr><td><code>anchorTargetId</code></td><td>number · null</td><td>대상 요소 id(같은 컷 내 <b>soft ref</b>). <code>CUT_START</code>면 null</td></tr>
+          <tr><td><code>anchorEdge</code></td><td>enum</td><td><code>START</code> | <code>END</code> — 대상의 시작/끝 기준(<code>CUT_START</code>는 START)</td></tr>
+          <tr><td><code>offsetMs</code></td><td>number(±)</td><td>앵커 지점에서의 부호 있는 ms 오프셋</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="desc" style="margin-top:10px">기본값: Line은 <i>직전 Line.END +0</i>(순차), 효과는 <code>CUT_START +0</code>. 검증: 같은 컷·DAG(순환 금지).</p>
+
+    <h3><code>Cut</code> — 컷(재생 컨테이너)</h3>
+    <div class="t-scroll">
+      <table>
+        <thead><tr><th>필드</th><th>타입</th><th>null</th><th>설명</th></tr></thead>
+        <tbody>
+          <tr><td><code>episodeId</code></td><td>number FK</td><td>✗</td><td>소속 회차</td></tr>
+          <tr><td><code>imageFileId</code></td><td>number</td><td>✗</td><td>컷 원본 이미지(File). <b>commit-on-attach</b></td></tr>
+          <tr><td><code>imageCropBox</code></td><td>CropBox json</td><td>✓</td><td>표시 영역(정규화 0~1). 전체면 null. <code>@vooth/shared</code></td></tr>
+          <tr><td><code>imageWidth</code> / <code>imageHeight</code></td><td>number(px)</td><td>✓</td><td>원본 크기(서버 메타·<b>파생</b>). 스크롤 높이·비율 계산</td></tr>
+          <tr><td><code>anchorY</code></td><td>number(0~1)</td><td>✓</td><td>연출: 스크롤 정착 지점(컷 높이 기준 정규화)</td></tr>
+          <tr><td><code>gap</code></td><td>number(px)</td><td>✓</td><td>연출: 다음 컷과의 간격</td></tr>
+          <tr><td><code>holdOverride</code></td><td>number(ms)</td><td>✓</td><td>버전별 hold(파생)에 <b>+여운</b>. null=연장 없음</td></tr>
+          <tr><td><code>order</code></td><td>number</td><td>✗</td><td>회차 내 정렬</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3><code>Line</code> — 대사(텍스트) <span style="font-size:12px;color:var(--faint)">(+앵커)</span></h3>
+    <div class="t-scroll">
+      <table>
+        <thead><tr><th>필드</th><th>타입</th><th>null</th><th>설명</th></tr></thead>
+        <tbody>
+          <tr><td><code>cutId</code></td><td>number FK</td><td>✗</td><td>소속 컷</td></tr>
+          <tr><td><code>characterId</code></td><td>number FK</td><td>✗</td><td>말하는 캐릭터(참조). 음성 길이는 선택된 Casting에서</td></tr>
+          <tr><td><code>text</code></td><td>text</td><td>✗</td><td>대사 텍스트(등록=back-office)</td></tr>
+          <tr><td><code>order</code></td><td>number</td><td>✗</td><td>컷 내 대사 순서(편집·기본 앵커 시드)</td></tr>
+          <tr><td>anchor(4)</td><td>임베드</td><td>—</td><td>위 앵커 필드. 음성 없어도 저작 가능</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note"><span class="label">음성은 Line에 없다.</span> 버전(성우)별로 다르므로 음성은 <b><code>Recording</code>(Line × Casting)</b>에 있다. Line 재생 길이 = 선택 버전의 채택 Recording 길이.</div>
+
+    <h3><code>Casting</code> — 캐릭터 성우 버전 <span style="font-size:12px;color:var(--faint)">(멀티버전 핵심)</span></h3>
+    <div class="t-scroll">
+      <table>
+        <thead><tr><th>필드</th><th>타입</th><th>null</th><th>설명</th></tr></thead>
+        <tbody>
+          <tr><td><code>characterId</code></td><td>number FK</td><td>✗</td><td>대상 캐릭터(Character 1:N Casting)</td></tr>
+          <tr><td><code>creatorId</code></td><td>number FK</td><td>✗</td><td>성우. <code>(characterId, creatorId)</code> unique</td></tr>
+          <tr><td><code>isPublished</code></td><td>boolean</td><td>✗</td><td>이 버전이 라이브인지(검수 승인 후 on). 기본 false</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note"><span class="label">승자 채택 없음.</span> (가) 오디션과 달리 <b>승인된 모든 Casting이 발행</b>된다. 시청자는 재생 시 캐릭터별로 <code>isPublished</code> 버전 중 선택(런타임 매핑; 사전 묶음이 필요하면 후속 <code>CastSet</code>).</div>
+
+    <h3><code>Recording</code> — 녹음 테이크 <span style="font-size:12px;color:var(--faint)">(Line × Casting)</span></h3>
+    <div class="t-scroll">
+      <table>
+        <thead><tr><th>필드</th><th>타입</th><th>null</th><th>설명</th></tr></thead>
+        <tbody>
+          <tr><td><code>lineId</code></td><td>number FK</td><td>✗</td><td>대상 대사</td></tr>
+          <tr><td><code>castingId</code></td><td>number FK</td><td>✗</td><td>버전(캐릭터×성우). <code>casting.characterId == line.characterId</code> 검증</td></tr>
+          <tr><td><code>audioFileId</code></td><td>number</td><td>✗</td><td>음성(File). <b>commit-on-attach</b></td></tr>
+          <tr><td><code>duration</code></td><td>number(ms)</td><td>✓</td><td>음성 길이(<b>파생</b>). 타임라인 해석 입력</td></tr>
+          <tr><td><code>isAdopted</code></td><td>boolean</td><td>✗</td><td>같은 <code>(lineId, castingId)</code>의 여러 take 중 사용본. 버전 내 1개 true</td></tr>
+          <tr><td><code>recordedAt</code></td><td>datetime</td><td>✓</td><td>제출 시각</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note"><span class="label">검수·전이.</span> 검수는 <b>버전(회차×성우)별</b>로 <a href="../content/index.html">EpisodeReview</a>에서. 첫 Recording 제출 시 이벤트 → Content <code>READY→RECORDING</code>. take 채택(<code>isAdopted</code>)은 연출자(vooth-tool).</div>
+
+    <h3><code>SoundEffect</code> — 효과음 <span style="font-size:12px;color:var(--faint)">(공용·+앵커)</span></h3>
+    <div class="t-scroll">
+      <table>
+        <thead><tr><th>필드</th><th>타입</th><th>null</th><th>설명</th></tr></thead>
+        <tbody>
+          <tr><td><code>cutId</code></td><td>number FK</td><td>✗</td><td>소속 컷</td></tr>
+          <tr><td><code>audioFileId</code></td><td>number</td><td>✗</td><td>효과음 오디오(File). <b>MVP=컷마다 업로드</b>. commit-on-attach</td></tr>
+          <tr><td><code>audioDuration</code></td><td>number(ms)</td><td>✓</td><td>길이(<b>파생</b>)</td></tr>
+          <tr><td><code>label</code></td><td>string</td><td>✓</td><td>표시 라벨("두둥!", "솨아아~")</td></tr>
+          <tr><td><code>volume</code></td><td>number(0~1)</td><td>✓</td><td>믹싱 음량(기본 1.0)</td></tr>
+          <tr><td>anchor(4)</td><td>임베드</td><td>—</td><td>대사/CUT_START에 동기화</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3><code>CutEffect</code> — 시각 효과 <span style="font-size:12px;color:var(--faint)">(공용·+앵커)</span></h3>
+    <div class="t-scroll">
+      <table>
+        <thead><tr><th>필드</th><th>타입</th><th>null</th><th>설명</th></tr></thead>
+        <tbody>
+          <tr><td><code>cutId</code></td><td>number FK</td><td>✗</td><td>소속 컷</td></tr>
+          <tr><td><code>type</code></td><td>enum</td><td>✗</td><td><code>CutEffectType</code>(SHAKE / ZOOM / FLASH …) — <code>@vooth/shared</code></td></tr>
+          <tr><td><code>params</code></td><td>json</td><td>✓</td><td>효과별 파라미터(강도·방향·배율). MVP=json+DTO 검증</td></tr>
+          <tr><td><code>duration</code></td><td>number(ms)</td><td>✗</td><td>지속(명시). 컷 전체면 CUT_START 앵커 + duration=hold</td></tr>
+          <tr><td>anchor(4)</td><td>임베드</td><td>—</td><td>대사/CUT_START에 동기화</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note">
+      <span class="label">단위·규칙.</span>
+      <b>ms(정수)</b> = offsetMs / duration / holdOverride / Recording.duration / audioDuration ·
+      <b>정규화 0~1</b> = anchorY / cropBox / volume ·
+      <b>px</b> = gap / imageWidth·Height ·
+      <b>commit-on-attach</b> = Cut.imageFileId / Recording.audioFileId / SoundEffect.audioFileId ·
+      <b>저장 안 함(파생)</b> = 절대 startAt · hold ·
+      <b>공유 신규</b> = <code>CutEffectType</code>(CropBox 재사용).
+    </div>
+  </section>
+
+  <section class="section">
+    <h2><span class="num">05</span> 제작 파이프라인</h2>
+    <div class="t-scroll">
+      <table>
+        <thead><tr><th>#</th><th>단계</th><th>앱</th><th>산출물</th><th>Content 상태</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td>등록</td><td>back-office</td><td>Cut(이미지) · Line(text·character·기본 앵커)</td><td>DRAFT → READY</td></tr>
+          <tr><td>2</td><td>캐스팅</td><td>back-office</td><td>캐릭터별 Casting 후보 N (멀티버전)</td><td>—</td></tr>
+          <tr><td>3</td><td>녹음</td><td>vooth-maker</td><td>버전별 Recording (병렬·부분 진행)</td><td>READY → RECORDING</td></tr>
+          <tr><td>4</td><td>검수</td><td>vooth-tool</td><td>버전(회차×성우)별 승인 → <code>isPublished</code></td><td>REVIEWING ↔ APPROVED</td></tr>
+          <tr><td>5</td><td>연출/제작</td><td>vooth-tool</td><td>앵커 조정(오버랩 포함) · 효과음/시각효과 · take 채택 · hold 여운 · 버전 전환 미리보기 · 렌더</td><td>(제작)</td></tr>
+          <tr><td>6</td><td>발행</td><td>—</td><td>예약/발행</td><td>SCHEDULED → PUBLISHED</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note">
+      <span class="label">연출 게이트.</span> 앵커 저작은 음성 길이 없이도 가능. 미리보기/렌더는 해당 <b>버전 음성이 있을 때 정확</b>하다.
+      "전원 녹음 완료"를 기다리지 않고, 버전이 준비되는 대로 그 버전을 미리보기/발행할 수 있다.
+    </div>
+  </section>
+
+  <section class="section">
+    <h2><span class="num">06</span> 확정된 설계 결정</h2>
+    <div class="t-scroll">
+      <table>
+        <thead><tr><th>주제</th><th>결정</th><th>이유</th></tr></thead>
+        <tbody>
+          <tr><td>멀티캐스팅</td><td><b>(나) 멀티버전</b> — 승인된 모든 성우 버전 발행, 시청자가 캐릭터별 음성 선택</td><td>승자 1명 수렴 안 함. 같은 컷이 버전마다 다른 타임라인</td></tr>
+          <tr><td>타이밍</td><td><b>풀 앵커</b> — 모든 요소가 CUT_START/다른 요소에 anchor(START/END+offset). 대사끼리 오버랩 가능</td><td>버전마다 음성 길이가 달라 절대 ms 불가. 동기화·겹말 표현</td></tr>
+          <tr><td>절대 시간</td><td>startAt / hold <b>저장 안 함</b> — 버전별 런타임 resolve</td><td>버전 전환 시 자동 재계산. 저작은 1회</td></tr>
+          <tr><td>캐스팅</td><td><b>(B) Casting 엔티티</b> + <code>isPublished</code></td><td>캐릭터 1:N 성우. 버전 = Casting</td></tr>
+          <tr><td>Recording</td><td><b>(Line × Casting)</b>, <code>isAdopted</code>로 버전 내 take 선택</td><td>버전별 음성 + 재녹음 이력</td></tr>
+          <tr><td>요소 저장</td><td>Cut/Line/Recording/SoundEffect/CutEffect <b>독립 AR</b> + <b>폴리모픽 앵커(soft ref)</b></td><td>앱별 쓰기 분산. 앵커는 컷 내 id 참조(앱단 검증)</td></tr>
+          <tr><td>효과음 에셋</td><td><b>(A) 컷마다 업로드 — MVP</b> (<code>audioFileId</code>)</td><td>MVP 우선. 재사용 라이브러리는 후속</td></tr>
+          <tr><td>단위</td><td>시간 <b>ms</b> · anchorY/cropBox/volume <b>0~1</b> · gap/이미지 <b>px</b></td><td>오디오 동기화는 ms, 레이아웃은 해상도 독립</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note">
+      <span class="label">대안 메모.</span> 풀 앵커는 요소 간 단일 id 공간이 편해 <b>통합 <code>CutElement</code> 테이블(kind 판별)</b>도 후보였으나,
+      라이프사이클(Line만 캐릭터·녹음 연계)과 타입별 컬럼을 살리려 <b>독립 테이블 + 폴리모픽 앵커</b>를 택했다. 앵커 참조 무결성은 앱 레이어 검증으로 보강한다.
+    </div>
+  </section>
+
+  <section class="section">
+    <h2><span class="num">07</span> 화면 경계 (CLAUDE.md)</h2>
+    <ul class="clean">
+      <li><b>voot-back-office (등록/관리)</b> — Content·Episode·Cut·Character·Casting·<b>Line 텍스트</b> 등록. 연출 UI 없음.</li>
+      <li><b>vooth-maker (녹음)</b> — 성우가 캐스팅된 캐릭터 Line의 <b>음성(Recording)</b> 녹음 → 검수 요청.</li>
+      <li><b>vooth-tool (연출/제작)</b> — 앵커·SoundEffect·CutEffect 배치, take 채택, hold 여운, 연속 스크롤·버전 전환 미리보기, 렌더.</li>
+      <li><b>데이터 모델은 core-api</b> — cropBox/anchorY/gap/anchor/offsetMs/duration 등은 전부 백엔드 소유.</li>
+    </ul>
+    <div class="note">
+      <span class="label">다음 작업.</span> 멀티버전의 뿌리인 <b>Character + Casting</b> 부터 구현 권장. 이후 Episode → Cut → Line → Recording → (연출) SoundEffect/CutEffect.
+    </div>
+  </section>
+</div>
+
+<footer class="page">
+  Source: 서비스 정의 + 설계 합의 (미구현) · 화면 경계 <code>CLAUDE.md</code> · 상위 발행 상태 <a href="../content/index.html">Content</a>
+</footer>
+</body>
+</html>

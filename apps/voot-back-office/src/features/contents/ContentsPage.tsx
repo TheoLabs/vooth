@@ -9,6 +9,7 @@ import { FilterSelect } from '../../components/FilterSelect';
 import { ContentFormDrawer, type ContentFormPayload } from './ContentFormDrawer';
 import { ContentStatusBadge } from './ContentStatusBadge';
 import { ContentThumb } from './ContentThumb';
+import { ContentWorkflowDialog } from './ContentWorkflowDialog';
 import { useContents, useCreateContent } from './useContents';
 import { useTags } from '../tags/useTags';
 import { uploadImage } from '../../api/file.api';
@@ -35,6 +36,7 @@ export function ContentsPage() {
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
 
   const [formOpen, setFormOpen] = useState(false);
+  const [workflowOpen, setWorkflowOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const createContent = useCreateContent();
 
@@ -198,9 +200,12 @@ export function ContentsPage() {
           },
         ]}
         actions={
-          <Button type="primary" onClick={() => setFormOpen(true)}>
-            작품 등록
-          </Button>
+          <Space>
+            <Button onClick={() => setWorkflowOpen(true)}>상태 흐름</Button>
+            <Button type="primary" onClick={() => setFormOpen(true)}>
+              작품 등록
+            </Button>
+          </Space>
         }
       />
 
@@ -236,6 +241,8 @@ export function ContentsPage() {
         onClose={() => setFormOpen(false)}
         onSubmit={submitCreate}
       />
+
+      <ContentWorkflowDialog open={workflowOpen} onClose={() => setWorkflowOpen(false)} />
     </div>
   );
 }

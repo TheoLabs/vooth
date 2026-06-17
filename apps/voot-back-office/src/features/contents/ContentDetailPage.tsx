@@ -249,9 +249,9 @@ export function ContentDetailPage() {
             </Typography.Title>
             <ContentStatusBadge status={content.status} />
           </Space>
-          <div style={{ marginTop: 6 }}>
+          <div style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 8 }}>
             {content.tags.map((t) => (
-              <Tag key={t.id} color={t.color}>
+              <Tag key={t.id} color={t.color} style={{ marginInlineEnd: 0 }}>
                 {t.name}
               </Tag>
             ))}
