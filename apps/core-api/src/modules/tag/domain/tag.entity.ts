@@ -34,7 +34,7 @@ export class Tag extends DddAggregate {
     return new Tag(args);
   }
 
-  update(args: { name?: string; color?: string; usageCount?: number }) {
+  update(args: { name?: string; color?: string }) {
     const changed = this.stripUnchanged(args);
 
     if (!changed) {
@@ -42,5 +42,9 @@ export class Tag extends DddAggregate {
     }
 
     Object.assign(this, changed);
+  }
+
+  setUsageCount(usageCount: number) {
+    this.usageCount = usageCount;
   }
 }

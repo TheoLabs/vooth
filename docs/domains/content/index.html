@@ -29,13 +29,13 @@
     <div class="eyebrow">Content · 발행</div>
     <h1>Content · 콘텐츠 상태</h1>
     <p class="lead">
-      웹툰 콘텐츠의 제작 → 검수 → 발행 라이프사이클. 7개 상태와 화이트리스트 기반 전이로 표현되며,
+      웹툰 콘텐츠의 제작 → 검수 → 발행 라이프사이클. 8개 상태와 화이트리스트 기반 전이로 표현되며,
       회차 단위 검수(EpisodeReview)의 롤업과 스케줄러 발행이 자동 전이를 만든다.
     </p>
     <div class="meta">
       <span class="badge plan">설계</span>
       <span class="badge ns">admins/contents</span>
-      <span class="badge ctx">7-state machine</span>
+      <span class="badge ctx">8-state machine</span>
       <span class="badge ctx">@vooth/shared</span>
     </div>
   </div>
@@ -54,7 +54,8 @@
         <thead><tr><th>값</th><th>라벨</th><th>의미</th></tr></thead>
         <tbody>
           <tr><td><code>DRAFT</code></td><td>초안</td><td>작성/편집 단계</td></tr>
-          <tr><td><code>RECORDING</code></td><td>녹음 중</td><td>회차 녹음 진행(성우 작업 대상)</td></tr>
+          <tr><td><code>READY</code></td><td>녹음 대기</td><td>초안 완료, 녹음 대기(성우 작업 대상)</td></tr>
+          <tr><td><code>RECORDING</code></td><td>녹음 중</td><td>회차 녹음 진행 중</td></tr>
           <tr><td><code>REVIEWING</code></td><td>검수 중</td><td>모든 회차 검수 진행/콘텐츠 단위 검수</td></tr>
           <tr><td><code>APPROVED</code></td><td>검수 완료</td><td>검수자 승인 완료</td></tr>
           <tr><td><code>SCHEDULED</code></td><td>발행 대기</td><td>발행 예정일 예약됨</td></tr>
@@ -69,7 +70,7 @@
     <h2><span class="num">02</span> 상태 머신</h2>
     <p class="desc">전이 검증은 <code>canTransitionContent(from, to)</code> + <code>CONTENT_STATUS_TRANSITIONS</code> 화이트리스트로 일원화.</p>
     <div class="diagram-scroll">
-      <svg id="sm" class="statemachine" viewBox="0 0 1440 330" role="img" aria-label="콘텐츠 상태 머신"></svg>
+      <svg id="sm" class="statemachine" viewBox="0 0 1660 330" role="img" aria-label="콘텐츠 상태 머신"></svg>
     </div>
     <div class="legend">
       <div class="item"><span class="swatch" style="border-color: #2563eb"></span> 자동 (도메인 롤업 · 스케줄러)</div>
@@ -91,7 +92,8 @@
     <h2><span class="num">04</span> 불변식 · 정책</h2>
     <ul class="clean">
       <li>🔒 <b>PUBLISHED 이후 회귀 없음</b> — 발행에 도달하면 발행 이전 상태(DRAFT~SCHEDULED)로 가는 경로가 화이트리스트에 없다. <code>ARCHIVED ⇄ PUBLISHED</code> 만 가능.</li>
-      <li><b>DRAFT 는 단방향</b> — <code>DRAFT → RECORDING</code> 만, 역방향 없음(첫 회차가 녹음에 진입할 때 자동).</li>
+      <li><b>DRAFT → READY 는 관리자 수동</b> — 초안 작업 완료는 운영자 책임이라 관리자가 직접 전이시킨다(자동 아님).</li>
+      <li><b>READY → RECORDING 는 자동</b> — 콘텐츠 소속 에피소드에 성우가 1명이라도 녹음을 진입하면 자동 전이. 역방향 없음(녹음 시작 이후 READY로 회귀 안 함).</li>
       <li><b>RECORDING ⇄ REVIEWING 자동 롤업</b> — 모든 회차 검수 완료 시 REVIEWING, 회차가 검수에서 회귀하면 다시 RECORDING.</li>
       <li><b>REVIEWING ⇄ APPROVED 수동</b> — 검수자가 완료(APPROVED) / 재검수(REVIEWING).</li>
       <li><b>APPROVED ⇄ SCHEDULED</b> — <code>scheduledPublishAt</code> 설정 시 SCHEDULED, 해제 시 APPROVED.</li>
@@ -123,6 +125,7 @@
   // packages/shared/src/content.ts 와 1:1
   const STATES = [
     { key: 'DRAFT',     label: '초안',     color: '#64748b' },
+    { key: 'READY',     label: '녹음 대기', color: '#d97706' },
     { key: 'RECORDING', label: '녹음 중',   color: '#2563eb' },
     { key: 'REVIEWING', label: '검수 중',   color: '#7c3aed' },
     { key: 'APPROVED',  label: '검수 완료', color: '#059669' },
@@ -131,7 +134,8 @@
     { key: 'ARCHIVED',  label: '보관',     color: '#475569' },
   ];
   const TRANS = [
-    { from: 'DRAFT',     to: 'RECORDING', kind: 'auto',   label: '첫 회차 녹음',   curve: -50, desc: '회차 하나라도 녹음 진입(자동)' },
+    { from: 'DRAFT',     to: 'READY',     kind: 'manual', label: '초안 완료',     curve: -50, desc: '관리자가 초안 작업 완료 처리(수동)' },
+    { from: 'READY',     to: 'RECORDING', kind: 'auto',   label: '녹음 시작',     curve: -50, desc: '성우 1명이라도 소속 에피소드 녹음 진입(자동)' },
     { from: 'RECORDING', to: 'REVIEWING', kind: 'auto',   label: '전 회차 검수완료', curve: -50, desc: '모든 회차 검수 완료 롤업(자동)' },
     { from: 'REVIEWING', to: 'RECORDING', kind: 'auto',   label: '검수 회귀',      curve: -50, desc: '회차가 검수 회귀하면 롤백(자동)' },
     { from: 'REVIEWING', to: 'APPROVED',  kind: 'manual', label: '검수 완료',      curve: -50, desc: '검수자 수동 완료' },

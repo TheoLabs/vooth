@@ -6,6 +6,7 @@
  */
 export enum ContentStatus {
   DRAFT = 'draft', // 초안
+  READY = 'ready', // 녹음 대기
   RECORDING = 'recording', // 녹음 중
   REVIEWING = 'reviewing', // 검수 중
   APPROVED = 'approved', // 검수 완료
@@ -16,7 +17,8 @@ export enum ContentStatus {
 
 /**
  * 허용 상태 전이(화이트리스트).
- * - DRAFT→RECORDING : 회차 하나라도 녹음 진입(자동). 역방향 없음.
+ * - DRAFT→READY : 관리자 수동(초안 작업 완료 = 운영자 책임).
+ * - READY→RECORDING : 성우 1명이라도 콘텐츠 소속 에피소드 녹음 진입(자동). 역방향 없음.
  * - RECORDING↔REVIEWING : 모든 회차 검수 완료/회귀(자동 롤업).
  * - REVIEWING→APPROVED : 검수자 수동 완료. APPROVED→REVIEWING : 재검수.
  * - APPROVED↔SCHEDULED : 발행 예정일 설정/해제.
@@ -24,7 +26,8 @@ export enum ContentStatus {
  * - PUBLISHED↔ARCHIVED : 관리자 수동. (발행 이전으로의 회귀 경로는 없음)
  */
 export const CONTENT_STATUS_TRANSITIONS: Record<ContentStatus, ContentStatus[]> = {
-  [ContentStatus.DRAFT]: [ContentStatus.RECORDING],
+  [ContentStatus.DRAFT]: [ContentStatus.READY],
+  [ContentStatus.READY]: [ContentStatus.RECORDING],
   [ContentStatus.RECORDING]: [ContentStatus.REVIEWING],
   [ContentStatus.REVIEWING]: [ContentStatus.RECORDING, ContentStatus.APPROVED],
   [ContentStatus.APPROVED]: [ContentStatus.REVIEWING, ContentStatus.SCHEDULED],
@@ -41,6 +44,7 @@ export function canTransitionContent(from: ContentStatus, to: ContentStatus): bo
 /** 콘텐츠 상태 한글 라벨(표시/에러용). */
 export const CONTENT_STATUS_LABEL: Record<ContentStatus, string> = {
   [ContentStatus.DRAFT]: '초안',
+  [ContentStatus.READY]: '녹음 대기',
   [ContentStatus.RECORDING]: '녹음 중',
   [ContentStatus.REVIEWING]: '검수 중',
   [ContentStatus.APPROVED]: '검수 완료',
