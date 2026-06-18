@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Casting 도메인 — Vooth core-api</title>
+<link rel="stylesheet" href="../assets/style.css" />
+</head>
+<body>
+<header class="topnav"><div class="inner" id="site-nav"></div></header>
+
+<div class="wrap">
+  <div class="hero">
+    <div class="eyebrow">Composition · 구성·재생</div>
+    <h1>Casting · 캐스팅(성우 버전)</h1>
+    <p class="lead">
+      캐릭터에 성우를 배정한 단위. 멀티버전 보이스툰에서 <b>하나의 캐릭터에 붙는 성우 후보 = 버전</b>이다.
+      <code>Character 1:N Casting → Creator</code>. 음성(<a href="../playback/index.html">Recording</a>)의 버전 좌표이자, 검수(회차×성우)·발행의 단위.
+    </p>
+    <div class="meta">
+      <span class="badge plan">설계</span>
+      <span class="badge ns">admins/characters/:characterId/castings</span>
+      <span class="badge ctx">멀티버전</span>
+      <span class="badge ctx">Character ↔ Creator</span>
+    </div>
+  </div>
+
+  <div class="note warn">
+    <span class="label">구현 상태 = 설계.</span> Casting은 아직 core-api 모듈로 존재하지 않는다. 본 문서는 합의된 필드·정책 기준이며,
+    상위 구성·재생 모델은 <a href="../playback/index.html">Playback</a>, 부모는 <a href="../character/index.html">Character</a> 참고.
+  </div>
+
+  <section class="section">
+    <h2><span class="num">01</span> 책임과 특성</h2>
+    <ul class="clean">
+      <li><b>버전 = 캐스팅</b> — 멀티버전(시청자 선택)에서 한 캐릭터의 "성우 A판/B판"이 각각 Casting 한 건. <code>(characterId, creatorId)</code>로 유일.</li>
+      <li><b>승자 채택 없음</b> — 오디션처럼 1명으로 수렴하지 않는다. <b>검수 통과한 모든 Casting이 발행</b>(<code>isPublished</code>)되어 시청자가 캐릭터별로 고른다.</li>
+      <li><b>Recording의 버전 좌표</b> — 음성은 <code>Recording(Line × Casting)</code>. 같은 대사라도 Casting마다 다른 음성·길이를 가진다(타임라인 버전별 해석의 입력).</li>
+      <li><b>검수 단위</b> — <a href="../content/index.html">EpisodeReview</a>(회차 × 성우)의 "성우"가 곧 이 Casting. 버전별로 검수되고 통과 시 라이브.</li>
+    </ul>
+  </section>
+
+  <section class="section">
+    <h2><span class="num">02</span> 애그리게이트 — <code>Casting</code></h2>
+    <p class="desc">공통 베이스 <code>DddAggregate</code>(<code>id</code>, <code>createdAt/updatedAt/deletedAt</code>, 이벤트)는 생략.</p>
+    <div class="t-scroll">
+      <table>
+        <thead><tr><th>필드</th><th>타입</th><th>null</th><th>설명</th></tr></thead>
+        <tbody>
+          <tr><td><code>characterId</code></td><td>number</td><td>✗</td><td>대상 캐릭터(Character 1:N Casting). <b>논리 FK</b> + <b>INDEX</b></td></tr>
+          <tr><td><code>creatorId</code></td><td>number</td><td>✗</td><td>성우(Creator). <b>논리 FK</b> + <b>INDEX</b></td></tr>
+          <tr><td><code>isPublished</code></td><td>boolean</td><td>✗</td><td>이 버전이 라이브인지(시청자 선택 대상). 기본 <code>false</code> → 검수 승인 시 <code>true</code> (§03)</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note">
+      <span class="label">유일성.</span> <code>(characterId, creatorId)</code>는 중복 불가(한 캐릭터에 같은 성우 두 번 배정 안 함). Character와 동일하게 <b>앱 레벨 검사</b>로 두되, 엄격히 가면 DB unique로 승격.
+    </div>
+  </section>
+
+  <section class="section">
+    <h2><span class="num">03</span> <code>isPublished</code> — 발행 토글</h2>
+    <ul class="clean">
+      <li><b>기본 false</b> — 캐스팅을 만들어도 바로 공개되지 않는다(녹음·검수 전).</li>
+      <li><b>검수 승인 시 true</b> — 해당 버전(회차×성우)의 <a href="../content/index.html">EpisodeReview</a>가 통과하면 라이브로 전환(이벤트 연동, <b>추후</b>). MVP에선 관리자 수동 토글로 대체 가능.</li>
+      <li><b>비공개 전환</b> — 문제 버전은 <code>false</code>로 내려 시청자 노출에서 제외(데이터·녹음은 보존).</li>
+      <li><b>재생 선택</b> — 시청자는 캐릭터별 <code>isPublished</code> 버전 중 고른다(런타임 매핑; 사전 묶음이 필요하면 후속 <code>CastSet</code>).</li>
+    </ul>
+  </section>
+
+  <section class="section">
+    <h2><span class="num">04</span> 라이프사이클 · 삭제</h2>
+    <ul class="clean">
+      <li><b>생성(캐스팅 지정)</b> — back-office가 캐릭터에 성우를 배정. character·creator 존재 검증 + <code>(characterId, creatorId)</code> 중복 거부.</li>
+      <li><b>발행/비공개</b> — <code>isPublished</code> 토글(§03).</li>
+      <li><b>해제(삭제) = 보수적</b> — <code>Recording(Line × Casting)</code>이 매달리므로 <b>녹음이 있으면 삭제 차단</b>(설계). 대신 <code>isPublished=false</code>로 내리는 비공개를 우선.</li>
+    </ul>
+    <div class="note">
+      <span class="label">교체 ≠ 삭제.</span> 멀티버전에선 "성우 교체"가 기존 버전 삭제가 아니라 <b>새 Casting 추가 + 기존 비공개</b>로 표현된다. 이력·녹음이 보존된다.
+    </div>
+  </section>
+
+  <section class="section">
+    <h2><span class="num">05</span> 관계 · 경계</h2>
+    <ul class="clean">
+      <li><b>← Character</b>: <code>characterId</code>로 소속(논리 FK + INDEX). 부모 <a href="../character/index.html">Character</a>.</li>
+      <li><b>→ Creator</b>: <code>creatorId</code>로 성우 참조(논리 FK + INDEX). 생성 시 creator 존재(활성 CREATOR) 검증.</li>
+      <li><b>← Recording</b>: <code>Recording.castingId</code>가 이 버전을 가리킴. <code>casting.characterId == line.characterId</code> 정합 필요.</li>
+      <li><b>← EpisodeReview</b>: (회차 × Casting) 단위로 검수 → 통과 시 <code>isPublished</code>.</li>
+      <li><b>화면</b>: 배정·발행 관리는 <b>back-office</b>. 성우 본인 캐스팅 조회(<code>creators/me</code>)·연출자 조회(<code>directors/*</code>)는 후속 표면.</li>
+    </ul>
+  </section>
+
+  <section class="section">
+    <h2><span class="num">06</span> API 표면 — <code>admins/characters/:characterId/castings</code> <span style="font-size:12px;font-weight:600;color:var(--faint)">(예정)</span></h2>
+    <p class="desc">캐릭터 하위 nested. 가드: <code>AdminGuard</code></p>
+    <div class="t-scroll">
+      <table>
+        <thead><tr><th>Method</th><th>Path</th><th>설명</th><th>본문</th></tr></thead>
+        <tbody>
+          <tr><td><span class="method post">POST</span></td><td><code>/…/castings</code></td><td>캐스팅 지정(creator 존재 + 중복 거부)</td><td><code>{ creatorId }</code></td></tr>
+          <tr><td><span class="method get">GET</span></td><td><code>/…/castings</code></td><td>캐릭터의 캐스팅(버전) 목록 → <code>{ items, total }</code></td><td>—</td></tr>
+          <tr><td><span class="method put">PUT</span></td><td><code>/…/castings/:id</code></td><td>발행/비공개 토글</td><td><code>{ isPublished }</code></td></tr>
+          <tr><td><span class="method del">DELETE</span></td><td><code>/…/castings/:id</code></td><td>해제(녹음 있으면 차단)</td><td>—</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note">
+      <span class="label">라우트 깊이.</span> Character가 <code>admins/contents/:contentId/characters</code>로 콘텐츠-nested라, 풀 일관을 원하면 <code>admins/contents/:contentId/characters/:characterId/castings</code>까지 갈 수 있으나 3단이 깊어 <b>캐릭터-nested(직속 부모)</b>를 택했다.
+    </div>
+  </section>
+</div>
+
+<footer class="page">
+  Source: 설계 합의 (미구현) · 부모 <a href="../character/index.html">Character</a> · 상위 모델 <a href="../playback/index.html">Playback</a>
+</footer>
+<script src="../assets/nav.js"></script>
+</body>
+</html>

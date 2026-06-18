@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Episode 도메인 — Vooth core-api</title>
+<link rel="stylesheet" href="../assets/style.css" />
+</head>
+<body>
+<header class="topnav"><div class="inner" id="site-nav"></div></header>
+
+<div class="wrap">
+  <div class="hero">
+    <div class="eyebrow">Composition · 구성·재생</div>
+    <h1>Episode · 회차</h1>
+    <p class="lead">
+      작품(Content)의 한 회차(<code>chapter</code>). <b>Cut의 부모</b>이자 <b>연재·검수·구매의 단위</b>다.
+      회차별로 발행되고(<code>expectedPublishOn</code> 스케줄러), 구매도 회차 단위로 일어난다.
+    </p>
+    <div class="meta">
+      <span class="badge ok">구현됨</span>
+      <span class="badge ns">admins/contents/:contentId/episodes</span>
+      <span class="badge ctx">Content 소속</span>
+      <span class="badge ctx">7-state machine</span>
+    </div>
+  </div>
+
+  <div class="note warn">
+    <span class="label">구현 상태.</span> <b>생성·목록·상세 구현됨</b>. <b>수정·삭제·상태전이는 스텁(WIP)</b>. 공유 enum은 <code>packages/shared/src/episode.ts</code>.
+    상위 구성·재생 모델은 <a href="../playback/index.html">Playback</a>, 발행 상위는 <a href="../content/index.html">Content</a> 참고.
+  </div>
+
+  <section class="section">
+    <h2><span class="num">01</span> 책임과 특성</h2>
+    <ul class="clean">
+      <li><b>연재 단위</b> — 작품은 회차로 나뉘어 순차 발행된다. <code>Content 1:N Episode</code>, <code>(contentId, chapter)</code>로 회차 번호 유일.</li>
+      <li><b>Cut의 부모</b> — 회차 본문은 컷들로 구성. <code>Episode 1:N Cut</code> → Cut이 Line/SoundEffect/CutEffect를 담는다(<a href="../playback/index.html">Playback</a>).</li>
+      <li><b>구매 단위</b> — 시청자는 회차를 구매하며, 캐릭터별 성우 버전을 고른다. 구매 가능한 성우는 회차×캐스팅 검수완료 기준(EpisodeCasting, 추후).</li>
+      <li><b>등장 캐릭터는 파생</b> — 회차에 등장하는 캐릭터는 <code>Line.characterId</code>에서 도출한다(별도 저장 안 함).</li>
+    </ul>
+  </section>
+
+  <section class="section">
+    <h2><span class="num">02</span> 애그리게이트 — <code>Episode</code></h2>
+    <p class="desc">파일: <code>src/modules/episode/domain/episode.entity.ts</code> · 공통 베이스 <code>DddAggregate</code>(<code>id</code>, <code>createdAt/updatedAt/deletedAt</code>, 이벤트)는 생략.</p>
+    <div class="t-scroll">
+      <table>
+        <thead><tr><th>필드</th><th>타입</th><th>null</th><th>설명</th></tr></thead>
+        <tbody>
+          <tr><td><code>contentId</code></td><td>number</td><td>✗</td><td>소속 작품(Content 1:N Episode). <b>논리 FK</b>. <code>(contentId, chapter)</code> <b>DB unique INDEX</b> <code>idx_episode_content_id_chapter</code></td></tr>
+          <tr><td><code>chapter</code></td><td>number</td><td>✗</td><td>회차 번호(0·1화…). <code>(contentId, chapter)</code> unique. 0 미만 거부</td></tr>
+          <tr><td><code>title</code></td><td>string</td><td>✗</td><td>회차 제목("1화: 만남")</td></tr>
+          <tr><td><code>status</code></td><td>enum</td><td>✗</td><td><code>EpisodeStatus</code>(§03). 생성 시 DRAFT</td></tr>
+          <tr><td><code>isFree</code></td><td>boolean</td><td>✗</td><td><b>파생: <code>chapter &lt; 2</code></b>(0·1화 자동 무료). 클라 입력 없음</td></tr>
+          <tr><td><code>thumbnailFileId</code></td><td>number</td><td>✓</td><td>회차 썸네일(File). <b>commit-on-attach</b>(<code>image/</code>)</td></tr>
+          <tr><td><code>thumbnailCropBox</code></td><td>CropBox json</td><td>✓</td><td>썸네일 표시 영역(정규화 0~1). <code>@vooth/shared</code></td></tr>
+          <tr><td><code>expectedPublishOn</code></td><td>CalendarDate</td><td>✓</td><td>예정 발행 일시(<code>varchar(100)</code>). 생성 시 null, 수정/예약으로 설정 → 스케줄러 발행(§06)</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note">
+      <span class="label">가격.</span> 회차가 구매 단위지만 <b>가격은 별도 커머스 도메인</b>으로 분리하고, Episode엔 <code>isFree</code>(무료 공개)만 둔다. <code>isFree</code>는 입력값이 아니라 <code>chapter</code>에서 파생된다.
+    </div>
+  </section>
+
+  <section class="section">
+    <h2><span class="num">03</span> 상태 (EpisodeStatus)</h2>
+    <p class="desc">파일: <code>packages/shared/src/episode.ts</code> — 문자열 enum (Content와 동일 흐름: 검수 완료 → 발행 대기 → 발행)</p>
+    <div class="t-scroll">
+      <table>
+        <thead><tr><th>값</th><th>라벨</th><th>의미</th></tr></thead>
+        <tbody>
+          <tr><td><code>DRAFT</code></td><td>초안</td><td>편집 중(컷·대사 등록)</td></tr>
+          <tr><td><code>READY</code></td><td>녹음 대기</td><td>편집 완료, 녹음 대기</td></tr>
+          <tr><td><code>RECORDING</code></td><td>녹음 중</td><td>성우 녹음 진행</td></tr>
+          <tr><td><code>REVIEWING</code></td><td>검수 중</td><td>검수 진행(재녹음 허용)</td></tr>
+          <tr><td><code>APPROVED</code></td><td>검수 완료</td><td>검수 통과(아직 발행 전)</td></tr>
+          <tr><td><code>SCHEDULED</code></td><td>발행 대기</td><td>expectedPublishOn 예약됨</td></tr>
+          <tr><td><code>PUBLISHED</code></td><td>발행</td><td>공개·구매 가능</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="section">
+    <h2><span class="num">04</span> 상태 머신</h2>
+    <p class="desc">전이 검증은 <code>canTransitionEpisode(from, to)</code> + <code>EPISODE_STATUS_TRANSITIONS</code> 화이트리스트로 일원화.</p>
+    <div class="diagram-scroll">
+      <svg id="sm" class="statemachine" viewBox="0 0 1700 320" role="img" aria-label="회차 상태 머신"></svg>
+    </div>
+    <div class="legend">
+      <div class="item"><span class="swatch" style="border-color: #2563eb"></span> 자동 (녹음 진입 · 스케줄러)</div>
+      <div class="item"><span class="swatch" style="border-color: #ea580c"></span> 수동 (관리자 / 검수자)</div>
+    </div>
+  </section>
+
+  <section class="section">
+    <h2><span class="num">05</span> 전이 표 · 불변식</h2>
+    <div class="t-scroll">
+      <table>
+        <thead><tr><th>From</th><th>To</th><th>트리거</th><th>조건 / 설명</th></tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+    <ul class="clean" style="margin-top:14px">
+      <li>🔒 <b>PUBLISHED는 종착</b> — 발행 이후 발행 이전 상태로 가는 경로는 화이트리스트에 없다.</li>
+      <li><b>검수 완료 ↔ 발행 대기 분리</b> — APPROVED(품질 OK)와 PUBLISHED(실제 공개) 사이에 SCHEDULED(예정일 대기)를 둔다. <code>APPROVED↔SCHEDULED</code>는 expectedPublishOn 설정/해제.</li>
+      <li><b>녹음 허용 상태</b> — <code>EPISODE_RECORDABLE_STATUSES = [READY, RECORDING, REVIEWING]</code>. <b>검수 중에도 재녹음 가능</b>(필수). APPROVED 이후 재녹음은 <b>재검수(→REVIEWING→RECORDING)</b>를 거친다.</li>
+      <li><b>멀티버전 롤업</b> — 이 status는 사실상 (회차 × 캐스팅) 진행의 롤업. 자동 전이(READY→RECORDING, REVIEWING→APPROVED 등) 배선은 녹음/EpisodeCasting 연동 시 연결(현재 enum·화이트리스트만 확정).</li>
+    </ul>
+  </section>
+
+  <section class="section">
+    <h2><span class="num">06</span> 발행 — <code>expectedPublishOn</code> 스케줄러</h2>
+    <ul class="clean">
+      <li><b><code>expectedPublishOn</code></b>(CalendarDate, <code>YYYY-MM-DD HH:mm:ss</code>)에 예정 발행 일시를 둔다. 생성 시 null, 수정으로 설정. 설정 시 <code>APPROVED → SCHEDULED</code>(해제 시 역방향).</li>
+      <li><b>스케줄러</b>가 <code>expectedPublishOn ≤ now</code>인 <code>SCHEDULED</code> 회차를 <code>SCHEDULED → PUBLISHED</code>로 자동 전이.</li>
+      <li>Content의 발행도 회차 발행들의 롤업으로 이어진다(<a href="../content/index.html">Content</a> 상태 머신).</li>
+    </ul>
+    <div class="note">
+      <span class="label">왜 CalendarDate(문자열)인가.</span> Content의 <code>expectedPublishOn</code>과 동일 타입·정책. 타임존 해석은 표시 측 책임이며, 저장은 ISO 문자열(<code>@vooth/shared</code> <code>CalendarDate</code>).
+    </div>
+  </section>
+
+  <section class="section">
+    <h2><span class="num">07</span> 라이프사이클 · 삭제</h2>
+    <ul class="clean">
+      <li><b>생성</b> — back-office. content 존재 검증 + <code>(contentId, chapter)</code> 중복 거부(앱 + DB unique). 썸네일 있으면 <code>commit(image/)</code>. <code>isFree</code>는 chapter에서 자동, status=DRAFT.</li>
+      <li><b>목록·상세</b> — content-scoped(<code>contentId</code>). 상세는 <code>{ id, contentId }</code> 정합 조회. <b>서버 기본 정렬 없음</b>(프론트가 <code>sort/order</code> 지정) — 의도.</li>
+      <li><b>수정·삭제·상태전이</b> — <b>스텁(WIP)</b>. 삭제는 Cut/녹음 참조 시 차단, 발행된 회차 삭제 불가 방향(설계).</li>
+    </ul>
+  </section>
+
+  <section class="section">
+    <h2><span class="num">08</span> 관계 · 경계</h2>
+    <ul class="clean">
+      <li><b>← Content</b>: <code>contentId</code>로 소속(<b>논리 FK</b>). Content.status는 회차 상태들의 롤업.</li>
+      <li><b>→ Cut</b>: <code>Episode 1:N Cut</code>. 회차 본문 컷. <a href="../playback/index.html">Playback</a>.</li>
+      <li><b>↔ Casting</b>(추후 EpisodeCasting): (회차 × 캐스팅) 단위로 녹음·검수·발행 상태. 회차별 구매 가능 성우의 근거.</li>
+      <li><b>화면</b>: 등록·관리 back-office(<code>admins/contents/:contentId/episodes</code>). maker(녹음)·tool(연출)·시청자(구매)는 조회.</li>
+    </ul>
+  </section>
+
+  <section class="section">
+    <h2><span class="num">09</span> API 표면 — <code>admins/contents/:contentId/episodes</code></h2>
+    <p class="desc">콘텐츠 하위 nested. 가드: <code>AdminGuard</code> · <span class="badge ok" style="vertical-align:middle">구현됨</span> / <span class="badge plan" style="vertical-align:middle">예정</span></p>
+    <div class="t-scroll">
+      <table>
+        <thead><tr><th>Method</th><th>Path</th><th>설명</th><th>본문</th><th>상태</th></tr></thead>
+        <tbody>
+          <tr><td><span class="method post">POST</span></td><td><code>/…/episodes</code></td><td>생성(content 검증 + chapter 유일, isFree 자동, 썸네일 commit)</td><td><code>{ title, chapter, thumbnailFileId?, thumbnailCropBox? }</code></td><td><span class="badge ok">구현됨</span></td></tr>
+          <tr><td><span class="method get">GET</span></td><td><code>/…/episodes</code></td><td>목록(title 검색, <code>statuses</code>·<code>isFree</code>·<code>expectedPublishOn</code> 범위 필터, 페이지네이션) → <code>{ items, total }</code></td><td>—</td><td><span class="badge ok">구현됨</span></td></tr>
+          <tr><td><span class="method get">GET</span></td><td><code>/…/episodes/:id</code></td><td>단건 조회(<code>id</code>+<code>contentId</code>)</td><td>—</td><td><span class="badge ok">구현됨</span></td></tr>
+          <tr><td><span class="method put">PUT</span></td><td><code>/…/episodes/:id</code></td><td>수정(변경 필드만)</td><td><code>{ title?, expectedPublishOn?, … }</code></td><td><span class="badge plan">예정</span></td></tr>
+          <tr><td><span class="method put">PUT</span></td><td><code>/…/episodes/:id/status</code></td><td>상태 전이(<code>canTransitionEpisode</code> 검증)</td><td><code>{ status }</code></td><td><span class="badge plan">예정</span></td></tr>
+          <tr><td><span class="method del">DELETE</span></td><td><code>/…/episodes/:id</code></td><td>삭제(참조 컷 있으면 차단)</td><td>—</td><td><span class="badge plan">예정</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note">
+      <span class="label">관례.</span> 존재하지 않는 회차/콘텐츠는 <code>BadRequestException</code>(현 컨벤션). 목록은 <code>PaginationDto</code> + <code>{ items, total }</code>, 정렬은 클라가 <code>sort/order</code>로 지정.
+    </div>
+  </section>
+</div>
+
+<footer class="page">
+  Source: <code>src/modules/episode</code> · <code>packages/shared/src/episode.ts</code> · 상위 <a href="../content/index.html">Content</a> · <a href="../playback/index.html">Playback</a>
+</footer>
+
+<script src="../assets/diagram.js"></script>
+<script>
+  const STATES = [
+    { key: 'DRAFT',     label: '초안',     color: '#64748b' },
+    { key: 'READY',     label: '녹음 대기', color: '#d97706' },
+    { key: 'RECORDING', label: '녹음 중',   color: '#2563eb' },
+    { key: 'REVIEWING', label: '검수 중',   color: '#7c3aed' },
+    { key: 'APPROVED',  label: '검수 완료', color: '#059669' },
+    { key: 'SCHEDULED', label: '발행 대기', color: '#0891b2' },
+    { key: 'PUBLISHED', label: '발행',     color: '#16a34a' },
+  ];
+  const TRANS = [
+    { from: 'DRAFT',     to: 'READY',     kind: 'manual', label: '편집 완료',   curve: -50, desc: '관리자가 편집 완료 처리(수동)' },
+    { from: 'READY',     to: 'RECORDING', kind: 'auto',   label: '녹음 시작',   curve: -50, desc: '성우 1명이라도 녹음 진입(자동)' },
+    { from: 'RECORDING', to: 'REVIEWING', kind: 'manual', label: '검수 요청',   curve: -50, desc: '성우 검수 요청 / 검수 단계 진입' },
+    { from: 'REVIEWING', to: 'RECORDING', kind: 'manual', label: '검수 회귀',   curve: -50, desc: '반려 → 재녹음(검수 중에도 녹음 허용)' },
+    { from: 'REVIEWING', to: 'APPROVED',  kind: 'manual', label: '검수 완료',   curve: -50, desc: '검수자 승인 / 캐스팅 검수 롤업 완료' },
+    { from: 'APPROVED',  to: 'REVIEWING', kind: 'manual', label: '재검수',     curve: -50, desc: '검수자 수동 재검수' },
+    { from: 'APPROVED',  to: 'SCHEDULED', kind: 'manual', label: '예정일 설정', curve: -50, desc: 'expectedPublishOn 설정' },
+    { from: 'SCHEDULED', to: 'APPROVED',  kind: 'manual', label: '예정 취소',   curve: -50, desc: 'expectedPublishOn 해제' },
+    { from: 'SCHEDULED', to: 'PUBLISHED', kind: 'auto',   label: '예정일 발행', curve: -50, desc: 'expectedPublishOn 도달 → 스케줄러 발행' },
+  ];
+
+  STATES.forEach((s, i) => { s.x = 120 + i * 235; s.y = 175; });
+  renderStateMachine(document.getElementById('sm'), { states: STATES, transitions: TRANS });
+
+  const labelOf = (k) => STATES.find((s) => s.key === k).label;
+  const tbody = document.getElementById('rows');
+  TRANS.forEach((t) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML =
+      `<td><code>${t.from}</code> <span style="color:#94a3b8">${labelOf(t.from)}</span></td>` +
+      `<td><code>${t.to}</code> <span style="color:#94a3b8">${labelOf(t.to)}</span></td>` +
+      `<td><span class="pill ${t.kind}">${t.kind === 'auto' ? '자동' : '수동'}</span></td>` +
+      `<td>${t.desc}</td>`;
+    tbody.appendChild(tr);
+  });
+</script>
+<script src="../assets/nav.js"></script>
+</body>
+</html>

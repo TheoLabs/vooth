@@ -1,11 +1,10 @@
 import { useMemo, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   App as AntApp,
   Button,
   Empty,
   Popconfirm,
-  Progress,
   Space,
   Spin,
   Tabs,
@@ -13,25 +12,29 @@ import {
   Typography,
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import { ContentStatus } from '@vooth/shared';
+import { EpisodeStatus } from '@vooth/shared';
 import { DEFAULT_PAGE_SIZE, FullHeightTable } from '../../components/FullHeightTable';
 import { TableToolbar } from '../../components/TableToolbar';
 import { FilterSelect } from '../../components/FilterSelect';
+import {
+  numberParam,
+  stringArrayParam,
+  stringParam,
+  useUrlQuery,
+} from '../../hooks/useUrlQuery';
 import { ContentStatusBadge } from './ContentStatusBadge';
 import { ContentThumb } from './ContentThumb';
 import { CharactersTab } from './CharactersTab';
 import { ContentFormDrawer, type ContentFormPayload } from './ContentFormDrawer';
+import { EpisodeStatusBadge } from './EpisodeStatusBadge';
+import { EpisodeDetailDrawer } from './EpisodeDetailDrawer';
+import { EpisodeFormDrawer, type EpisodeFormPayload } from './EpisodeFormDrawer';
 import { useContent, useDeleteContent, useUpdateContent } from './useContents';
+import { useCreateEpisode, useEpisodes } from './useEpisodes';
 import { uploadImage } from '../../api/file.api';
 import type { UpdateContentInput } from '../../api/content.api';
-import {
-  EPISODE_STATUS_DOT,
-  EPISODE_STATUS_LABEL,
-  EPISODE_STATUS_OPTIONS,
-  makeEpisodes,
-  type Episode,
-  type EpisodeStatus,
-} from './episode.types';
+import type { AdminEpisode } from '../../api/episode.api';
+import { EPISODE_STATUS_DOT, EPISODE_STATUS_OPTIONS } from './episode.types';
 
 function formatDate(iso: string | null): string {
   if (!iso) return '-';
@@ -45,24 +48,6 @@ function sameSet(a: number[], b: number[]): boolean {
   if (a.length !== b.length) return false;
   const s = new Set(a);
   return b.every((x) => s.has(x));
-}
-
-function EpisodeStatusBadge({ status }: { status: EpisodeStatus }) {
-  return (
-    <Space size={6}>
-      <span
-        style={{
-          display: 'inline-block',
-          width: 8,
-          height: 8,
-          borderRadius: '50%',
-          background: EPISODE_STATUS_DOT[status],
-          flex: 'none',
-        }}
-      />
-      <Typography.Text>{EPISODE_STATUS_LABEL[status]}</Typography.Text>
-    </Space>
-  );
 }
 
 type DetailTab = 'episodes' | 'characters';
@@ -79,33 +64,73 @@ export function ContentDetailPage() {
 
   const [editOpen, setEditOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [activeTab, setActiveTab] = useState<DetailTab>('episodes');
 
-  // 회차는 mock(집계 API 준비 전). 작품 상태에 맞춰 적당한 회차 수를 생성.
-  const episodes = useMemo<Episode[]>(() => {
-    if (!content) return [];
-    const count =
-      content.status === ContentStatus.DRAFT || content.status === ContentStatus.READY
-        ? 0
-        : 8 + (content.id % 6);
-    return makeEpisodes(content, count);
-  }, [content]);
+  // 활성 탭은 URL 쿼리(?tab=)에 보관해 새로고침해도 유지한다.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab: DetailTab = searchParams.get('tab') === 'characters' ? 'characters' : 'episodes';
+  const setActiveTab = (tab: DetailTab) => {
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        next.set('tab', tab);
+        return next;
+      },
+      { replace: true },
+    );
+  };
 
-  // 회차 목록: 검색/필터/페이지네이션
-  const [searchInput, setSearchInput] = useState('');
-  const [searchValue, setSearchValue] = useState('');
-  const [epStatuses, setEpStatuses] = useState<EpisodeStatus[]>([]);
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
+  // 회차 목록: 검색/필터/페이지네이션 (URL 동기화, 회차 prefix 'e.')
+  const [eq, setEq] = useUrlQuery(
+    {
+      q: stringParam(),
+      status: stringArrayParam<EpisodeStatus>(),
+      page: numberParam(1),
+      limit: numberParam(DEFAULT_PAGE_SIZE),
+    },
+    'e.',
+  );
+  const [searchInput, setSearchInput] = useState(eq.q);
 
-  const filteredEpisodes = useMemo(() => {
-    const needle = searchValue.trim().toLowerCase();
-    return episodes.filter((e) => {
-      if (needle && !e.title.toLowerCase().includes(needle)) return false;
-      if (epStatuses.length && !epStatuses.includes(e.status)) return false;
-      return true;
-    });
-  }, [episodes, searchValue, epStatuses]);
+  const episodeQuery = useMemo(
+    () => ({
+      searchKey: eq.q ? ('title' as const) : undefined,
+      searchValue: eq.q || undefined,
+      statuses: eq.status.length ? eq.status : undefined,
+      page: eq.page,
+      limit: eq.limit,
+    }),
+    [eq.q, eq.status, eq.page, eq.limit],
+  );
+
+  const { data: episodeData, isLoading: episodesLoading } = useEpisodes(numId, episodeQuery);
+  const createEpisode = useCreateEpisode(numId);
+
+  // 회차 생성 / 상세
+  const [episodeFormOpen, setEpisodeFormOpen] = useState(false);
+  const [episodeSubmitting, setEpisodeSubmitting] = useState(false);
+  const [selectedEpisodeId, setSelectedEpisodeId] = useState<number | null>(null);
+
+  const submitCreateEpisode = async (payload: EpisodeFormPayload) => {
+    setEpisodeSubmitting(true);
+    try {
+      const thumbnailFileId = payload.thumbnailFile
+        ? await uploadImage(payload.thumbnailFile, 'episodes/thumbnail')
+        : undefined;
+      await createEpisode.mutateAsync({
+        title: payload.title,
+        chapter: payload.chapter,
+        thumbnailFileId,
+        thumbnailCropBox: thumbnailFileId ? (payload.cropBox ?? undefined) : undefined,
+      });
+      message.success('회차를 등록했습니다.');
+      setEpisodeFormOpen(false);
+      setEq({ page: 1 });
+    } catch (e) {
+      message.error(e instanceof Error ? e.message : '회차 등록에 실패했습니다.');
+    } finally {
+      setEpisodeSubmitting(false);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -164,15 +189,30 @@ export function ContentDetailPage() {
     });
   };
 
-  const episodeColumns: ColumnsType<Episode> = [
+  const episodeColumns: ColumnsType<AdminEpisode> = [
     {
       title: '회차',
-      dataIndex: 'no',
-      key: 'no',
+      dataIndex: 'chapter',
+      key: 'chapter',
       width: 70,
-      render: (no: number) => <Typography.Text strong>{no}화</Typography.Text>,
+      render: (chapter: number) => <Typography.Text strong>{chapter}화</Typography.Text>,
     },
-    { title: '제목', dataIndex: 'title', key: 'title' },
+    {
+      title: '제목',
+      key: 'title',
+      render: (_, ep) => (
+        <Space>
+          <ContentThumb
+            url={ep.thumbnailUrl}
+            crop={ep.thumbnailCropBox ?? undefined}
+            title={ep.title}
+            width={32}
+            height={43}
+          />
+          <Typography.Text>{ep.title}</Typography.Text>
+        </Space>
+      ),
+    },
     {
       title: '상태',
       dataIndex: 'status',
@@ -181,28 +221,19 @@ export function ContentDetailPage() {
       render: (s: EpisodeStatus) => <EpisodeStatusBadge status={s} />,
     },
     {
-      title: '녹음 진행',
-      key: 'progress',
-      width: 200,
-      render: (_, ep) => {
-        const pct = ep.cutCount ? Math.round((ep.recordedCutCount / ep.cutCount) * 100) : 0;
-        return (
-          <Space size={8} style={{ width: '100%' }}>
-            <Progress percent={pct} size="small" style={{ width: 110 }} />
-            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-              {ep.recordedCutCount}/{ep.cutCount}컷
-            </Typography.Text>
-          </Space>
-        );
-      },
+      title: '공개',
+      dataIndex: 'isFree',
+      key: 'isFree',
+      width: 90,
+      render: (isFree: boolean) =>
+        isFree ? <Tag color="green">무료</Tag> : <Tag>유료</Tag>,
     },
-    { title: '배정 성우', dataIndex: 'cast', key: 'cast', width: 110 },
     {
-      title: '최근 수정',
-      dataIndex: 'updatedAt',
-      key: 'updatedAt',
-      width: 120,
-      render: (iso: string) => formatDate(iso),
+      title: '발행 예정일',
+      dataIndex: 'expectedPublishOn',
+      key: 'expectedPublishOn',
+      width: 130,
+      render: (v: string | null) => formatDate(v),
     },
   ];
 
@@ -308,52 +339,47 @@ export function ContentDetailPage() {
             <TableToolbar
               searchValue={searchInput}
               onSearchValueChange={setSearchInput}
-              onSearch={(v) => {
-                setSearchValue(v);
-                setPage(1);
-              }}
+              onSearch={(v) => setEq({ q: v, page: 1 })}
               placeholder="회차 제목 검색"
               filters={[
                 {
                   label: '상태',
                   control: (
                     <FilterSelect
-                      value={epStatuses}
+                      value={eq.status}
                       options={EPISODE_STATUS_OPTIONS}
                       dotColorOf={(v) => EPISODE_STATUS_DOT[v]}
-                      onChange={(v) => {
-                        setEpStatuses(v);
-                        setPage(1);
-                      }}
+                      onChange={(v) => setEq({ status: v, page: 1 })}
                     />
                   ),
                 },
               ]}
               actions={
-                <Button
-                  type="primary"
-                  onClick={() => message.info('회차 추가 화면은 준비 중입니다. (mock)')}
-                >
+                <Button type="primary" onClick={() => setEpisodeFormOpen(true)}>
                   회차 추가
                 </Button>
               }
             />
 
-            <FullHeightTable<Episode>
+            <FullHeightTable<AdminEpisode>
               rowKey="id"
+              loading={episodesLoading}
               columns={episodeColumns}
-              dataSource={filteredEpisodes}
-              total={filteredEpisodes.length}
+              dataSource={episodeData?.items}
+              total={episodeData?.total}
+              onRow={(ep) => ({
+                onClick: () => setSelectedEpisodeId(ep.id),
+                style: { cursor: 'pointer' },
+              })}
               pagination={{
-                current: page,
-                pageSize,
-                total: filteredEpisodes.length,
+                current: eq.page,
+                pageSize: eq.limit,
+                total: episodeData?.total ?? 0,
                 onChange: (nextPage, nextSize) => {
-                  if (nextSize !== pageSize) {
-                    setPageSize(nextSize);
-                    setPage(1);
+                  if (nextSize !== eq.limit) {
+                    setEq({ limit: nextSize, page: 1 });
                   } else {
-                    setPage(nextPage);
+                    setEq({ page: nextPage });
                   }
                 },
               }}
@@ -370,6 +396,20 @@ export function ContentDetailPage() {
         submitting={submitting}
         onClose={() => setEditOpen(false)}
         onSubmit={submitEdit}
+      />
+
+      <EpisodeFormDrawer
+        open={episodeFormOpen}
+        defaultChapter={(episodeData?.total ?? 0) + 1}
+        submitting={episodeSubmitting}
+        onClose={() => setEpisodeFormOpen(false)}
+        onSubmit={submitCreateEpisode}
+      />
+
+      <EpisodeDetailDrawer
+        contentId={content.id}
+        episodeId={selectedEpisodeId}
+        onClose={() => setSelectedEpisodeId(null)}
       />
     </div>
   );

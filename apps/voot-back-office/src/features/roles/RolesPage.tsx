@@ -14,6 +14,12 @@ import { RoleType } from '@vooth/shared';
 import { DEFAULT_PAGE_SIZE, FullHeightTable } from '../../components/FullHeightTable';
 import { TableToolbar } from '../../components/TableToolbar';
 import { FilterSelect } from '../../components/FilterSelect';
+import {
+  numberParam,
+  stringArrayParam,
+  stringParam,
+  useUrlQuery,
+} from '../../hooks/useUrlQuery';
 import { PermissionPicker } from './PermissionPicker';
 import type { Role } from '../../api/role.api';
 import { useCreateRole, useRoles, useUpdateRolePermissions } from './useRoles';
@@ -29,21 +35,23 @@ function sameSet(a: string[], b: string[]): boolean {
 export function RolesPage() {
   const { message } = AntApp.useApp();
 
-  const [searchInput, setSearchInput] = useState('');
-  const [searchValue, setSearchValue] = useState('');
-  const [typeFilter, setTypeFilter] = useState<RoleType[]>([]);
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
+  const [q, setQ] = useUrlQuery({
+    q: stringParam(),
+    type: stringArrayParam<RoleType>(),
+    page: numberParam(1),
+    limit: numberParam(DEFAULT_PAGE_SIZE),
+  });
+  const [searchInput, setSearchInput] = useState(q.q);
 
   const query = useMemo(
     () => ({
-      searchKey: searchValue ? 'name' : undefined,
-      searchValue: searchValue || undefined,
-      types: typeFilter.length ? typeFilter : undefined,
-      page,
-      limit: pageSize,
+      searchKey: q.q ? 'name' : undefined,
+      searchValue: q.q || undefined,
+      types: q.type.length ? q.type : undefined,
+      page: q.page,
+      limit: q.limit,
     }),
-    [searchValue, typeFilter, page, pageSize],
+    [q.q, q.type, q.page, q.limit],
   );
 
   const { data, isLoading } = useRoles(query);
@@ -144,22 +152,16 @@ export function RolesPage() {
       <TableToolbar
         searchValue={searchInput}
         onSearchValueChange={setSearchInput}
-        onSearch={(v) => {
-          setSearchValue(v);
-          setPage(1);
-        }}
+        onSearch={(v) => setQ({ q: v, page: 1 })}
         placeholder="역할명 검색"
         filters={[
           {
             label: '타입',
             control: (
               <FilterSelect
-                value={typeFilter}
+                value={q.type}
                 options={ROLE_TYPE_OPTIONS}
-                onChange={(v) => {
-                  setTypeFilter(v);
-                  setPage(1);
-                }}
+                onChange={(v) => setQ({ type: v, page: 1 })}
               />
             ),
           },
@@ -178,15 +180,14 @@ export function RolesPage() {
         dataSource={data?.items}
         total={data?.total}
         pagination={{
-          current: page,
-          pageSize,
+          current: q.page,
+          pageSize: q.limit,
           total: data?.total ?? 0,
           onChange: (nextPage, nextSize) => {
-            if (nextSize !== pageSize) {
-              setPageSize(nextSize);
-              setPage(1);
+            if (nextSize !== q.limit) {
+              setQ({ limit: nextSize, page: 1 });
             } else {
-              setPage(nextPage);
+              setQ({ page: nextPage });
             }
           },
         }}

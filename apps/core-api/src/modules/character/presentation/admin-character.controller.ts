@@ -1,8 +1,10 @@
-import { Body, Controller, Delete, Get, Param, ParseIntPipe, Post, Put, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, ParseIntPipe, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { AdminCharacterService } from '../applications/admin-character.service';
 import { AdminCharacterCreateDto, AdminCharacterQueryDto, AdminCharacterUpdateDto } from './dto';
+import { AdminGuard } from '@common/guards';
 
 @Controller('admins/contents/:contentId/characters')
+@UseGuards(AdminGuard)
 export class AdminCharacterController {
   constructor(private readonly adminCharacterService: AdminCharacterService) {}
 
@@ -21,6 +23,7 @@ export class AdminCharacterController {
   async list(@Param('contentId', ParseIntPipe) contentId: number, @Query() query: AdminCharacterQueryDto) {
     // 1. Destructure body, params, query
     const { types, searchKey, searchValue, ...options } = query;
+
     // 2. Get context
     // 3. Get result
     const data = await this.adminCharacterService.list({ contentId, types, searchKey, searchValue }, options);

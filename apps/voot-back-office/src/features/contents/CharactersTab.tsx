@@ -9,6 +9,12 @@ import {
 import { DEFAULT_PAGE_SIZE, FullHeightTable } from '../../components/FullHeightTable';
 import { TableToolbar } from '../../components/TableToolbar';
 import { FilterSelect } from '../../components/FilterSelect';
+import {
+  numberParam,
+  stringArrayParam,
+  stringParam,
+  useUrlQuery,
+} from '../../hooks/useUrlQuery';
 import { useCharacters, useCreateCharacter } from './useCharacters';
 import { CharacterFormDrawer, type CharacterFormPayload } from './CharacterFormDrawer';
 import { CharacterDetailDrawer } from './CharacterDetailDrawer';
@@ -29,11 +35,16 @@ export function CharactersTab({ contentId }: CharactersTabProps) {
   const { message } = AntApp.useApp();
   const create = useCreateCharacter(contentId);
 
-  const [searchInput, setSearchInput] = useState('');
-  const [searchValue, setSearchValue] = useState('');
-  const [types, setTypes] = useState<CharacterType[]>([]);
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
+  const [q, setQ] = useUrlQuery(
+    {
+      q: stringParam(),
+      type: stringArrayParam<CharacterType>(),
+      page: numberParam(1),
+      limit: numberParam(DEFAULT_PAGE_SIZE),
+    },
+    'c.',
+  );
+  const [searchInput, setSearchInput] = useState(q.q);
 
   const [formOpen, setFormOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -41,13 +52,13 @@ export function CharactersTab({ contentId }: CharactersTabProps) {
 
   const query = useMemo(
     () => ({
-      searchKey: searchValue ? ('name' as const) : undefined,
-      searchValue: searchValue || undefined,
-      types: types.length ? types : undefined,
-      page,
-      limit: pageSize,
+      searchKey: q.q ? ('name' as const) : undefined,
+      searchValue: q.q || undefined,
+      types: q.type.length ? q.type : undefined,
+      page: q.page,
+      limit: q.limit,
     }),
-    [searchValue, types, page, pageSize],
+    [q.q, q.type, q.page, q.limit],
   );
 
   const { data, isLoading } = useCharacters(contentId, query);
@@ -66,7 +77,7 @@ export function CharactersTab({ contentId }: CharactersTabProps) {
       });
       message.success('캐릭터를 등록했습니다.');
       setFormOpen(false);
-      setPage(1);
+      setQ({ page: 1 });
     } catch (e) {
       message.error(e instanceof Error ? e.message : '캐릭터 등록에 실패했습니다.');
     } finally {
@@ -123,23 +134,17 @@ export function CharactersTab({ contentId }: CharactersTabProps) {
       <TableToolbar
         searchValue={searchInput}
         onSearchValueChange={setSearchInput}
-        onSearch={(v) => {
-          setSearchValue(v);
-          setPage(1);
-        }}
+        onSearch={(v) => setQ({ q: v, page: 1 })}
         placeholder="캐릭터 이름 검색"
         filters={[
           {
             label: '역할군',
             control: (
               <FilterSelect
-                value={types}
+                value={q.type}
                 options={TYPE_OPTIONS}
                 dotColorOf={(v) => TYPE_COLOR[v].fg}
-                onChange={(v) => {
-                  setTypes(v);
-                  setPage(1);
-                }}
+                onChange={(v) => setQ({ type: v, page: 1 })}
               />
             ),
           },
@@ -162,15 +167,14 @@ export function CharactersTab({ contentId }: CharactersTabProps) {
           style: { cursor: 'pointer' },
         })}
         pagination={{
-          current: page,
-          pageSize,
+          current: q.page,
+          pageSize: q.limit,
           total: data?.total ?? 0,
           onChange: (nextPage, nextSize) => {
-            if (nextSize !== pageSize) {
-              setPageSize(nextSize);
-              setPage(1);
+            if (nextSize !== q.limit) {
+              setQ({ limit: nextSize, page: 1 });
             } else {
-              setPage(nextPage);
+              setQ({ page: nextPage });
             }
           },
         }}

@@ -13,6 +13,7 @@ import {
 import type { ColumnsType } from 'antd/es/table';
 import { DEFAULT_PAGE_SIZE, FullHeightTable } from '../../components/FullHeightTable';
 import { TableToolbar } from '../../components/TableToolbar';
+import { numberParam, stringParam, useUrlQuery } from '../../hooks/useUrlQuery';
 import { TAG_PRESET_COLORS } from './tag.types';
 import { useCreateTag, useDeleteTag, useTags, useUpdateTag } from './useTags';
 import type { AdminTag, UpdateTagInput } from '../../api/tag.api';
@@ -39,19 +40,21 @@ export function TagsPage() {
   const updateTag = useUpdateTag();
   const deleteTag = useDeleteTag();
 
-  const [searchInput, setSearchInput] = useState('');
-  const [searchValue, setSearchValue] = useState('');
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
+  const [q, setQ] = useUrlQuery({
+    q: stringParam(),
+    page: numberParam(1),
+    limit: numberParam(DEFAULT_PAGE_SIZE),
+  });
+  const [searchInput, setSearchInput] = useState(q.q);
 
   const query = useMemo(
     () => ({
-      searchKey: searchValue ? ('name' as const) : undefined,
-      searchValue: searchValue || undefined,
-      page,
-      limit: pageSize,
+      searchKey: q.q ? ('name' as const) : undefined,
+      searchValue: q.q || undefined,
+      page: q.page,
+      limit: q.limit,
     }),
-    [searchValue, page, pageSize],
+    [q.q, q.page, q.limit],
   );
 
   const { data, isLoading } = useTags(query);
@@ -109,7 +112,7 @@ export function TagsPage() {
     // 추가: POST /admins/tags
     try {
       await createTag.mutateAsync({ name, color: colorDraft });
-      setPage(1);
+      setQ({ page: 1 });
       message.success('태그를 추가했습니다.');
       closeEdit();
     } catch (e) {
@@ -233,10 +236,7 @@ export function TagsPage() {
       <TableToolbar
         searchValue={searchInput}
         onSearchValueChange={setSearchInput}
-        onSearch={(v) => {
-          setSearchValue(v);
-          setPage(1);
-        }}
+        onSearch={(v) => setQ({ q: v, page: 1 })}
         placeholder="태그명 검색"
         actions={
           <Button type="primary" onClick={openAdd}>
@@ -252,15 +252,14 @@ export function TagsPage() {
         dataSource={items}
         total={total}
         pagination={{
-          current: page,
-          pageSize,
+          current: q.page,
+          pageSize: q.limit,
           total,
           onChange: (nextPage, nextSize) => {
-            if (nextSize !== pageSize) {
-              setPageSize(nextSize);
-              setPage(1);
+            if (nextSize !== q.limit) {
+              setQ({ limit: nextSize, page: 1 });
             } else {
-              setPage(nextPage);
+              setQ({ page: nextPage });
             }
           },
         }}

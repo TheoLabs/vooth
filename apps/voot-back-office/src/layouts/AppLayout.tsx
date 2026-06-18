@@ -5,6 +5,7 @@ import type { MenuProps } from 'antd';
 import { useAuth } from '../auth/AuthContext';
 import { useMe } from '../features/auth/useMe';
 import { MENU_TREE } from './menu';
+import { AppBreadcrumb } from './AppBreadcrumb';
 
 const { Header, Sider, Content } = Layout;
 
@@ -147,6 +148,7 @@ export function AppLayout() {
           </Space>
         </Header>
         <Content className="bo-content">
+          <AppBreadcrumb />
           <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
             <Outlet />
           </div>

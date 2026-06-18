@@ -5,6 +5,12 @@ import { PermissionCategory } from '@vooth/shared';
 import { DEFAULT_PAGE_SIZE, FullHeightTable } from '../../components/FullHeightTable';
 import { TableToolbar } from '../../components/TableToolbar';
 import { FilterSelect } from '../../components/FilterSelect';
+import {
+  numberParam,
+  stringArrayParam,
+  stringParam,
+  useUrlQuery,
+} from '../../hooks/useUrlQuery';
 import type { Permission } from '../../api/permission.api';
 import { usePermissions } from './usePermissions';
 import {
@@ -14,21 +20,23 @@ import {
 } from '../accounts/labels';
 
 export function PermissionsPage() {
-  const [searchInput, setSearchInput] = useState('');
-  const [searchValue, setSearchValue] = useState('');
-  const [categories, setCategories] = useState<PermissionCategory[]>([]);
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
+  const [q, setQ] = useUrlQuery({
+    q: stringParam(),
+    cat: stringArrayParam<PermissionCategory>(),
+    page: numberParam(1),
+    limit: numberParam(DEFAULT_PAGE_SIZE),
+  });
+  const [searchInput, setSearchInput] = useState(q.q);
 
   const query = useMemo(
     () => ({
-      searchKey: searchValue ? 'name' : undefined,
-      searchValue: searchValue || undefined,
-      categories: categories.length ? categories : undefined,
-      page,
-      limit: pageSize,
+      searchKey: q.q ? 'name' : undefined,
+      searchValue: q.q || undefined,
+      categories: q.cat.length ? q.cat : undefined,
+      page: q.page,
+      limit: q.limit,
     }),
-    [searchValue, categories, page, pageSize],
+    [q.q, q.cat, q.page, q.limit],
   );
 
   const { data, isLoading } = usePermissions(query);
@@ -82,22 +90,16 @@ export function PermissionsPage() {
       <TableToolbar
         searchValue={searchInput}
         onSearchValueChange={setSearchInput}
-        onSearch={(v) => {
-          setSearchValue(v);
-          setPage(1);
-        }}
+        onSearch={(v) => setQ({ q: v, page: 1 })}
         placeholder="권한 이름 검색"
         filters={[
           {
             label: '카테고리',
             control: (
               <FilterSelect
-                value={categories}
+                value={q.cat}
                 options={PERMISSION_CATEGORY_OPTIONS}
-                onChange={(v) => {
-                  setCategories(v);
-                  setPage(1);
-                }}
+                onChange={(v) => setQ({ cat: v, page: 1 })}
               />
             ),
           },
@@ -111,15 +113,14 @@ export function PermissionsPage() {
         dataSource={data?.items}
         total={data?.total}
         pagination={{
-          current: page,
-          pageSize,
+          current: q.page,
+          pageSize: q.limit,
           total: data?.total ?? 0,
           onChange: (nextPage, nextSize) => {
-            if (nextSize !== pageSize) {
-              setPageSize(nextSize);
-              setPage(1);
+            if (nextSize !== q.limit) {
+              setQ({ limit: nextSize, page: 1 });
             } else {
-              setPage(nextPage);
+              setQ({ page: nextPage });
             }
           },
         }}

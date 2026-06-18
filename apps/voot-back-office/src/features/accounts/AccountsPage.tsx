@@ -12,6 +12,12 @@ import { AccountStatus, AccountType } from '@vooth/shared';
 import { DEFAULT_PAGE_SIZE, FullHeightTable } from '../../components/FullHeightTable';
 import { TableToolbar } from '../../components/TableToolbar';
 import { FilterSelect } from '../../components/FilterSelect';
+import {
+  numberParam,
+  stringArrayParam,
+  stringParam,
+  useUrlQuery,
+} from '../../hooks/useUrlQuery';
 import { useRoles } from '../roles/useRoles';
 import type { Account } from '../../api/account.api';
 import { AccountDetailDrawer } from './AccountDetailDrawer';
@@ -37,24 +43,26 @@ const SEARCH_KEYS = [
 export function AccountsPage() {
   const { message } = AntApp.useApp();
 
-  const [searchKey, setSearchKey] = useState('name');
-  const [searchInput, setSearchInput] = useState('');
-  const [searchValue, setSearchValue] = useState('');
-  const [statuses, setStatuses] = useState<AccountStatus[]>([]);
-  const [types, setTypes] = useState<AccountType[]>([]);
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
+  const [q, setQ] = useUrlQuery({
+    sk: stringParam('name'),
+    q: stringParam(),
+    status: stringArrayParam<AccountStatus>(),
+    type: stringArrayParam<AccountType>(),
+    page: numberParam(1),
+    limit: numberParam(DEFAULT_PAGE_SIZE),
+  });
+  const [searchInput, setSearchInput] = useState(q.q);
 
   const query = useMemo(
     () => ({
-      searchKey: searchValue ? searchKey : undefined,
-      searchValue: searchValue || undefined,
-      statuses: statuses.length ? statuses : undefined,
-      types: types.length ? types : undefined,
-      page,
-      limit: pageSize,
+      searchKey: q.q ? q.sk : undefined,
+      searchValue: q.q || undefined,
+      statuses: q.status.length ? q.status : undefined,
+      types: q.type.length ? q.type : undefined,
+      page: q.page,
+      limit: q.limit,
     }),
-    [searchKey, searchValue, statuses, types, page, pageSize],
+    [q.sk, q.q, q.status, q.type, q.page, q.limit],
   );
 
   const { data, isLoading } = useAccounts(query);
@@ -134,26 +142,20 @@ export function AccountsPage() {
 
       <TableToolbar
         searchKeys={SEARCH_KEYS}
-        searchKey={searchKey}
-        onSearchKeyChange={setSearchKey}
+        searchKey={q.sk}
+        onSearchKeyChange={(v) => setQ({ sk: v })}
         searchValue={searchInput}
         onSearchValueChange={setSearchInput}
-        onSearch={(v) => {
-          setSearchValue(v);
-          setPage(1);
-        }}
+        onSearch={(v) => setQ({ q: v, page: 1 })}
         placeholder="이름 또는 이메일 검색"
         filters={[
           {
             label: '상태',
             control: (
               <FilterSelect
-                value={statuses}
+                value={q.status}
                 options={ACCOUNT_STATUS_OPTIONS}
-                onChange={(v) => {
-                  setStatuses(v);
-                  setPage(1);
-                }}
+                onChange={(v) => setQ({ status: v, page: 1 })}
               />
             ),
           },
@@ -161,12 +163,9 @@ export function AccountsPage() {
             label: '타입',
             control: (
               <FilterSelect
-                value={types}
+                value={q.type}
                 options={ACCOUNT_TYPE_OPTIONS}
-                onChange={(v) => {
-                  setTypes(v);
-                  setPage(1);
-                }}
+                onChange={(v) => setQ({ type: v, page: 1 })}
               />
             ),
           },
@@ -184,16 +183,15 @@ export function AccountsPage() {
           style: { cursor: 'pointer' },
         })}
         pagination={{
-          current: page,
-          pageSize,
+          current: q.page,
+          pageSize: q.limit,
           total: data?.total ?? 0,
           onChange: (nextPage, nextSize) => {
-            if (nextSize !== pageSize) {
+            if (nextSize !== q.limit) {
               // 페이지 크기 변경 시 1페이지로 리셋
-              setPageSize(nextSize);
-              setPage(1);
+              setQ({ limit: nextSize, page: 1 });
             } else {
-              setPage(nextPage);
+              setQ({ page: nextPage });
             }
           },
         }}

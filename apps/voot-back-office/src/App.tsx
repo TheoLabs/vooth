@@ -14,6 +14,7 @@ import { CreatorsPage } from './features/creators/CreatorsPage';
 import { TagsPage } from './features/tags/TagsPage';
 import { ContentsPage } from './features/contents/ContentsPage';
 import { ContentDetailPage } from './features/contents/ContentDetailPage';
+import { CutEditorPage } from './features/contents/CutEditorPage';
 
 /** 실제 구현된 화면(나머지는 PlaceholderPage). */
 const CUSTOM_PAGES: Record<string, ReactElement> = {
@@ -35,6 +36,10 @@ function App() {
           <Route element={<AppLayout />}>
             {/* 메뉴에 없는 동적 상세 라우트 */}
             <Route path="/contents/:id" element={<ContentDetailPage />} />
+            <Route
+              path="/contents/:contentId/episodes/:episodeId/cuts"
+              element={<CutEditorPage />}
+            />
             {MENU_ROUTES.map(({ path, label }) => {
               const element = CUSTOM_PAGES[path] ?? <PlaceholderPage title={label} />;
               return path === '/' ? (

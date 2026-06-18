@@ -7,24 +7,7 @@
 <link rel="stylesheet" href="assets/style.css" />
 </head>
 <body>
-<header class="topnav">
-  <div class="inner">
-    <div class="brand">Vooth <span>core-api</span> · 도메인</div>
-    <nav>
-      <a href="index.html" class="active">Overview</a>
-      <a href="account/index.html">Account</a>
-      <a href="creator/index.html">Creator</a>
-      <a href="file/index.html">File</a>
-      <a href="role/index.html">Role</a>
-      <a href="permission/index.html">Permission</a>
-      <a href="auth/index.html">Auth</a>
-      <a href="content/index.html">Content</a>
-      <a href="tag/index.html">Tag</a>
-      <a href="character/index.html">Character</a>
-      <a href="playback/index.html">Playback</a>
-    </nav>
-  </div>
-</header>
+<header class="topnav"><div class="inner" id="site-nav"></div></header>
 
 <div class="wrap">
   <div class="hero">
@@ -115,14 +98,26 @@
   <div class="ctx-group">
     <h2>Composition · 구성·재생</h2>
     <p style="margin: -6px 0 16px; color: var(--muted); font-size: 13.5px">
-      보이스툰의 구성·재생 모델. Content 아래 Character/Episode/Cut, 그리고 컷 타임라인 위의 대사·효과음·시각효과. 전 도메인 설계 단계.
+      보이스툰의 구성·재생 모델. Content 아래 Character/Episode/Cut, 그리고 컷 타임라인 위의 대사·효과음·시각효과.
     </p>
     <div class="grid">
       <a class="dcard" href="character/index.html">
-        <div class="top"><h3>Character</h3><span class="badge plan">설계</span></div>
-        <div class="ns">admins/characters</div>
-        <p>작품 등장인물. Casting(성우 버전)의 부모이자 대사(Line)의 화자. 해설은 NARRATOR 타입. type enum + 코드 우선순위 정렬.</p>
+        <div class="top"><h3>Character</h3><span class="badge ok">구현됨</span></div>
+        <div class="ns">admins/contents/:contentId/characters</div>
+        <p>작품 등장인물. Casting(성우 버전)의 부모이자 대사(Line)의 화자. 해설은 NARRATOR 타입. CRUD(삭제 WIP).</p>
         <div class="tags"><span>Content 소속</span><span>Casting 부모</span><span>NARRATOR</span></div>
+      </a>
+      <a class="dcard" href="casting/index.html">
+        <div class="top"><h3>Casting</h3><span class="badge plan">설계</span></div>
+        <div class="ns">admins/characters/:characterId/castings</div>
+        <p>캐릭터에 성우를 배정한 단위(=버전). 멀티버전이라 승자 없이 승인된 버전 모두 발행(isPublished). Recording(Line×Casting)의 부모.</p>
+        <div class="tags"><span>멀티버전</span><span>Character↔Creator</span><span>isPublished</span></div>
+      </a>
+      <a class="dcard" href="episode/index.html">
+        <div class="top"><h3>Episode</h3><span class="badge ok">구현됨</span></div>
+        <div class="ns">admins/contents/:contentId/episodes</div>
+        <p>작품의 회차(chapter). Cut의 부모이자 연재·검수·구매 단위. 7상태 머신(검수완료→발행대기→발행), expectedPublishOn 스케줄러 발행. 생성·목록·상세 구현.</p>
+        <div class="tags"><span>Content 소속</span><span>7-state</span><span>회차 발행</span></div>
       </a>
       <a class="dcard" href="playback/index.html">
         <div class="top"><h3>Playback</h3><span class="badge plan">설계</span></div>
@@ -158,5 +153,6 @@
   Source of truth: <code>apps/core-api/src/modules</code> · <code>packages/shared/src</code> ·
   <code>docs/content-domain-design.md</code>. 코드 변경 시 본 문서도 함께 갱신하세요.
 </footer>
+<script src="assets/nav.js"></script>
 </body>
 </html>

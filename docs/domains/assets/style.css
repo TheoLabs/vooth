@@ -81,6 +81,36 @@ code {
 .topnav nav a:hover { background: var(--border-soft); text-decoration: none; }
 .topnav nav a.active { background: var(--accent); color: #fff; }
 
+/* ---------- grouped dropdown menu (assets/nav.js) ---------- */
+.menu { display: flex; gap: 2px; flex-wrap: wrap; align-items: center; }
+.menu-top {
+  display: inline-flex; align-items: center; gap: 5px;
+  color: var(--ink-2); font-size: 13.5px; font-weight: 600;
+  padding: 6px 12px; border-radius: 8px;
+  border: 0; background: none; font-family: inherit; cursor: pointer; white-space: nowrap;
+}
+a.menu-top { text-decoration: none; }
+.menu-top:hover { background: var(--border-soft); }
+.menu-top .caret { font-size: 10px; color: var(--faint); }
+.menu-group { position: relative; }
+.menu-group.active > .menu-top, a.menu-top.active { background: var(--accent); color: #fff; }
+.menu-group.active > .menu-top .caret { color: rgba(255, 255, 255, 0.85); }
+/* hover bridge so cursor can cross the gap into the dropdown */
+.menu-group::after { content: ''; position: absolute; top: 100%; left: 0; right: 0; height: 8px; }
+.menu-drop {
+  position: absolute; top: 100%; left: 0; margin-top: 6px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+  box-shadow: var(--shadow); padding: 6px; min-width: 184px; z-index: 30;
+  display: none; flex-direction: column; gap: 2px;
+}
+.menu-group:hover .menu-drop, .menu-group:focus-within .menu-drop { display: flex; }
+.menu-item {
+  display: block; padding: 7px 12px; border-radius: 7px;
+  color: var(--ink-2); font-size: 13.5px; font-weight: 600; text-decoration: none; white-space: nowrap;
+}
+.menu-item:hover { background: var(--border-soft); text-decoration: none; }
+.menu-item.active { background: var(--accent); color: #fff; }
+
 /* ---------- layout ---------- */
 .wrap { max-width: 1120px; margin: 0 auto; padding: 38px 24px 96px; }
 

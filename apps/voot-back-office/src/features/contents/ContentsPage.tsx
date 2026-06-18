@@ -6,6 +6,13 @@ import { ContentStatus } from '@vooth/shared';
 import { DEFAULT_PAGE_SIZE, FullHeightTable } from '../../components/FullHeightTable';
 import { TableToolbar } from '../../components/TableToolbar';
 import { FilterSelect } from '../../components/FilterSelect';
+import {
+  numberArrayParam,
+  numberParam,
+  stringArrayParam,
+  stringParam,
+  useUrlQuery,
+} from '../../hooks/useUrlQuery';
 import { ContentFormDrawer, type ContentFormPayload } from './ContentFormDrawer';
 import { ContentStatusBadge } from './ContentStatusBadge';
 import { ContentThumb } from './ContentThumb';
@@ -28,12 +35,14 @@ export function ContentsPage() {
   const { message } = AntApp.useApp();
   const navigate = useNavigate();
 
-  const [searchInput, setSearchInput] = useState('');
-  const [searchValue, setSearchValue] = useState('');
-  const [statuses, setStatuses] = useState<ContentStatus[]>([]);
-  const [tagIds, setTagIds] = useState<number[]>([]);
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
+  const [q, setQ] = useUrlQuery({
+    q: stringParam(),
+    status: stringArrayParam<ContentStatus>(),
+    tag: numberArrayParam(),
+    page: numberParam(1),
+    limit: numberParam(DEFAULT_PAGE_SIZE),
+  });
+  const [searchInput, setSearchInput] = useState(q.q);
 
   const [formOpen, setFormOpen] = useState(false);
   const [workflowOpen, setWorkflowOpen] = useState(false);
@@ -51,14 +60,14 @@ export function ContentsPage() {
 
   const query = useMemo(
     () => ({
-      searchKey: searchValue ? ('title' as const) : undefined,
-      searchValue: searchValue || undefined,
-      statuses: statuses.length ? statuses : undefined,
-      tagIds: tagIds.length ? tagIds : undefined,
-      page,
-      limit: pageSize,
+      searchKey: q.q ? ('title' as const) : undefined,
+      searchValue: q.q || undefined,
+      statuses: q.status.length ? q.status : undefined,
+      tagIds: q.tag.length ? q.tag : undefined,
+      page: q.page,
+      limit: q.limit,
     }),
-    [searchValue, statuses, tagIds, page, pageSize],
+    [q.q, q.status, q.tag, q.page, q.limit],
   );
 
   const { data, isLoading } = useContents(query);
@@ -81,7 +90,7 @@ export function ContentsPage() {
       });
       message.success('작품을 등록했습니다.');
       setFormOpen(false);
-      setPage(1);
+      setQ({ page: 1 });
     } catch (e) {
       message.error(e instanceof Error ? e.message : '작품 등록에 실패했습니다.');
     } finally {
@@ -164,23 +173,17 @@ export function ContentsPage() {
       <TableToolbar
         searchValue={searchInput}
         onSearchValueChange={setSearchInput}
-        onSearch={(v) => {
-          setSearchValue(v);
-          setPage(1);
-        }}
+        onSearch={(v) => setQ({ q: v, page: 1 })}
         placeholder="작품 제목 검색"
         filters={[
           {
             label: '상태',
             control: (
               <FilterSelect
-                value={statuses}
+                value={q.status}
                 options={CONTENT_STATUS_OPTIONS}
                 dotColorOf={(v) => CONTENT_STATUS_DOT[v]}
-                onChange={(v) => {
-                  setStatuses(v);
-                  setPage(1);
-                }}
+                onChange={(v) => setQ({ status: v, page: 1 })}
               />
             ),
           },
@@ -188,13 +191,10 @@ export function ContentsPage() {
             label: '태그',
             control: (
               <FilterSelect
-                value={tagIds}
+                value={q.tag}
                 options={tagOptions}
                 dotColorOf={(v) => tagColorById.get(v)}
-                onChange={(v) => {
-                  setTagIds(v);
-                  setPage(1);
-                }}
+                onChange={(v) => setQ({ tag: v, page: 1 })}
               />
             ),
           },
@@ -220,15 +220,14 @@ export function ContentsPage() {
           style: { cursor: 'pointer' },
         })}
         pagination={{
-          current: page,
-          pageSize,
+          current: q.page,
+          pageSize: q.limit,
           total: data?.total ?? 0,
           onChange: (nextPage, nextSize) => {
-            if (nextSize !== pageSize) {
-              setPageSize(nextSize);
-              setPage(1);
+            if (nextSize !== q.limit) {
+              setQ({ limit: nextSize, page: 1 });
             } else {
-              setPage(nextPage);
+              setQ({ page: nextPage });
             }
           },
         }}

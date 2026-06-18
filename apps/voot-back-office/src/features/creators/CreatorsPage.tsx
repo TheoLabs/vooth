@@ -3,6 +3,7 @@ import { Avatar, Space, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { DEFAULT_PAGE_SIZE, FullHeightTable } from '../../components/FullHeightTable';
 import { TableToolbar } from '../../components/TableToolbar';
+import { numberParam, stringParam, useUrlQuery } from '../../hooks/useUrlQuery';
 import { CreatorDetailDrawer } from './CreatorDetailDrawer';
 import { useCreators } from './useCreators';
 import { avatarColor, type Creator } from './creator.types';
@@ -16,18 +17,20 @@ function formatDate(iso: string): string {
 }
 
 export function CreatorsPage() {
-  const [searchInput, setSearchInput] = useState('');
-  const [searchValue, setSearchValue] = useState('');
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
+  const [q, setQ] = useUrlQuery({
+    q: stringParam(),
+    page: numberParam(1),
+    limit: numberParam(DEFAULT_PAGE_SIZE),
+  });
+  const [searchInput, setSearchInput] = useState(q.q);
 
   const query = useMemo(
     () => ({
-      searchValue: searchValue || undefined,
-      page,
-      limit: pageSize,
+      searchValue: q.q || undefined,
+      page: q.page,
+      limit: q.limit,
     }),
-    [searchValue, page, pageSize],
+    [q.q, q.page, q.limit],
   );
 
   const { data, isLoading } = useCreators(query);
@@ -105,10 +108,7 @@ export function CreatorsPage() {
       <TableToolbar
         searchValue={searchInput}
         onSearchValueChange={setSearchInput}
-        onSearch={(v) => {
-          setSearchValue(v);
-          setPage(1);
-        }}
+        onSearch={(v) => setQ({ q: v, page: 1 })}
         placeholder="활동명 검색"
       />
 
@@ -123,15 +123,14 @@ export function CreatorsPage() {
           style: { cursor: 'pointer' },
         })}
         pagination={{
-          current: page,
-          pageSize,
+          current: q.page,
+          pageSize: q.limit,
           total: data?.total ?? 0,
           onChange: (nextPage, nextSize) => {
-            if (nextSize !== pageSize) {
-              setPageSize(nextSize);
-              setPage(1);
+            if (nextSize !== q.limit) {
+              setQ({ limit: nextSize, page: 1 });
             } else {
-              setPage(nextPage);
+              setQ({ page: nextPage });
             }
           },
         }}
