@@ -8,6 +8,7 @@ import { CreatorModule } from './creator/creator.module';
 import { FileModule } from './file/file.module';
 import { TagModule } from './tag/tag.module';
 import { ContentModule } from './content/content.module';
+import { CharacterModule } from './character/character.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { ContentModule } from './content/content.module';
     FileModule,
     TagModule,
     ContentModule,
+    CharacterModule,
   ],
   exports: [
     AccountModule,
@@ -31,6 +33,7 @@ import { ContentModule } from './content/content.module';
     FileModule,
     TagModule,
     ContentModule,
+    CharacterModule,
   ],
 })
 export class DomainModule {}

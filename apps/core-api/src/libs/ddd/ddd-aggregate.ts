@@ -1,6 +1,6 @@
 import { stripUndefined } from '@libs/utils';
 import { isEqual } from 'lodash';
-import { plainToInstance } from 'class-transformer';
+import { ClassConstructor, plainToInstance } from 'class-transformer';
 import { Column, CreateDateColumn, DeleteDateColumn, UpdateDateColumn } from 'typeorm';
 import { DddEvent } from './ddd-event';
 
@@ -52,7 +52,7 @@ export abstract class DddAggregate {
     return stripUndefined(compared);
   }
 
-  toInstance<T>(dto: new (args: any[]) => T) {
-    return plainToInstance(dto, this);
+  toInstance<T>(dto: ClassConstructor<T>, args?: Record<string, unknown>) {
+    return plainToInstance(dto, { ...this, ...args });
   }
 }

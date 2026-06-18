@@ -94,3 +94,20 @@ body {
   height: 100%;
   object-fit: cover;
 }
+
+/* 콘텐츠 상세의 탭 네비게이션. 콘텐츠는 탭 아래 별도 영역에서 렌더링한다. */
+.bo-detail-tabs {
+  flex: none;
+}
+/* 네비게이션만 사용하므로 빈 콘텐츠 홀더는 숨긴다. */
+.bo-detail-tabs .ant-tabs-content-holder {
+  display: none;
+}
+/* 탭 아래 콘텐츠: 남은 높이를 채우고 내부 테이블에서만 스크롤. */
+.bo-detail-tab-content {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}

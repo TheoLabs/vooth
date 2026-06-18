@@ -6,5 +6,6 @@ import { File } from '@modules/file/domain/file.entity';
 import { Creator } from '@modules/creator/domain/creator.entity';
 import { Tag } from '@modules/tag/domain/tag.entity';
 import { Content } from '@modules/content/domain/content.entity';
+import { Character } from '@modules/character/domain/character.entity';
 
-export default [DddEvent, Account, Role, Permission, File, Creator, Content, Tag];
+export default [DddEvent, Account, Role, Permission, File, Creator, Content, Tag, Character];

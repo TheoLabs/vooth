@@ -8,6 +8,7 @@ import {
   Progress,
   Space,
   Spin,
+  Tabs,
   Tag,
   Typography,
 } from 'antd';
@@ -18,6 +19,7 @@ import { TableToolbar } from '../../components/TableToolbar';
 import { FilterSelect } from '../../components/FilterSelect';
 import { ContentStatusBadge } from './ContentStatusBadge';
 import { ContentThumb } from './ContentThumb';
+import { CharactersTab } from './CharactersTab';
 import { ContentFormDrawer, type ContentFormPayload } from './ContentFormDrawer';
 import { useContent, useDeleteContent, useUpdateContent } from './useContents';
 import { uploadImage } from '../../api/file.api';
@@ -63,6 +65,8 @@ function EpisodeStatusBadge({ status }: { status: EpisodeStatus }) {
   );
 }
 
+type DetailTab = 'episodes' | 'characters';
+
 export function ContentDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -75,6 +79,7 @@ export function ContentDetailPage() {
 
   const [editOpen, setEditOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [activeTab, setActiveTab] = useState<DetailTab>('episodes');
 
   // 회차는 mock(집계 API 준비 전). 작품 상태에 맞춰 적당한 회차 수를 생성.
   const episodes = useMemo<Episode[]>(() => {
@@ -208,21 +213,19 @@ export function ContentDetailPage() {
         <Button type="text" onClick={() => navigate('/contents')}>
           ← 작품 목록
         </Button>
-        <Space>
-          <Button onClick={() => setEditOpen(true)}>수정</Button>
-          <Popconfirm
-            title="이 작품을 삭제하시겠습니까?"
-            okText="삭제"
-            cancelText="취소"
-            okButtonProps={{ danger: true, loading: remove.isPending }}
-            onConfirm={handleDelete}
-          >
-            <Button danger>삭제</Button>
-          </Popconfirm>
-        </Space>
+        <Popconfirm
+          title="이 작품을 삭제하시겠습니까?"
+          okText="삭제"
+          cancelText="취소"
+          okButtonProps={{ danger: true, loading: remove.isPending }}
+          onConfirm={handleDelete}
+        >
+          <Button danger>삭제</Button>
+        </Popconfirm>
       </Space>
 
-      {/* 헤더 카드 */}
+      {/* 헤더: 작품 정보 카드 + 캐릭터 패널 */}
+      {/* 작품 정보 카드 */}
       <div
         style={{
           display: 'flex',
@@ -243,12 +246,24 @@ export function ContentDetailPage() {
         />
 
         <div style={{ flex: 1, minWidth: 0 }}>
-          <Space align="center" wrap>
-            <Typography.Title level={3} style={{ margin: 0 }}>
-              {content.title}
-            </Typography.Title>
-            <ContentStatusBadge status={content.status} />
-          </Space>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'flex-start',
+              justifyContent: 'space-between',
+              gap: 12,
+            }}
+          >
+            <Space align="center" wrap>
+              <Typography.Title level={3} style={{ margin: 0 }}>
+                {content.title}
+              </Typography.Title>
+              <ContentStatusBadge status={content.status} />
+            </Space>
+            <Button size="small" onClick={() => setEditOpen(true)} style={{ flex: 'none' }}>
+              수정
+            </Button>
+          </div>
           <div style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 8 }}>
             {content.tags.map((t) => (
               <Tag key={t.id} color={t.color} style={{ marginInlineEnd: 0 }}>
@@ -272,73 +287,81 @@ export function ContentDetailPage() {
               등록일 <strong>{formatDate(content.createdAt)}</strong>
             </Typography.Text>
           </Space>
-        </div>
+          </div>
       </div>
 
-      {/* 회차 목록 (남은 높이 채우고 테이블 내부 스크롤) */}
-      <div
-        style={{
-          flex: 1,
-          minHeight: 0,
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 12,
-        }}
-      >
-        <Space style={{ justifyContent: 'space-between', width: '100%' }}>
-          <Typography.Title level={5} style={{ margin: 0 }}>
-            회차 목록
-          </Typography.Title>
-          <Button onClick={() => message.info('회차 추가 화면은 준비 중입니다. (mock)')}>
-            회차 추가
-          </Button>
-        </Space>
+      {/* 회차 목록 / 캐릭터 탭 (네비게이션) */}
+      <Tabs
+        className="bo-detail-tabs"
+        activeKey={activeTab}
+        onChange={(k) => setActiveTab(k as DetailTab)}
+        items={[
+          { key: 'episodes', label: '회차 목록' },
+          { key: 'characters', label: '캐릭터' },
+        ]}
+      />
 
-        <TableToolbar
-          searchValue={searchInput}
-          onSearchValueChange={setSearchInput}
-          onSearch={(v) => {
-            setSearchValue(v);
-            setPage(1);
-          }}
-          placeholder="회차 제목 검색"
-          filters={[
-            {
-              label: '상태',
-              control: (
-                <FilterSelect
-                  value={epStatuses}
-                  options={EPISODE_STATUS_OPTIONS}
-                  dotColorOf={(v) => EPISODE_STATUS_DOT[v]}
-                  onChange={(v) => {
-                    setEpStatuses(v);
-                    setPage(1);
-                  }}
-                />
-              ),
-            },
-          ]}
-        />
-
-        <FullHeightTable<Episode>
-          rowKey="id"
-          columns={episodeColumns}
-          dataSource={filteredEpisodes}
-          total={filteredEpisodes.length}
-          pagination={{
-            current: page,
-            pageSize,
-            total: filteredEpisodes.length,
-            onChange: (nextPage, nextSize) => {
-              if (nextSize !== pageSize) {
-                setPageSize(nextSize);
+      {/* 탭 콘텐츠 */}
+      <div className="bo-detail-tab-content">
+        {activeTab === 'episodes' ? (
+          <>
+            <TableToolbar
+              searchValue={searchInput}
+              onSearchValueChange={setSearchInput}
+              onSearch={(v) => {
+                setSearchValue(v);
                 setPage(1);
-              } else {
-                setPage(nextPage);
+              }}
+              placeholder="회차 제목 검색"
+              filters={[
+                {
+                  label: '상태',
+                  control: (
+                    <FilterSelect
+                      value={epStatuses}
+                      options={EPISODE_STATUS_OPTIONS}
+                      dotColorOf={(v) => EPISODE_STATUS_DOT[v]}
+                      onChange={(v) => {
+                        setEpStatuses(v);
+                        setPage(1);
+                      }}
+                    />
+                  ),
+                },
+              ]}
+              actions={
+                <Button
+                  type="primary"
+                  onClick={() => message.info('회차 추가 화면은 준비 중입니다. (mock)')}
+                >
+                  회차 추가
+                </Button>
               }
-            },
-          }}
-        />
+            />
+
+            <FullHeightTable<Episode>
+              rowKey="id"
+              columns={episodeColumns}
+              dataSource={filteredEpisodes}
+              total={filteredEpisodes.length}
+              pagination={{
+                current: page,
+                pageSize,
+                total: filteredEpisodes.length,
+                onChange: (nextPage, nextSize) => {
+                  if (nextSize !== pageSize) {
+                    setPageSize(nextSize);
+                    setPage(1);
+                  } else {
+                    setPage(nextPage);
+                  }
+                },
+              }}
+            />
+          </>
+        ) : (
+          <CharactersTab contentId={content.id} />
+        )}
       </div>
 
       <ContentFormDrawer

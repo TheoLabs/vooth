@@ -10,6 +10,8 @@ interface FilterSelectProps<V> {
   options: FilterSelectOption<V>[];
   onChange: (value: V[]) => void;
   placeholder?: string;
+  /** 박스 안 가장 왼쪽에 표시할 필터 라벨(어떤 키워드 필터인지). */
+  label?: string;
   /** 고정 폭(관리자 계정 필터 기준 220 통일). 특수 케이스에서만 덮어쓴다. */
   width?: number;
   /** 주어지면 옵션 앞에 해당 색의 점을 표시한다(상태 필터 등). */
@@ -25,6 +27,7 @@ export function FilterSelect<V extends string | number>({
   options,
   onChange,
   placeholder = '전체',
+  label,
   width = 220,
   dotColorOf,
 }: FilterSelectProps<V>) {
@@ -34,6 +37,23 @@ export function FilterSelect<V extends string | number>({
       allowClear
       placeholder={placeholder}
       style={{ width }}
+      prefix={
+        label ? (
+          <span
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 8,
+              color: 'rgba(0,0,0,0.45)',
+              fontWeight: 500,
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {label}
+            <span style={{ color: 'rgba(0,0,0,0.18)' }}>|</span>
+          </span>
+        ) : undefined
+      }
       value={value}
       options={options}
       optionFilterProp="label"

@@ -64,22 +64,23 @@
       <table>
         <thead><tr><th>필드</th><th>타입</th><th>null</th><th>설명</th></tr></thead>
         <tbody>
-          <tr><td><code>contentId</code></td><td>number FK</td><td>✗</td><td>소속 작품(Content 1:N Character)</td></tr>
+          <tr><td><code>contentId</code></td><td>number</td><td>✗</td><td>소속 작품(Content 1:N Character). <b>논리 FK</b>(물리 제약 없음) + <b>INDEX</b> (§05)</td></tr>
           <tr><td><code>name</code></td><td>string</td><td>✗</td><td>캐릭터명. <code>(contentId, name)</code> <b>unique</b></td></tr>
           <tr><td><code>type</code></td><td>enum</td><td>✗</td><td><code>CharacterType</code> — MAIN/SUPPORTING/EXTRA/NARRATOR (§03)</td></tr>
+          <tr><td><code>order</code></td><td>number</td><td>✗</td><td>수동 정렬 키(content 범위). <b>10 단위로 부여</b>해 사이 끼움·재정렬 용이. 정렬 §03</td></tr>
           <tr><td><code>description</code></td><td>text</td><td>✓</td><td>성격·배경. <b>성우 연기 맥락</b> + 관리용</td></tr>
-          <tr><td><code>portraitFileId</code></td><td>number</td><td>✓</td><td>캐릭터 참조 이미지(File). 컷 패널과 별개. <b>commit-on-attach</b></td></tr>
+          <tr><td><code>avatarFileId</code></td><td>number</td><td>✓</td><td>캐릭터 참조 이미지(File 참조). 컷 패널과 별개. <b>commit-on-attach</b></td></tr>
         </tbody>
       </table>
     </div>
     <div class="note">
-      <span class="label">제외한 것.</span> <code>order</code>(정렬은 type 우선순위로 대체 §03), <code>gender</code>(필요 시 description), <code>color</code>(연출 UI 필요 시 후속) — MVP에서 의도적으로 뺐다.
+      <span class="label">제외한 것.</span> <code>gender</code>(필요 시 description), <code>color</code>(연출 UI 필요 시 후속) — MVP에서 의도적으로 뺐다.
     </div>
   </section>
 
   <section class="section">
     <h2><span class="num">03</span> type — <code>CharacterType</code> &amp; 정렬</h2>
-    <p class="desc">파일: <code>packages/shared/src/character.ts</code> (예정) — 문자열 enum</p>
+    <p class="desc">파일: <code>packages/shared/src/character.ts</code> — 문자열 enum + <code>CHARACTER_TYPE_LABEL</code> / <code>CHARACTER_TYPE_ORDER</code> / <code>CHARACTER_TYPES_BY_PRIORITY</code></p>
     <div class="t-scroll">
       <table>
         <thead><tr><th>값</th><th>라벨</th><th>정렬 우선순위</th></tr></thead>
@@ -94,7 +95,15 @@
     <ul class="clean" style="margin-top:14px">
       <li><b>문자열 enum + append-only</b> — 역할군이 늘면 <b>ENUM 끝에 추가</b>(싼 ALTER). 중간 삽입·재배열(테이블 리빌드) 안 함.</li>
       <li><b>정렬은 ENUM 순서가 아니라 코드 우선순위 맵</b> — <code>CHARACTER_TYPE_ORDER</code>. ENUM 선언 순서에 정렬을 묶으면 새 역할 추가가 깨지므로 분리한다.</li>
-      <li>우선순위를 <b>띄워서(10/20/90/95)</b> 두어 사이 끼움 여지 확보. 조회: <code>ORDER BY FIELD(type, …), name</code> 또는 앱 메모리 정렬.</li>
+      <li>우선순위를 <b>띄워서(10/20/90/95)</b> 두어 사이 끼움 여지 확보.</li>
+    </ul>
+
+    <h3>정렬 규칙</h3>
+    <ul class="clean">
+      <li><b>정렬 = <code>FIELD(type, …) → order → name</code></b> — ① type 우선순위 그룹(주연→조연→엑스트라→내레이터), ② 같은 그룹 내 수동 <code>order</code>, ③ 동률은 이름. (순수 수동 나열을 원하면 <code>order → name</code>으로 뒤집을 수 있음 — 현재는 type-first)</li>
+      <li><b>DB-side 정렬</b> — 문자열 enum은 <code>ORDER BY type</code>이 알파벳순이라 못 쓴다. <code>FIELD(type,'MAIN','SUPPORTING','EXTRA','NARRATOR')</code>(우선순위 맵에서 생성)로 정렬.</li>
+      <li><b>QueryBuilder 사용</b> — <code>FIELD()</code>는 raw 식이라 <code>entityManager.find()</code>의 <code>order</code> 옵션으로 표현 불가. 캐릭터가 많아 페이지네이션(<code>PaginationDto</code> + <code>{items,total}</code>)을 타므로 LIMIT 전에 DB에서 정렬해야 한다.</li>
+      <li><b><code>order</code> 부여</b> — 생성 시 작품 내 <b>10 단위</b>(마지막 <code>+10</code>). 10 간격이라 두 항목 사이로 옮길 때 중간값으로 끼울 수 있어 대량 재인덱싱을 피한다. 재정렬은 별도 연산(§06).</li>
     </ul>
     <div class="note">
       <span class="label">역할군 확장 정책.</span> 추가는 <b>dev 수준(가끔)</b>으로 가정 → enum + 코드 맵으로 충분. 운영자가 배포 없이 직접 추가/순서변경하는 그림이 되면 <code>CharacterRole</code> 룩업 테이블(<code>name, priority</code>)로 승격한다.
@@ -104,7 +113,7 @@
   <section class="section">
     <h2><span class="num">04</span> 라이프사이클 · 삭제</h2>
     <ul class="clean">
-      <li><b>생성</b> — back-office 등록(name, type, 선택 description/portrait). 동일 작품 내 name 중복 거부.</li>
+      <li><b>생성</b> — back-office 등록(name, type, 선택 description/avatar). content 존재 검증 + 동일 작품 내 name 중복 거부, <code>order</code> 자동 부여.</li>
       <li><b>수정</b> — 부분 수정(변경 필드만, <code>stripUnchanged</code>). name 변경 시 중복 검사.</li>
       <li><b>삭제 = 보수적</b> — <code>Line.characterId</code>·Casting이 엮이므로 <b>참조 Line이 있으면 삭제 차단</b>. 대사·녹음이 사라지면 안 되기 때문. (Tag의 하드삭제와 대비)</li>
     </ul>
@@ -116,7 +125,7 @@
   <section class="section">
     <h2><span class="num">05</span> 관계 · 경계</h2>
     <ul class="clean">
-      <li><b>← Content</b>: <code>contentId</code>로 소속. 작품 삭제/보관과 라이프사이클 연동.</li>
+      <li><b>← Content</b>: <code>contentId</code>로 소속(<b>논리 FK</b> — 물리 FOREIGN KEY 제약 없음). 애그리게이트 경계 분리 + 서비스 분리 로드맵 대비. 대신 ① 생성 시 content 존재 <b>앱 검증</b>, ② <code>contentId</code> <b>INDEX 필수</b>, ③ 작품 삭제/보관 시 자식 정리는 <b>앱/이벤트 정책</b>으로. (이 규칙은 Episode→Cut→Line→Casting 등 구성 엔티티 전반에 일관 적용)</li>
       <li><b>→ Casting</b>: <code>Character 1:N Casting</code>(성우 후보 = 버전). 캐스팅·검수·멀티버전의 시작점. <a href="../playback/index.html">Playback §02·§04</a>.</li>
       <li><b>← Line</b>: <code>Line.characterId</code>가 화자로 참조. NARRATOR 포함 모든 대사의 주체.</li>
       <li><b>화면</b>: 등록·관리는 <b>back-office(admins/characters)</b>. 캐스팅·녹음 화면(maker/tool)은 조회로 참조.</li>
@@ -130,9 +139,10 @@
       <table>
         <thead><tr><th>Method</th><th>Path</th><th>설명</th><th>본문</th></tr></thead>
         <tbody>
-          <tr><td><span class="method post">POST</span></td><td><code>/admins/characters</code></td><td>생성(작품 내 name 중복 거부)</td><td><code>{ contentId, name, type, description?, portraitFileId? }</code></td></tr>
-          <tr><td><span class="method get">GET</span></td><td><code>/admins/characters?contentId=</code></td><td>작품별 목록(type 우선순위·name 정렬) → <code>{ items, total }</code></td><td>—</td></tr>
-          <tr><td><span class="method put">PUT</span></td><td><code>/admins/characters/:id</code></td><td>수정(변경 필드만)</td><td><code>{ name?, type?, description?, portraitFileId? }</code></td></tr>
+          <tr><td><span class="method post">POST</span></td><td><code>/admins/characters</code></td><td>생성(content 존재 검증 + 작품 내 name 중복 거부, order 자동 부여)</td><td><code>{ contentId, name, type, description?, avatarFileId? }</code></td></tr>
+          <tr><td><span class="method get">GET</span></td><td><code>/admins/characters?contentId=</code></td><td>작품별 목록(<code>FIELD(type)→order→name</code> 정렬, 페이지네이션) → <code>{ items, total }</code></td><td>—</td></tr>
+          <tr><td><span class="method put">PUT</span></td><td><code>/admins/characters/:id</code></td><td>수정(변경 필드만)</td><td><code>{ name?, type?, description?, avatarFileId? }</code></td></tr>
+          <tr><td><span class="method put">PUT</span></td><td><code>/admins/characters/reorder</code></td><td>재정렬(작품 내 <code>order</code> 일괄 갱신)</td><td><code>{ contentId, orderedIds: number[] }</code></td></tr>
           <tr><td><span class="method del">DELETE</span></td><td><code>/admins/characters/:id</code></td><td>삭제(참조 Line 있으면 차단)</td><td>—</td></tr>
         </tbody>
       </table>

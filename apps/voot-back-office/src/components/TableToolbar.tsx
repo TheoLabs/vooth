@@ -1,6 +1,16 @@
-import type { ReactNode } from 'react';
+import { cloneElement, isValidElement, type ReactElement, type ReactNode } from 'react';
 import { Input, Select, Space } from 'antd';
-import { FilterBar, FilterField } from './FilterBar';
+import { FilterBar } from './FilterBar';
+
+/** 필터 라벨을 컨트롤(FilterSelect) 박스 안 prefix 로 주입한다. */
+function withLabel(filter: ToolbarFilter): ReactNode {
+  if (isValidElement(filter.control)) {
+    return cloneElement(filter.control as ReactElement<{ label?: string }>, {
+      label: filter.label,
+    });
+  }
+  return filter.control;
+}
 
 export interface SearchKeyOption {
   value: string;
@@ -53,7 +63,7 @@ export function TableToolbar({
 
   return (
     <>
-      <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
         <Space.Compact
           style={{
             flex: inline ? '0 0 auto' : '1 1 auto',
@@ -79,11 +89,7 @@ export function TableToolbar({
         </Space.Compact>
 
         {inline
-          ? filterList.map((f, i) => (
-              <FilterField key={i} label={f.label}>
-                {f.control}
-              </FilterField>
-            ))
+          ? filterList.map((f, i) => <span key={i}>{withLabel(f)}</span>)
           : null}
 
         {actions ? <div style={{ marginLeft: 'auto' }}>{actions}</div> : null}
@@ -92,9 +98,7 @@ export function TableToolbar({
       {!inline && filterList.length > 0 ? (
         <FilterBar>
           {filterList.map((f, i) => (
-            <FilterField key={i} label={f.label}>
-              {f.control}
-            </FilterField>
+            <span key={i}>{withLabel(f)}</span>
           ))}
         </FilterBar>
       ) : null}

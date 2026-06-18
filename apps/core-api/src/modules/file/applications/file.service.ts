@@ -52,7 +52,11 @@ export class FileService extends DddService {
    *       repository 가 Context.ENTITY_MANAGER 를 읽으므로, 호출자의 `@Transactional` 트랜잭션에 그대로 합성된다.
    *       (단독 호출 시엔 오토커밋 — 단일 행 플립이라 안전)
    */
-  async commit(fileId: number, options?: { mimePrefix?: string }): Promise<File> {
+  async commit(fileId?: number, options?: { mimePrefix?: string }): Promise<File | void> {
+    if (!fileId) {
+      return;
+    }
+
     const [file] = await this.fileRepository.find({ ids: [fileId] });
 
     if (!file) {
