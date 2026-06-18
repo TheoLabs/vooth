@@ -1,6 +1,6 @@
 import { AdminGuard } from '@common/guards';
 import { Body, Controller, Delete, Get, Param, ParseIntPipe, Post, Put, Query, UseGuards } from '@nestjs/common';
-import { AdminContentQueryDto, AdminContentUpdateDto, ContentCreateDto } from './dto';
+import { AdminContentQueryDto, AdminContentUpdateDto, ContentCreateDto, ContentTransitionStatusDto } from './dto';
 import { AdminContentService } from '../applications/admin-content.service';
 
 @Controller('admins/contents')
@@ -61,6 +61,16 @@ export class AdminContentController {
     // 3. Get result
     await this.adminContentService.remove({ id });
 
+    // 4. Send response
+    return { data: {} };
+  }
+
+  @Put(':id/status')
+  async transitionStatus(@Param('id', ParseIntPipe) id: number, @Body() body: ContentTransitionStatusDto) {
+    // 1. Destructure body, params, query
+    // 2. Get context
+    // 3. Get result
+    await this.adminContentService.transitionStatus({ id, ...body });
     // 4. Send response
     return { data: {} };
   }

@@ -176,4 +176,17 @@ export class AdminContentService extends DddService {
 
     await this.contentRepository.save([content]);
   }
+
+  @Transactional()
+  async transitionStatus({ id, nextStatus }: { id: number; nextStatus: ContentStatus }) {
+    const [content] = await this.contentRepository.find({ id });
+
+    if (!content) {
+      throw new BadRequestException('존재하지 않는 컨텐츠입니다.');
+    }
+
+    content.transitionManually(nextStatus);
+
+    await this.contentRepository.save([content]);
+  }
 }

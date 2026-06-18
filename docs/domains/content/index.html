@@ -18,7 +18,7 @@
       회차 단위 검수(EpisodeReview)의 롤업과 스케줄러 발행이 자동 전이를 만든다.
     </p>
     <div class="meta">
-      <span class="badge plan">설계</span>
+      <span class="badge ok">구현됨</span>
       <span class="badge ns">admins/contents</span>
       <span class="badge ctx">8-state machine</span>
       <span class="badge ctx">@vooth/shared</span>
@@ -26,9 +26,9 @@
   </div>
 
   <div class="note warn">
-    <span class="label">구현 상태.</span> 상태 enum·전이 화이트리스트는 <code>packages/shared/src/content.ts</code> 에 <strong>확정</strong>돼 있으나,
-    core-api 의 Content 모듈/엔드포인트(<code>PUT /admins/contents/:id/status</code> 등)와 스케줄러는 <strong>예정</strong> 단계다.
-    상세 도메인 설계는 <code>docs/content-domain-design.md</code> §14 참고(단, 본 문서/코드가 최신 — 옛 문서는 5상태 버전).
+    <span class="label">구현 상태.</span> Content <b>CRUD + 상태 전이</b>(<code>PUT /admins/contents/:id/status</code>, <b>수동 allowlist</b>)는 <strong>구현됨</strong>.
+    <b>자동 전이</b>(녹음 진입·검수 롤업), <code>expectedPublishOn</code> <b>스케줄러 발행</b>, <b>EpisodeReview 롤업</b>은 <strong>예정</strong>.
+    상태 enum·전이/수동 화이트리스트는 <code>packages/shared/src/content.ts</code>. (옛 마크다운 <code>docs/content-domain-design.md</code> §14는 5상태 버전 — 본 문서/코드가 최신.)
   </div>
 
   <section class="section">
@@ -58,8 +58,8 @@
       <svg id="sm" class="statemachine" viewBox="0 0 1660 330" role="img" aria-label="콘텐츠 상태 머신"></svg>
     </div>
     <div class="legend">
-      <div class="item"><span class="swatch" style="border-color: #2563eb"></span> 자동 (도메인 롤업 · 스케줄러)</div>
-      <div class="item"><span class="swatch" style="border-color: #ea580c"></span> 수동 (검수자 / 관리자)</div>
+      <div class="item"><span class="swatch" style="border-color: #2563eb"></span> 자동·시스템 (롤업 · 스케줄러 · expectedPublishOn 데이터)</div>
+      <div class="item"><span class="swatch" style="border-color: #ea580c"></span> 수동 (PUT :id/status · allowlist)</div>
     </div>
   </section>
 
@@ -71,28 +71,34 @@
         <tbody id="rows"></tbody>
       </table>
     </div>
+    <div class="note">
+      <span class="label">자동 vs 수동.</span> <b>수동</b>(주황)은 <code>PUT /admins/contents/:id/status</code>로 사람이 직접 트리거 가능한 전이 —
+      <code>CONTENT_MANUAL_TRANSITIONS</code> / <code>canManualTransitionContent</code> / <code>content.transitionManually</code>.
+      <b>자동·시스템</b>(파랑)은 녹음 진입·검수 롤업·스케줄러·<code>expectedPublishOn</code> 데이터 전이로, status 엔드포인트로는 <b>거부</b>된다(우회 발행 방지).
+    </div>
   </section>
 
   <section class="section">
     <h2><span class="num">04</span> 불변식 · 정책</h2>
     <ul class="clean">
       <li>🔒 <b>PUBLISHED 이후 회귀 없음</b> — 발행에 도달하면 발행 이전 상태(DRAFT~SCHEDULED)로 가는 경로가 화이트리스트에 없다. <code>ARCHIVED ⇄ PUBLISHED</code> 만 가능.</li>
-      <li><b>DRAFT → READY 는 관리자 수동</b> — 초안 작업 완료는 운영자 책임이라 관리자가 직접 전이시킨다(자동 아님).</li>
-      <li><b>READY → RECORDING 는 자동</b> — 콘텐츠 소속 에피소드에 성우가 1명이라도 녹음을 진입하면 자동 전이. 역방향 없음(녹음 시작 이후 READY로 회귀 안 함).</li>
+      <li>🔒 <b>status 엔드포인트는 수동 전이만</b> — 자동·스케줄러·데이터 전이는 <code>canManualTransitionContent</code>로 차단해 우회 발행/녹음 트리거 무력화를 막는다.</li>
+      <li><b>DRAFT ⇄ READY 는 관리자 수동</b> — 초안 완료(DRAFT→READY)·초안 회귀(READY→DRAFT)는 status 엔드포인트로 직접 전이. 회귀는 <b>녹음 전(READY)만</b> 가능.</li>
+      <li><b>READY → RECORDING 는 자동</b> — 콘텐츠 소속 에피소드에 성우가 1명이라도 녹음을 진입하면 자동 전이. 이 경로는 역방향 없음(녹음 시작 후엔 READY로 회귀 안 함 — 회귀는 READY→DRAFT만).</li>
       <li><b>RECORDING ⇄ REVIEWING 자동 롤업</b> — 모든 회차 검수 완료 시 REVIEWING, 회차가 검수에서 회귀하면 다시 RECORDING.</li>
-      <li><b>REVIEWING ⇄ APPROVED 수동</b> — 검수자가 완료(APPROVED) / 재검수(REVIEWING).</li>
-      <li><b>APPROVED ⇄ SCHEDULED</b> — <code>scheduledPublishAt</code> 설정 시 SCHEDULED, 해제 시 APPROVED.</li>
+      <li><b>REVIEWING ⇄ APPROVED 수동</b> — 검수자가 완료(APPROVED) / 재검수(REVIEWING). status 엔드포인트.</li>
+      <li><b>APPROVED ⇄ SCHEDULED 는 데이터 전이</b> — <code>expectedPublishOn</code> 설정 시 SCHEDULED, 해제 시 APPROVED. status 엔드포인트가 아니라 <b>update(필드 설정)</b>로 일어난다.</li>
       <li><b>SCHEDULED → PUBLISHED 자동</b> — 예정일 도달 시 스케줄러가 발행(역방향 없음).</li>
     </ul>
   </section>
 
   <section class="section">
-    <h2><span class="num">05</span> 예정 백엔드</h2>
+    <h2><span class="num">05</span> 구현 현황 · 예정</h2>
     <ul class="clean">
-      <li><b><code>scheduledPublishAt</code></b> (datetime, nullable) 컬럼 — 값이 채워지면 <code>RECORDING/APPROVED → SCHEDULED</code> 자동 전이, 비우면 <code>SCHEDULED → APPROVED</code>.</li>
-      <li><b>상태 변경 엔드포인트</b> — <code>content.transitionTo(next)</code> + <code>canTransitionContent</code> 검증. 예: <code>PUT /admins/contents/:id/status { status }</code>.</li>
-      <li><b>스케줄러</b> — <code>scheduledPublishAt &lt;= now</code> 인 SCHEDULED 콘텐츠를 PUBLISHED 로 전이(주기 잡/예약 잡).</li>
-      <li><b>검수 연동</b> — 회차 단위 <code>EpisodeReview</code>(회차×성우) 완료/회귀가 콘텐츠 RECORDING↔REVIEWING 롤업을 트리거.</li>
+      <li>✅ <b>상태 전이 엔드포인트</b> — <code>PUT /admins/contents/:id/status { nextStatus }</code> → <code>content.transitionManually(next)</code> + <code>canManualTransitionContent</code>(수동 allowlist) 검증. <b>구현됨.</b></li>
+      <li>⏳ <b><code>expectedPublishOn</code></b> (CalendarDate, nullable) — 설정 시 <code>APPROVED → SCHEDULED</code>, 해제 시 역방향(데이터 전이, update).</li>
+      <li>⏳ <b>스케줄러</b> — <code>expectedPublishOn &lt;= now</code> 인 SCHEDULED 콘텐츠를 PUBLISHED 로 전이(시스템 — <code>transitionTo</code> 사용).</li>
+      <li>⏳ <b>자동 전이</b> — 녹음 진입(READY→RECORDING)·검수 롤업(RECORDING↔REVIEWING)은 EpisodeReview/녹음 연동 시 시스템 전이(<code>transitionTo</code>).</li>
     </ul>
     <div class="note">
       <span class="label">관련.</span> 검수 단위·에피소드 상태(DRAFT/READY/RECORDING/REVIEWING/PUBLISHED)는 별도 EpisodeReview 도메인에서 다룬다.
@@ -119,17 +125,18 @@
     { key: 'ARCHIVED',  label: '보관',     color: '#475569' },
   ];
   const TRANS = [
-    { from: 'DRAFT',     to: 'READY',     kind: 'manual', label: '초안 완료',     curve: -50, desc: '관리자가 초안 작업 완료 처리(수동)' },
+    { from: 'DRAFT',     to: 'READY',     kind: 'manual', label: '초안 완료',     curve: -50, desc: '관리자가 초안 작업 완료(status 엔드포인트)' },
+    { from: 'READY',     to: 'DRAFT',     kind: 'manual', label: '초안 회귀',     curve: -50, desc: '녹음 전 초안으로 되돌려 재편집(status 엔드포인트)' },
     { from: 'READY',     to: 'RECORDING', kind: 'auto',   label: '녹음 시작',     curve: -50, desc: '성우 1명이라도 소속 에피소드 녹음 진입(자동)' },
     { from: 'RECORDING', to: 'REVIEWING', kind: 'auto',   label: '전 회차 검수완료', curve: -50, desc: '모든 회차 검수 완료 롤업(자동)' },
     { from: 'REVIEWING', to: 'RECORDING', kind: 'auto',   label: '검수 회귀',      curve: -50, desc: '회차가 검수 회귀하면 롤백(자동)' },
-    { from: 'REVIEWING', to: 'APPROVED',  kind: 'manual', label: '검수 완료',      curve: -50, desc: '검수자 수동 완료' },
-    { from: 'APPROVED',  to: 'REVIEWING', kind: 'manual', label: '재검수',        curve: -50, desc: '검수자 수동 재검수' },
-    { from: 'APPROVED',  to: 'SCHEDULED', kind: 'manual', label: '예정일 설정',    curve: -50, desc: 'scheduledPublishAt 설정' },
-    { from: 'SCHEDULED', to: 'APPROVED',  kind: 'manual', label: '예정 취소',      curve: -50, desc: 'scheduledPublishAt 해제' },
+    { from: 'REVIEWING', to: 'APPROVED',  kind: 'manual', label: '검수 완료',      curve: -50, desc: '검수자 수동 완료(status 엔드포인트)' },
+    { from: 'APPROVED',  to: 'REVIEWING', kind: 'manual', label: '재검수',        curve: -50, desc: '검수자 수동 재검수(status 엔드포인트)' },
+    { from: 'APPROVED',  to: 'SCHEDULED', kind: 'auto',   label: '예정일 설정',    curve: -50, desc: 'expectedPublishOn 설정(데이터 — update)' },
+    { from: 'SCHEDULED', to: 'APPROVED',  kind: 'auto',   label: '예정 취소',      curve: -50, desc: 'expectedPublishOn 해제(데이터 — update)' },
     { from: 'SCHEDULED', to: 'PUBLISHED', kind: 'auto',   label: '예정일 발행',    curve: -50, desc: '예정일 도달 → 스케줄러 발행' },
-    { from: 'PUBLISHED', to: 'ARCHIVED',  kind: 'manual', label: '보관',          curve: -50, desc: '관리자 수동 보관' },
-    { from: 'ARCHIVED',  to: 'PUBLISHED', kind: 'manual', label: '복원',          curve: -50, desc: '관리자 수동 복원' },
+    { from: 'PUBLISHED', to: 'ARCHIVED',  kind: 'manual', label: '보관',          curve: -50, desc: '관리자 수동 보관(status 엔드포인트)' },
+    { from: 'ARCHIVED',  to: 'PUBLISHED', kind: 'manual', label: '복원',          curve: -50, desc: '관리자 수동 복원(status 엔드포인트)' },
   ];
 
   // 가로 1열 배치

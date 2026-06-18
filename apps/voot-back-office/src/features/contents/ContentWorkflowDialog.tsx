@@ -37,6 +37,7 @@ const STEPS: Step[] = [
     status: ContentStatus.READY,
     meaning: '성우 배정과 준비가 끝나 녹음 시작을 기다리는 상태입니다.',
     next: { actor: '성우', text: '성우가 녹음을 시작하면 자동으로 녹음 중이 됩니다.' },
+    back: '녹음 시작 전이라면 운영자가 초안으로 되돌려 재편집할 수 있습니다.',
   },
   {
     status: ContentStatus.RECORDING,

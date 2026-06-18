@@ -85,3 +85,8 @@ export async function updateContent(id: number, input: UpdateContentInput): Prom
 export async function deleteContent(id: number): Promise<void> {
   await apiClient.delete(`/admins/contents/${id}`);
 }
+
+/** 작품 상태 변경. PUT /admins/contents/:id/status */
+export async function updateContentStatus(id: number, nextStatus: ContentStatus): Promise<void> {
+  await apiClient.put(`/admins/contents/${id}/status`, { nextStatus });
+}

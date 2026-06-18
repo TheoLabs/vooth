@@ -11,11 +11,13 @@ import {
   fetchContent,
   fetchContents,
   updateContent,
+  updateContentStatus,
   type AdminContent,
   type ContentListQuery,
   type CreateContentInput,
   type UpdateContentInput,
 } from '../../api/content.api';
+import type { ContentStatus } from '@vooth/shared';
 import type { PaginatedResponse } from '../../api/pagination';
 import type { ApiError } from '../../lib/apiClient';
 
@@ -68,6 +70,19 @@ export function useDeleteContent(): UseMutationResult<void, ApiError, number> {
   const queryClient = useQueryClient();
   return useMutation<void, ApiError, number>({
     mutationFn: deleteContent,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: [CONTENTS_KEY] }),
+  });
+}
+
+/** 작품 상태 변경(PUT /admins/contents/:id/status). 성공 시 목록·상세 무효화. */
+export function useUpdateContentStatus(): UseMutationResult<
+  void,
+  ApiError,
+  { id: number; status: ContentStatus }
+> {
+  const queryClient = useQueryClient();
+  return useMutation<void, ApiError, { id: number; status: ContentStatus }>({
+    mutationFn: ({ id, status }) => updateContentStatus(id, status),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: [CONTENTS_KEY] }),
   });
 }

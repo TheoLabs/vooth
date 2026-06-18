@@ -1,6 +1,6 @@
 import { DddAggregate } from '@libs/ddd';
 import { Tag } from '@modules/tag/domain/tag.entity';
-import { CalendarDate, ContentStatus, type CropBox } from '@vooth/shared';
+import { CalendarDate, canManualTransitionContent, canTransitionContent, ContentStatus, type CropBox } from '@vooth/shared';
 import { Column, Entity, JoinTable, ManyToMany, PrimaryGeneratedColumn } from 'typeorm';
 import { ContentSetTagEvent } from './events';
 import { BadRequestException } from '@nestjs/common';
@@ -98,5 +98,26 @@ export class Content extends DddAggregate {
 
     this.deletedAt = new Date();
     this.publishEvent(new ContentSetTagEvent({ addedTagIds: [], removedTagIds: this.tags.map((t) => t.id) }));
+  }
+
+  transitionTo(nextStatus: ContentStatus) {
+    if (!canTransitionContent(this.status, nextStatus)) {
+      throw new BadRequestException(`잘못된 상태 변경입니다. ${this.status} -> ${nextStatus}`, {
+        cause: `잘못된 상태 변경입니다. 개발팀에게 문의주세요. ${this.status} -> ${nextStatus}`,
+      });
+    }
+
+    this.status = nextStatus;
+  }
+
+  /** 관리자 수동 상태 전이. 자동·스케줄러·데이터 기반 전이는 거부한다. */
+  transitionManually(nextStatus: ContentStatus) {
+    if (!canManualTransitionContent(this.status, nextStatus)) {
+      throw new BadRequestException(`수동으로 변경할 수 없는 상태입니다. ${this.status} -> ${nextStatus}`, {
+        cause: `수동으로 변경할 수 없는 상태입니다. 개발팀에게 문의주세요. ${this.status} -> ${nextStatus}`,
+      });
+    }
+
+    this.status = nextStatus;
   }
 }

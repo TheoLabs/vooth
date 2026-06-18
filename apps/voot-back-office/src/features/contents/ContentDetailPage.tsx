@@ -3,6 +3,7 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   App as AntApp,
   Button,
+  Dropdown,
   Empty,
   Popconfirm,
   Space,
@@ -11,8 +12,14 @@ import {
   Tag,
   Typography,
 } from 'antd';
+import { DownOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
-import { EpisodeStatus } from '@vooth/shared';
+import {
+  ContentStatus,
+  CONTENT_MANUAL_TRANSITIONS,
+  CONTENT_STATUS_LABEL,
+  EpisodeStatus,
+} from '@vooth/shared';
 import { DEFAULT_PAGE_SIZE, FullHeightTable } from '../../components/FullHeightTable';
 import { TableToolbar } from '../../components/TableToolbar';
 import { FilterSelect } from '../../components/FilterSelect';
@@ -29,7 +36,13 @@ import { ContentFormDrawer, type ContentFormPayload } from './ContentFormDrawer'
 import { EpisodeStatusBadge } from './EpisodeStatusBadge';
 import { EpisodeDetailDrawer } from './EpisodeDetailDrawer';
 import { EpisodeFormDrawer, type EpisodeFormPayload } from './EpisodeFormDrawer';
-import { useContent, useDeleteContent, useUpdateContent } from './useContents';
+import {
+  useContent,
+  useDeleteContent,
+  useUpdateContent,
+  useUpdateContentStatus,
+} from './useContents';
+import { CONTENT_STATUS_DOT } from './content.types';
 import { useCreateEpisode, useEpisodes } from './useEpisodes';
 import { uploadImage } from '../../api/file.api';
 import type { UpdateContentInput } from '../../api/content.api';
@@ -55,12 +68,13 @@ type DetailTab = 'episodes' | 'characters';
 export function ContentDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { message } = AntApp.useApp();
+  const { message, modal } = AntApp.useApp();
   const numId = Number(id);
 
   const { data: content, isLoading } = useContent(numId);
   const update = useUpdateContent();
   const remove = useDeleteContent();
+  const updateStatus = useUpdateContentStatus();
 
   const [editOpen, setEditOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -189,6 +203,27 @@ export function ContentDetailPage() {
     });
   };
 
+  // 사람이 직접 트리거할 수 있는 전이만 노출(자동/스케줄러/데이터 전이 제외).
+  const manualNextStatuses = CONTENT_MANUAL_TRANSITIONS[content.status] ?? [];
+
+  const changeStatus = (next: ContentStatus) => {
+    modal.confirm({
+      title: '작품 상태 변경',
+      content: `'${CONTENT_STATUS_LABEL[content.status]}' → '${CONTENT_STATUS_LABEL[next]}' 로 변경할까요?`,
+      okText: '변경',
+      cancelText: '취소',
+      onOk: async () => {
+        try {
+          await updateStatus.mutateAsync({ id: content.id, status: next });
+          message.success('상태를 변경했습니다.');
+        } catch (e) {
+          message.error(e instanceof Error ? e.message : '상태 변경에 실패했습니다.');
+          throw e;
+        }
+      },
+    });
+  };
+
   const episodeColumns: ColumnsType<AdminEpisode> = [
     {
       title: '회차',
@@ -290,6 +325,34 @@ export function ContentDetailPage() {
                 {content.title}
               </Typography.Title>
               <ContentStatusBadge status={content.status} />
+              <Dropdown
+                trigger={['click']}
+                disabled={manualNextStatuses.length === 0 || updateStatus.isPending}
+                menu={{
+                  items: manualNextStatuses.map((s) => ({
+                    key: s,
+                    label: (
+                      <Space size={8}>
+                        <span
+                          style={{
+                            display: 'inline-block',
+                            width: 8,
+                            height: 8,
+                            borderRadius: '50%',
+                            background: CONTENT_STATUS_DOT[s],
+                          }}
+                        />
+                        {CONTENT_STATUS_LABEL[s]}
+                      </Space>
+                    ),
+                  })),
+                  onClick: ({ key }) => changeStatus(key as ContentStatus),
+                }}
+              >
+                <Button size="small" loading={updateStatus.isPending}>
+                  상태 변경 <DownOutlined />
+                </Button>
+              </Dropdown>
             </Space>
             <Button size="small" onClick={() => setEditOpen(true)} style={{ flex: 'none' }}>
               수정

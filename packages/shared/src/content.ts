@@ -18,7 +18,8 @@ export enum ContentStatus {
 /**
  * 허용 상태 전이(화이트리스트).
  * - DRAFT→READY : 관리자 수동(초안 작업 완료 = 운영자 책임).
- * - READY→RECORDING : 성우 1명이라도 콘텐츠 소속 에피소드 녹음 진입(자동). 역방향 없음.
+ * - READY→DRAFT : 관리자 수동(초안으로 회귀해 재편집).
+ * - READY→RECORDING : 성우 1명이라도 콘텐츠 소속 에피소드 녹음 진입(자동).
  * - RECORDING↔REVIEWING : 모든 회차 검수 완료/회귀(자동 롤업).
  * - REVIEWING→APPROVED : 검수자 수동 완료. APPROVED→REVIEWING : 재검수.
  * - APPROVED↔SCHEDULED : 발행 예정일 설정/해제.
@@ -27,7 +28,7 @@ export enum ContentStatus {
  */
 export const CONTENT_STATUS_TRANSITIONS: Record<ContentStatus, ContentStatus[]> = {
   [ContentStatus.DRAFT]: [ContentStatus.READY],
-  [ContentStatus.READY]: [ContentStatus.RECORDING],
+  [ContentStatus.READY]: [ContentStatus.RECORDING, ContentStatus.DRAFT],
   [ContentStatus.RECORDING]: [ContentStatus.REVIEWING],
   [ContentStatus.REVIEWING]: [ContentStatus.RECORDING, ContentStatus.APPROVED],
   [ContentStatus.APPROVED]: [ContentStatus.REVIEWING, ContentStatus.SCHEDULED],
@@ -36,9 +37,33 @@ export const CONTENT_STATUS_TRANSITIONS: Record<ContentStatus, ContentStatus[]> 
   [ContentStatus.ARCHIVED]: [ContentStatus.PUBLISHED],
 };
 
-/** from → to 전이가 허용되는지. */
+/** from → to 전이가 허용되는지(전체 화이트리스트 — 시스템/자동 포함). */
 export function canTransitionContent(from: ContentStatus, to: ContentStatus): boolean {
   return CONTENT_STATUS_TRANSITIONS[from]?.includes(to) ?? false;
+}
+
+/**
+ * 사람(관리자/검수자)이 직접 트리거할 수 있는 전이만 추린 부분집합.
+ * 반드시 CONTENT_STATUS_TRANSITIONS 의 부분집합이어야 한다.
+ * 제외 대상:
+ * - READY→RECORDING        : 성우 녹음 진입(자동)
+ * - RECORDING↔REVIEWING     : 검수 롤업/회귀(자동)
+ * - APPROVED↔SCHEDULED      : expectedPublishOn 설정/해제(데이터 기반 — update 로 처리)
+ * - SCHEDULED→PUBLISHED     : 예정일 발행(스케줄러)
+ * 포함: READY→DRAFT(녹음 시작 전, 초안으로 회귀해 재편집).
+ */
+export const CONTENT_MANUAL_TRANSITIONS: Partial<Record<ContentStatus, ContentStatus[]>> = {
+  [ContentStatus.DRAFT]: [ContentStatus.READY],
+  [ContentStatus.READY]: [ContentStatus.DRAFT],
+  [ContentStatus.REVIEWING]: [ContentStatus.APPROVED],
+  [ContentStatus.APPROVED]: [ContentStatus.REVIEWING],
+  [ContentStatus.PUBLISHED]: [ContentStatus.ARCHIVED],
+  [ContentStatus.ARCHIVED]: [ContentStatus.PUBLISHED],
+};
+
+/** from → to 가 수동으로 허용되는 전이인지(자동·스케줄러·데이터 전이는 차단). */
+export function canManualTransitionContent(from: ContentStatus, to: ContentStatus): boolean {
+  return CONTENT_MANUAL_TRANSITIONS[from]?.includes(to) ?? false;
 }
 
 /** 콘텐츠 상태 한글 라벨(표시/에러용). */
