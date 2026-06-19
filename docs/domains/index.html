@@ -121,9 +121,15 @@
       </a>
       <a class="dcard" href="cut/index.html">
         <div class="top"><h3>Cut</h3><span class="badge plan">설계</span></div>
-        <div class="ns">admins/episodes/:episodeId/cuts</div>
-        <p>회차 본문의 컷 = 세로 스크롤 패널 이미지 + 재생 타임라인 컨테이너. Line/SoundEffect/CutEffect의 부모. 연출(anchorY/gap/hold/cropBox)은 nullable.</p>
-        <div class="tags"><span>Episode 소속</span><span>타임라인 컨테이너</span><span>연출</span></div>
+        <div class="ns">admins · directors / …/cuts</div>
+        <p>컷 = 패널 이미지 + 타임라인 <b>구성 애그리게이트</b>. Line/SoundEffect/CutEffect를 owned child로 품어 앵커 그래프를 내부 불변식으로. Recording만 별도 AR.</p>
+        <div class="tags"><span>애그리게이트 루트</span><span>owned children</span><span>intra-aggregate 앵커</span></div>
+      </a>
+      <a class="dcard" href="recording/index.html">
+        <div class="top"><h3>Recording</h3><span class="badge plan">설계</span></div>
+        <div class="ns">creators/* · directors/*</div>
+        <p>대사의 버전별 음성 = (Line × Casting) 테이크. 성우가 올리고(maker) 연출자가 채택(isAdopted). Cut과 달리 별도 AR.</p>
+        <div class="tags"><span>Line × Casting</span><span>take · 채택</span><span>멀티앱</span></div>
       </a>
       <a class="dcard" href="playback/index.html">
         <div class="top"><h3>Playback</h3><span class="badge plan">설계</span></div>

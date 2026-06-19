@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Recording 도메인 — Vooth core-api</title>
+<link rel="stylesheet" href="../assets/style.css" />
+</head>
+<body>
+<header class="topnav"><div class="inner" id="site-nav"></div></header>
+
+<div class="wrap">
+  <div class="hero">
+    <div class="eyebrow">Composition · 구성·재생</div>
+    <h1>Recording · 녹음 테이크</h1>
+    <p class="lead">
+      대사(Line)의 <b>버전별 음성</b>. <code>(Line × Casting)</code> 단위이며, 성우가 올린 <b>테이크(take)</b>들 중 하나가 채택(<code>isAdopted</code>)된다.
+      Cut 구성 애그리게이트와 달리 <b>별도 AR</b> — 성우(maker)가 다른 시점에 쓰기 때문.
+    </p>
+    <div class="meta">
+      <span class="badge plan">설계</span>
+      <span class="badge ns">creators/* · directors/*</span>
+      <span class="badge ctx">Line × Casting</span>
+      <span class="badge ctx">take · 채택</span>
+    </div>
+  </div>
+
+  <div class="note warn">
+    <span class="label">구현 상태 = 설계.</span> Recording은 아직 core-api 모듈로 존재하지 않는다.
+    부모 대사·컷은 <a href="../cut/index.html">Cut</a>(Line은 Cut의 child), 버전은 <a href="../casting/index.html">Casting</a>, 타이밍은 <a href="../playback/index.html">Playback</a> 참고.
+  </div>
+
+  <section class="section">
+    <h2><span class="num">01</span> 책임과 특성</h2>
+    <ul class="clean">
+      <li><b>버전별 음성</b> — 같은 대사라도 성우(Casting)마다 음성·길이가 다르다. <code>Recording = (Line × Casting)</code>.</li>
+      <li><b>테이크 + 채택</b> — <code>(lineId, castingId)</code>당 여러 테이크(재녹음)를 쌓고, 연출자가 그중 하나를 <code>isAdopted</code>로 채택. 재생엔 채택 테이크가 쓰인다.</li>
+      <li><b>별도 AR인 이유</b> — Cut/Line/효과는 내부(admin/director)가 쓰지만, 녹음은 <b>성우(maker)</b>가 다른 시점·다른 앱에서 쓴다. 그래서 Cut 애그리게이트에서 분리.</li>
+      <li><b>타임라인 입력</b> — Line의 재생 길이 = <b>선택된 버전의 채택 Recording.duration</b>. 버전별 해석(Playback)의 핵심 입력.</li>
+    </ul>
+  </section>
+
+  <section class="section">
+    <h2><span class="num">02</span> 애그리게이트 — <code>Recording</code></h2>
+    <p class="desc">공통 베이스 <code>DddAggregate</code>(<code>id</code>, <code>createdAt/updatedAt/deletedAt</code>, 이벤트)는 생략.</p>
+    <div class="t-scroll">
+      <table>
+        <thead><tr><th>필드</th><th>타입</th><th>null</th><th>설명</th></tr></thead>
+        <tbody>
+          <tr><td><code>lineId</code></td><td>number</td><td>✗</td><td>대상 대사(Cut의 child Line). <b>논리 FK</b> + INDEX</td></tr>
+          <tr><td><code>castingId</code></td><td>number</td><td>✗</td><td>버전(Character×Creator). <b>논리 FK</b> + INDEX. <code>casting.characterId === line.characterId</code> 정합</td></tr>
+          <tr><td><code>audioFileId</code></td><td>number</td><td>✗</td><td>음성(File). <b>commit-on-attach(<code>audio/</code>)</b></td></tr>
+          <tr><td><code>duration</code></td><td>number(ms)</td><td>✗</td><td>음성 길이. <b>클라(maker) 제공</b>(S3 HEAD로 못 구함)</td></tr>
+          <tr><td><code>isAdopted</code></td><td>boolean</td><td>✗</td><td>같은 <code>(lineId, castingId)</code> 테이크 중 사용본. 기본 false</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note">
+      <span class="label">테이크 & 채택.</span> <code>(lineId, castingId)</code>당 <b>여러 행(테이크)</b> 허용. <code>isAdopted=true</code>는 그 쌍에서 <b>최대 1개</b> — 부분 unique라 DB로 못 박고 <b>앱에서 보장</b>(채택 시 형제 false). INDEX <code>(lineId, castingId)</code>. 녹음 주체는 <code>casting.creatorId</code>로 파생(별도 컬럼 없음).
+    </div>
+  </section>
+
+  <section class="section">
+    <h2><span class="num">03</span> 권한 · 검증</h2>
+    <ul class="clean">
+      <li><b>정합</b> — <code>casting.characterId === line.characterId</code>(엉뚱한 캐릭터 버전에 녹음 금지).</li>
+      <li><b>녹음 주체</b> — <code>creators/*</code>: 현재 성우가 <b>그 casting의 creator일 때만</b>(<code>casting.creatorId === ctx.creator.id</code>) 업로드 가능. 남의 캐스팅 녹음 금지.</li>
+      <li><b>채택</b> — <code>directors/*</code>(연출자, ADMIN): 테이크 중 하나를 <code>isAdopted</code> 처리(형제 자동 해제).</li>
+    </ul>
+  </section>
+
+  <section class="section">
+    <h2><span class="num">04</span> 이벤트 · 상태 연동</h2>
+    <ul class="clean">
+      <li><b>첫 제출 → 회차 전이</b> — 라인에 첫 Recording이 제출되면 <code>RecordingSubmittedEvent</code> 발행 → Episode <code>READY→RECORDING</code> 자동 전이 트리거(추후 배선).</li>
+      <li><b>검수·발행</b> — (회차 × Casting) 검수(EpisodeCasting, 추후)가 통과하면 그 버전이 발행. Recording 개별이 아니라 캐스팅 단위로 검수된다.</li>
+    </ul>
+  </section>
+
+  <section class="section">
+    <h2><span class="num">05</span> 라이프사이클 · 삭제</h2>
+    <ul class="clean">
+      <li><b>생성(테이크 업로드)</b> — maker. presign→S3 PUT→<code>POST</code> 시 <code>commit(audio/)</code> + <code>duration</code> 저장.</li>
+      <li><b>채택</b> — directors. <code>isAdopted</code> 토글(형제 해제).</li>
+      <li><b>삭제</b> — 테이크 삭제. 채택/검수된 테이크는 차단 검토(추후 EpisodeCasting 연동).</li>
+    </ul>
+  </section>
+
+  <section class="section">
+    <h2><span class="num">06</span> API 표면 (멀티 앱) <span style="font-size:12px;font-weight:600;color:var(--faint)">(예정)</span></h2>
+    <div class="t-scroll">
+      <table>
+        <thead><tr><th>표면</th><th>엔드포인트</th><th>주체</th></tr></thead>
+        <tbody>
+          <tr><td>녹음 업로드</td><td><code>POST creators/lines/:lineId/recordings</code></td><td>성우(maker) — 자기 casting만</td></tr>
+          <tr><td>내 녹음 조회</td><td><code>GET creators/lines/:lineId/recordings</code></td><td>성우</td></tr>
+          <tr><td>채택</td><td><code>PUT directors/recordings/:id/adopt</code></td><td>연출자(tool)</td></tr>
+          <tr><td>삭제</td><td><code>DELETE creators/recordings/:id</code></td><td>성우(본인 테이크)</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note"><span class="label">네임스페이스.</span> 생성·내 조회·삭제=<code>creators/*</code>(CreatorGuard), 채택·검수 조회=<code>directors/*</code>(DirectorGuard=ADMIN). 컷 구성(Cut/Line/효과)은 별도 — <a href="../cut/index.html">Cut</a>.</div>
+  </section>
+
+  <section class="section">
+    <h2><span class="num">07</span> 관계 · 경계</h2>
+    <ul class="clean">
+      <li><b>→ Line</b>(<a href="../cut/index.html">Cut</a>의 child): <code>lineId</code> 논리 참조. Line은 Cut 애그리게이트 내부 엔티티 — 참조만(수정은 Cut 루트).</li>
+      <li><b>→ Casting</b>: <code>castingId</code> 논리 FK. 버전·성우 정체성.</li>
+      <li><b>→ File</b>: <code>audioFileId</code>로 음성 참조(commit-on-attach).</li>
+      <li><b>← EpisodeCasting</b>(추후): 회차×캐스팅 검수·발행이 채택 Recording을 기준으로 라이브 판단.</li>
+    </ul>
+  </section>
+</div>
+
+<footer class="page">
+  Source: 설계 합의 (미구현) · 대사 <a href="../cut/index.html">Cut</a>(Line) · 버전 <a href="../casting/index.html">Casting</a> · 타임라인 <a href="../playback/index.html">Playback</a>
+</footer>
+<script src="../assets/nav.js"></script>
+</body>
+</html>

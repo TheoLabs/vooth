@@ -446,16 +446,16 @@
           <tr><td>타이밍</td><td><b>풀 앵커</b> — 모든 요소가 CUT_START/다른 요소에 anchor(START/END+offset). 대사끼리 오버랩 가능</td><td>버전마다 음성 길이가 달라 절대 ms 불가. 동기화·겹말 표현</td></tr>
           <tr><td>절대 시간</td><td>startAt / hold <b>저장 안 함</b> — 버전별 런타임 resolve</td><td>버전 전환 시 자동 재계산. 저작은 1회</td></tr>
           <tr><td>캐스팅</td><td><b>(B) Casting 엔티티</b> + <code>isPublished</code></td><td>캐릭터 1:N 성우. 버전 = Casting</td></tr>
-          <tr><td>Recording</td><td><b>(Line × Casting)</b>, <code>isAdopted</code>로 버전 내 take 선택</td><td>버전별 음성 + 재녹음 이력</td></tr>
-          <tr><td>요소 저장</td><td>Cut/Line/Recording/SoundEffect/CutEffect <b>독립 AR</b> + <b>폴리모픽 앵커(soft ref)</b></td><td>앱별 쓰기 분산. 앵커는 컷 내 id 참조(앱단 검증)</td></tr>
+          <tr><td>Recording</td><td><b>(Line × Casting)</b> 별도 AR, <code>isAdopted</code>로 버전 내 take 선택</td><td>버전별 음성 + 재녹음 이력. 성우(maker)가 별도 시점에 씀</td></tr>
+          <tr><td>요소 저장</td><td><b>Cut = 구성 애그리게이트</b>: Line/SoundEffect/CutEffect를 <b>owned child</b>로 품음. Recording만 별도 AR</td><td>등록·연출이 내부(admin/director) 같은 단위 + 앵커 그래프가 컷 내부 관계 → intra-aggregate 불변식</td></tr>
           <tr><td>효과음 에셋</td><td><b>(A) 컷마다 업로드 — MVP</b> (<code>audioFileId</code>)</td><td>MVP 우선. 재사용 라이브러리는 후속</td></tr>
           <tr><td>단위</td><td>시간 <b>ms</b> · anchorY/cropBox/volume <b>0~1</b> · gap/이미지 <b>px</b></td><td>오디오 동기화는 ms, 레이아웃은 해상도 독립</td></tr>
         </tbody>
       </table>
     </div>
     <div class="note">
-      <span class="label">대안 메모.</span> 풀 앵커는 요소 간 단일 id 공간이 편해 <b>통합 <code>CutElement</code> 테이블(kind 판별)</b>도 후보였으나,
-      라이프사이클(Line만 캐릭터·녹음 연계)과 타입별 컬럼을 살리려 <b>독립 테이블 + 폴리모픽 앵커</b>를 택했다. 앵커 참조 무결성은 앱 레이어 검증으로 보강한다.
+      <span class="label">앵커 응집.</span> 풀 앵커는 요소 간 관계 그래프라, 요소를 별도 AR로 흩으면 앵커가 cross-AR soft ref가 된다.
+      그래서 <b>Cut을 구성 애그리게이트(루트)</b>로 두고 Line/SoundEffect/CutEffect를 <b>owned child</b>로 품어, 앵커 <code>targetId</code>가 <b>같은 애그리게이트 내부</b>를 가리키게 했다 — DAG·same-cut 검증이 Cut 루트 한 곳에서 끝난다. (구조·필드·영속성은 <a href="../cut/index.html">Cut</a> 참고)
     </div>
   </section>
 
