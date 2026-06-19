@@ -72,13 +72,10 @@ export class AdminCharacterService extends DddService {
       this.characterRepository.count({ contentId, types, searchKey, searchValue }),
     ]);
 
-    const avatarUrls = await this.fileService.resolvePublicUrls(characters.map((c) => c.avatarFileId));
+    const getPublicUrl = await this.fileService.getPublicUrl(characters.map((c) => c.avatarFileId));
 
     return {
-      items: characters.map((c) => {
-        const avatarUrl = c.avatarFileId ? avatarUrls.get(c.avatarFileId) : null;
-        return c.toInstance(CharacterResponseDto, { avatarUrl });
-      }),
+      items: characters.map((c) => c.toInstance(CharacterResponseDto, { avatarUrl: getPublicUrl(c.avatarFileId) })),
       total,
     };
   }

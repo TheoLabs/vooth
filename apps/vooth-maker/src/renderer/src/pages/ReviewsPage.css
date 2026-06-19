@@ -1,0 +1,196 @@
+.rv {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  max-width: 880px;
+}
+
+.rv__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.rv__title {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.rv__mock-tag {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: #b45309;
+  background: #fef3c7;
+  border: 1px solid #fde68a;
+  padding: 2px 7px;
+  border-radius: 999px;
+}
+
+.rv__total {
+  margin-left: auto;
+  font-size: 13px;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.rv__filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.rv__chip {
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #475569;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+
+.rv__chip:hover {
+  border-color: #cbd5e1;
+}
+
+.rv__chip--active {
+  color: #ffffff;
+  background: #4f46e5;
+  border-color: #4f46e5;
+}
+
+.rv__list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.rv-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 18px 20px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+}
+
+.rv-card__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.rv-card__titles {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.rv-card__work {
+  font-size: 12px;
+  font-weight: 600;
+  color: #94a3b8;
+}
+
+.rv-card__ep {
+  font-size: 16px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.rv-card__role {
+  font-size: 13px;
+  color: #64748b;
+}
+
+.rv-card__meta {
+  display: flex;
+  gap: 16px;
+  font-size: 12px;
+  color: #64748b;
+}
+
+.rv-card__reject {
+  margin: 0;
+  padding: 10px 12px;
+  font-size: 13px;
+  color: #b91c1c;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 9px;
+}
+
+.rv-card__reject strong {
+  font-weight: 700;
+  margin-right: 6px;
+}
+
+.rv-card__actions {
+  display: flex;
+  gap: 8px;
+}
+
+.rv-btn {
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #475569;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.rv-btn--primary {
+  color: #ffffff;
+  background: #4f46e5;
+  border-color: #4f46e5;
+}
+.rv-btn--primary:hover {
+  background: #4338ca;
+}
+
+/* ---- review status badge ---- */
+.rv-badge {
+  flex: 0 0 auto;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.rv-badge--reviewing {
+  color: #7e22ce;
+  background: #f3e8ff;
+}
+.rv-badge--approved {
+  color: #15803d;
+  background: #dcfce7;
+}
+.rv-badge--rejected {
+  color: #b91c1c;
+  background: #fee2e2;
+}
+
+.rv__empty {
+  padding: 48px;
+  text-align: center;
+  font-size: 14px;
+  color: #94a3b8;
+  background: #ffffff;
+  border: 1px dashed #e2e8f0;
+  border-radius: 14px;
+}

@@ -97,12 +97,9 @@ export class FileService extends DddService {
   /**
    * fileId 들 → 표시용 public URL 맵(일괄, 단일 쿼리 — 목록 enrich 의 N+1 회피).
    * null/undefined/중복은 무시하고, 존재하지 않는 id 는 결과에서 빠진다.
-   *
-   * @example
-   * const urls = await this.fileService.resolvePublicUrls(items.map((i) => i.thumbnailFileId));
-   * items.map((i) => ({ ...i, thumbnailUrl: urls.get(i.thumbnailFileId) ?? null }));
+   * 내부 전용 — 외부는 단건 {@link resolvePublicUrl} / 목록 {@link getPublicUrl} 을 쓴다.
    */
-  async resolvePublicUrls(ids: (number | null | undefined)[]): Promise<Map<number, string>> {
+  private async resolvePublicUrls(ids: (number | null | undefined)[]): Promise<Map<number, string>> {
     const validIds = [...new Set(ids.filter((id): id is number => id != null))];
     if (!validIds.length) {
       return new Map();
@@ -110,6 +107,19 @@ export class FileService extends DddService {
 
     const files = await this.fileRepository.find({ ids: validIds });
     return new Map(files.map((file) => [file.id, this.s3Service.getPublicUrl(file.key)]));
+  }
+
+  /**
+   * fileIds 를 일괄 조회해, `id → public URL` 변환 함수를 돌려준다(목록 enrich 용 — 단일 쿼리로 N+1 회피).
+   * 반환 함수는 null/undefined/미존재 id 를 null 로 처리한다.
+   *
+   * @example
+   * const getPublicUrl = await this.fileService.getPublicUrl(items.map((i) => i.fileId));
+   * items.map((i) => i.toInstance(Dto, { url: getPublicUrl(i.fileId) }));
+   */
+  async getPublicUrl(fileIds: (number | null | undefined)[]): Promise<(fileId?: number | null) => string | null> {
+    const urls = await this.resolvePublicUrls(fileIds);
+    return (fileId) => (fileId == null ? null : (urls.get(fileId) ?? null));
   }
 
   /** `<prefix>/<year>/<uuid><ext>` 형태의 키 생성. prefix 미지정/부적합 시 `uploads`. */

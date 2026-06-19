@@ -1,3 +1,4 @@
+import { useNavigate } from 'react-router-dom'
 import { useMe } from '../features/me/useMe'
 import {
   EPISODE_STATUS_LABEL,
@@ -40,10 +41,14 @@ function primaryAction(episode: Episode): { label: string; disabled: boolean } {
 }
 
 function EpisodeCard({ episode }: { episode: Episode }): React.JSX.Element {
+  const navigate = useNavigate()
   const progress = episode.totalCuts
     ? Math.round((episode.recordedCuts / episode.totalCuts) * 100)
     : 0
   const action = primaryAction(episode)
+  const goRecord = (): void => {
+    void navigate(`/works/${episode.id}`)
+  }
 
   return (
     <li className="ep-card">
@@ -78,10 +83,15 @@ function EpisodeCard({ episode }: { episode: Episode }): React.JSX.Element {
       )}
 
       <div className="ep-card__actions">
-        <button type="button" className="ep-btn ep-btn--primary" disabled={action.disabled}>
+        <button
+          type="button"
+          className="ep-btn ep-btn--primary"
+          disabled={action.disabled}
+          onClick={goRecord}
+        >
           {action.label}
         </button>
-        <button type="button" className="ep-btn">
+        <button type="button" className="ep-btn" onClick={goRecord}>
           상세
         </button>
       </div>

@@ -4,6 +4,11 @@ import { ProtectedRoute } from './routes/ProtectedRoute'
 import { ApprovalGate } from './routes/ApprovalGate'
 import { LoginPage } from './features/auth/LoginPage'
 import { HomePage } from './pages/HomePage'
+import { EpisodeListPage } from './pages/EpisodeListPage'
+import { EpisodeEditorPage } from './pages/EpisodeEditorPage'
+import { EpisodeAdoptPage } from './pages/EpisodeAdoptPage'
+import { EpisodePreviewPage } from './pages/EpisodePreviewPage'
+import { RenderPage } from './pages/RenderPage'
 
 function App(): React.JSX.Element {
   return (
@@ -13,6 +18,12 @@ function App(): React.JSX.Element {
         <Route element={<ApprovalGate />}>
           <Route element={<AppLayout />}>
             <Route index element={<HomePage />} />
+            <Route path="episodes" element={<EpisodeListPage />} />
+            <Route path="episodes/:episodeId" element={<EpisodeEditorPage />} />
+            <Route path="episodes/:episodeId/adopt" element={<EpisodeAdoptPage />} />
+            <Route path="episodes/:episodeId/preview" element={<EpisodePreviewPage />} />
+            <Route path="episodes/:episodeId/render" element={<RenderPage />} />
+            <Route path="render" element={<RenderPage />} />
           </Route>
         </Route>
       </Route>

@@ -1,11 +1,12 @@
-import { Outlet, useNavigate } from 'react-router-dom'
+import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 import { useMe } from '../features/me/useMe'
+import { NAV_ITEMS } from './menu'
 import './AppLayout.css'
 
 /**
- * 인증·승인을 통과한 사용자의 메인 셸. 화면은 mock 으로 다시 채울 예정이라
- * 사이드바 네비는 비우고 셸(브랜드/사용자/로그아웃)만 유지한다.
+ * 인증·승인을 통과한 사용자의 메인 셸.
+ * 사이드바 네비(연출·제작 화면) + 헤더(브랜드/사용자/로그아웃).
  */
 export function AppLayout(): React.JSX.Element {
   const { logout } = useAuth()
@@ -24,6 +25,22 @@ export function AppLayout(): React.JSX.Element {
           <span className="app-brand__mark">V</span>
           <span className="app-brand__name">Vooth Tool</span>
         </div>
+        <nav className="app-nav">
+          {NAV_ITEMS.map((item) => (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              end={item.end}
+              className={({ isActive }) =>
+                `app-nav__item${isActive ? ' app-nav__item--active' : ''}`
+              }
+            >
+              <span className="app-nav__icon">{item.icon}</span>
+              <span className="app-nav__label">{item.label}</span>
+            </NavLink>
+          ))}
+        </nav>
+        <div className="app-sidebar__foot">연출·제작 (MOCK)</div>
       </aside>
 
       <div className="app-main">

@@ -91,15 +91,12 @@ export class AdminEpisodeService extends DddService {
       }),
     ]);
 
-    const thumbnailUrls = await this.fileService.resolvePublicUrls(episodes.map((e) => e.thumbnailFileId));
+    const getPublicUrl = await this.fileService.getPublicUrl(episodes.map((e) => e.thumbnailFileId));
 
     return {
-      items: episodes.map((episode) => {
-        const thumbnailUrl = episode.thumbnailFileId ? (thumbnailUrls.get(episode.thumbnailFileId) ?? null) : null;
-        return episode.toInstance(AdminEpisodeResponseDto, {
-          thumbnailUrl,
-        });
-      }),
+      items: episodes.map((episode) =>
+        episode.toInstance(AdminEpisodeResponseDto, { thumbnailUrl: getPublicUrl(episode.thumbnailFileId) })
+      ),
       total,
     };
   }

@@ -221,29 +221,4 @@
   cursor: not-allowed;
 }
 
-/* ---- status pill ---- */
-.status-pill {
-  flex: 0 0 auto;
-  font-size: 12px;
-  font-weight: 700;
-  padding: 4px 10px;
-  border-radius: 999px;
-  white-space: nowrap;
-}
-
-.status-pill--ready {
-  color: #1d4ed8;
-  background: #dbeafe;
-}
-.status-pill--recording {
-  color: #4338ca;
-  background: #e0e7ff;
-}
-.status-pill--reviewing {
-  color: #7e22ce;
-  background: #f3e8ff;
-}
-.status-pill--published {
-  color: #15803d;
-  background: #dcfce7;
-}
+/* status-pill 공통 스타일은 AppLayout.css 로 이동(여러 페이지 공유). */

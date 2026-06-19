@@ -28,13 +28,12 @@ export class AdminCreatorService extends DddService {
       this.creatorRepository.count({ searchKey, searchValue }),
     ]);
 
-    const urls = await this.fileService.resolvePublicUrls(creators.map((c) => c.avatarFileId));
+    const getPublicUrl = await this.fileService.getPublicUrl(creators.map((c) => c.avatarFileId));
 
     return {
-      items: creators.map((creator) => {
-        const avatarUrl = creator.avatarFileId ? (urls.get(creator.avatarFileId) ?? null) : null;
-        return plainToInstance(AdminCreatorResponseDto, { ...creator, avatarUrl });
-      }),
+      items: creators.map((creator) =>
+        plainToInstance(AdminCreatorResponseDto, { ...creator, avatarUrl: getPublicUrl(creator.avatarFileId) })
+      ),
       total,
     };
   }

@@ -108,9 +108,9 @@
         <div class="tags"><span>Content 소속</span><span>Casting 부모</span><span>NARRATOR</span></div>
       </a>
       <a class="dcard" href="casting/index.html">
-        <div class="top"><h3>Casting</h3><span class="badge plan">설계</span></div>
+        <div class="top"><h3>Casting</h3><span class="badge ok">구현됨</span></div>
         <div class="ns">admins/characters/:characterId/castings</div>
-        <p>캐릭터에 성우를 배정한 단위(=버전). 멀티버전이라 승자 없이 승인된 버전 모두 발행(isPublished). Recording(Line×Casting)의 부모.</p>
+        <p>캐릭터에 성우를 배정한 단위(=버전). 멀티버전이라 발행(isPublished)된 모든 버전이 시청자 선택지. Recording(Line×Casting)의 부모. 생성·목록·발행토글·삭제 구현.</p>
         <div class="tags"><span>멀티버전</span><span>Character↔Creator</span><span>isPublished</span></div>
       </a>
       <a class="dcard" href="episode/index.html">
@@ -118,6 +118,12 @@
         <div class="ns">admins/contents/:contentId/episodes</div>
         <p>작품의 회차(chapter). Cut의 부모이자 연재·검수·구매 단위. 7상태 머신(검수완료→발행대기→발행), expectedPublishOn 스케줄러 발행. 생성·목록·상세 구현.</p>
         <div class="tags"><span>Content 소속</span><span>7-state</span><span>회차 발행</span></div>
+      </a>
+      <a class="dcard" href="cut/index.html">
+        <div class="top"><h3>Cut</h3><span class="badge plan">설계</span></div>
+        <div class="ns">admins/episodes/:episodeId/cuts</div>
+        <p>회차 본문의 컷 = 세로 스크롤 패널 이미지 + 재생 타임라인 컨테이너. Line/SoundEffect/CutEffect의 부모. 연출(anchorY/gap/hold/cropBox)은 nullable.</p>
+        <div class="tags"><span>Episode 소속</span><span>타임라인 컨테이너</span><span>연출</span></div>
       </a>
       <a class="dcard" href="playback/index.html">
         <div class="top"><h3>Playback</h3><span class="badge plan">설계</span></div>

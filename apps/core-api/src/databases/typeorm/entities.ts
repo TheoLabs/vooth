@@ -8,5 +8,6 @@ import { Tag } from '@modules/tag/domain/tag.entity';
 import { Content } from '@modules/content/domain/content.entity';
 import { Character } from '@modules/character/domain/character.entity';
 import { Episode } from '@modules/episode/domain/episode.entity';
+import { Casting } from '@modules/casting/domain/casting.entity';
 
-export default [DddEvent, Account, Role, Permission, File, Creator, Content, Tag, Character, Episode];
+export default [DddEvent, Account, Role, Permission, File, Creator, Content, Tag, Character, Episode, Casting];

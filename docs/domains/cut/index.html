@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Cut 도메인 — Vooth core-api</title>
+<link rel="stylesheet" href="../assets/style.css" />
+</head>
+<body>
+<header class="topnav"><div class="inner" id="site-nav"></div></header>
+
+<div class="wrap">
+  <div class="hero">
+    <div class="eyebrow">Composition · 구성·재생</div>
+    <h1>Cut · 컷</h1>
+    <p class="lead">
+      회차(Episode) 본문의 한 컷 = <b>세로 스크롤 패널 이미지 + 재생 타임라인 컨테이너</b>.
+      대사(Line)·효과음(SoundEffect)·시각효과(CutEffect)가 이 컷 안의 타임라인에 얹힌다.
+    </p>
+    <div class="meta">
+      <span class="badge plan">설계</span>
+      <span class="badge ns">admins/episodes/:episodeId/cuts</span>
+      <span class="badge ctx">Episode 소속</span>
+      <span class="badge ctx">타임라인 컨테이너</span>
+    </div>
+  </div>
+
+  <div class="note warn">
+    <span class="label">구현 상태 = 설계.</span> Cut은 아직 core-api 모듈로 존재하지 않는다. 타임라인·앵커 모델은 <a href="../playback/index.html">Playback</a>,
+    부모는 <a href="../episode/index.html">Episode</a> 참고.
+  </div>
+
+  <section class="section">
+    <h2><span class="num">01</span> 책임과 특성</h2>
+    <ul class="clean">
+      <li><b>세로 스크롤 패널</b> — 컷은 회차를 구성하는 이미지 한 장. <code>order</code> 순으로 세로로 쌓여 읽힌다.</li>
+      <li><b>타임라인 컨테이너</b> — 컷이 활성(dwell)되는 동안 <code>Line</code>/<code>SoundEffect</code>/<code>CutEffect</code>가 <b>앵커 타임라인</b> 위에서 재생된다(<a href="../playback/index.html">Playback §03</a>).</li>
+      <li><b>연출의 단위</b> — <code>anchorY</code>(정착)·<code>gap</code>(간격)·<code>holdOverride</code>(여운)·<code>imageCropBox</code>(표시영역)가 vooth-tool 연출로 채워진다.</li>
+      <li><b>등록 ↔ 연출 분리</b> — 등록(back-office)은 이미지·순서만, 연출 값은 녹음 이후 vooth-tool에서 채운다(전부 nullable).</li>
+    </ul>
+  </section>
+
+  <section class="section">
+    <h2><span class="num">02</span> 애그리게이트 — <code>Cut</code></h2>
+    <p class="desc">공통 베이스 <code>DddAggregate</code>(<code>id</code>, <code>createdAt/updatedAt/deletedAt</code>, 이벤트)는 생략.</p>
+
+    <h3>필수 (등록 = back-office)</h3>
+    <div class="t-scroll">
+      <table>
+        <thead><tr><th>필드</th><th>타입</th><th>null</th><th>설명</th></tr></thead>
+        <tbody>
+          <tr><td><code>episodeId</code></td><td>number</td><td>✗</td><td>소속 회차(Episode 1:N Cut). <b>논리 FK</b> + <b>INDEX</b></td></tr>
+          <tr><td><code>order</code></td><td>number</td><td>✗</td><td>회차 내 순서. <b>10단위 append</b>(중간 삽입 대비). 정렬 키</td></tr>
+          <tr><td><code>imageFileId</code></td><td>number</td><td>✗</td><td>컷 패널 이미지(File). <b>commit-on-attach(<code>image/</code>)</b></td></tr>
+          <tr><td><code>imageWidth</code> / <code>imageHeight</code></td><td>number(px)</td><td>✗</td><td>원본 크기(<b>클라 제공</b> — 업로드 시 FE가 전달). 세로 스크롤 높이·비율 계산(레이아웃 시프트 방지)</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>연출 (vooth-tool · 등록 직후 null)</h3>
+    <div class="t-scroll">
+      <table>
+        <thead><tr><th>필드</th><th>타입</th><th>null</th><th>설명</th></tr></thead>
+        <tbody>
+          <tr><td><code>imageCropBox</code></td><td>CropBox json</td><td>✓</td><td>표시 영역(정규화 0~1). <code>@vooth/shared</code></td></tr>
+          <tr><td><code>anchorY</code></td><td>number(0~1)</td><td>✓</td><td>스크롤 <b>정착 지점</b>(컷 높이 기준 정규화)</td></tr>
+          <tr><td><code>gap</code></td><td>number(px)</td><td>✓</td><td>다음 컷과의 간격</td></tr>
+          <tr><td><code>holdOverride</code></td><td>number(ms)</td><td>✓</td><td>auto hold(요소 길이 기반·클라 계산)에 더하는 <b>여운</b>. null = auto 그대로</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note">
+      <span class="label">단위·규칙.</span> <b>ms</b> = holdOverride · <b>정규화 0~1</b> = anchorY / cropBox · <b>px</b> = gap / imageWidth·Height ·
+      <b>commit-on-attach</b> = imageFileId · <b>status 없음</b>(구조 데이터) · <b>contentId 비정규화 안 함</b>(항상 episode로 접근).
+    </div>
+  </section>
+
+  <section class="section">
+    <h2><span class="num">03</span> 관계 · 경계</h2>
+    <ul class="clean">
+      <li><b>← Episode</b>: <code>episodeId</code>로 소속(논리 FK + INDEX). 부모 <a href="../episode/index.html">Episode</a>.</li>
+      <li><b>→ Line / SoundEffect / CutEffect</b>: 각 요소가 <code>cutId</code>로 Cut을 참조(<b>단방향</b> — Cut엔 <code>@OneToMany</code> 없음). 앵커 타임라인은 <a href="../playback/index.html">Playback §03·§04</a>.</li>
+      <li><b>→ File</b>: <code>imageFileId</code>로 패널 이미지 참조(key·URL 비저장). 읽을 때 <code>imageUrl</code> 유도(<code>FileService.getPublicUrl</code>).</li>
+      <li><b>화면</b>: 등록·이미지·순서는 back-office, 연출(anchorY/gap/hold/cropBox)·미리보기·렌더는 vooth-tool.</li>
+    </ul>
+  </section>
+
+  <section class="section">
+    <h2><span class="num">04</span> 라이프사이클 · 삭제</h2>
+    <ul class="clean">
+      <li><b>생성</b> — back-office. episode 존재 검증 + <code>order</code> append + 이미지 <code>commit(image/)</code>. 연출 값은 null로 시작.</li>
+      <li><b>수정</b> — 이미지/순서(구조) + anchorY/gap/holdOverride/cropBox(연출), 변경 필드만. <b>상태 게이팅 없음(MVP)</b> — 구조·연출 편집 모두 콘텐츠 상태와 무관. (추후 "구조=DRAFT·READY / 연출=상태무관"으로 분리 검토)</li>
+      <li><b>삭제</b> — 컷 삭제 시 <b>하위 Line/SoundEffect/CutEffect 동반 정리</b>(논리 FK라 앱/이벤트 책임). Line→Recording이 있으면 차단(추후 Recording 도메인).</li>
+    </ul>
+  </section>
+
+  <section class="section">
+    <h2><span class="num">05</span> API 표면 — <code>admins/episodes/:episodeId/cuts</code> <span style="font-size:12px;font-weight:600;color:var(--faint)">(예정)</span></h2>
+    <p class="desc">회차 직속 nested(3단 <code>contents/:c/episodes/:e/cuts</code>는 깊어 회피). 가드: <code>AdminGuard</code></p>
+    <div class="t-scroll">
+      <table>
+        <thead><tr><th>Method</th><th>Path</th><th>설명</th><th>본문</th></tr></thead>
+        <tbody>
+          <tr><td><span class="method post">POST</span></td><td><code>/…/cuts</code></td><td>생성(episode 검증, order append, 이미지 commit)</td><td><code>{ imageFileId, imageWidth, imageHeight }</code></td></tr>
+          <tr><td><span class="method get">GET</span></td><td><code>/…/cuts</code></td><td><b>order 순 전체 반환</b>(미리보기·렌더용, 페이지네이션 없음). <code>imageUrl</code> enrich</td><td>—</td></tr>
+          <tr><td><span class="method get">GET</span></td><td><code>/…/cuts/:id</code></td><td>단건(cut + imageUrl)</td><td>—</td></tr>
+          <tr><td><span class="method put">PUT</span></td><td><code>/…/cuts/:id</code></td><td>이미지/순서/연출 수정(변경 필드만)</td><td><code>{ imageFileId?, imageWidth?, imageHeight?, imageCropBox?, anchorY?, gap?, holdOverride? }</code></td></tr>
+          <tr><td><span class="method del">DELETE</span></td><td><code>/…/cuts/:id</code></td><td>삭제(하위 요소 정리, 녹음 있으면 차단은 추후)</td><td>—</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note">
+      <span class="label">목록.</span> 컷은 회차 미리보기·렌더에 <b>전 컷이 순서대로</b> 필요하므로 페이지네이션하지 않고 <code>order</code> 오름차순 전체를 반환한다.
+    </div>
+  </section>
+</div>
+
+<footer class="page">
+  Source: 설계 합의 (미구현) · 부모 <a href="../episode/index.html">Episode</a> · 타임라인 <a href="../playback/index.html">Playback</a>
+</footer>
+<script src="../assets/nav.js"></script>
+</body>
+</html>

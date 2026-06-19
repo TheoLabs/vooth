@@ -1,0 +1,218 @@
+/* 연출·제작 화면 공통 스타일. light 테마(셸과 동일 계열). */
+
+.tool-page {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  color: #0f172a;
+}
+
+.tool-page__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.tool-page__title {
+  margin: 0 0 4px;
+  font-size: 22px;
+  font-weight: 800;
+}
+
+.tool-page__desc {
+  margin: 0;
+  font-size: 13px;
+  color: #64748b;
+}
+
+.tool-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 18px;
+}
+
+.tool-mock-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #92400e;
+  background: #fef3c7;
+  border: 1px solid #fde68a;
+  border-radius: 999px;
+}
+
+/* ---- buttons ---- */
+.tool-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #334155;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+.tool-btn:hover {
+  background: #e2e8f0;
+}
+.tool-btn--primary {
+  color: #ffffff;
+  background: #4f46e5;
+  border-color: #4f46e5;
+}
+.tool-btn--primary:hover {
+  background: #4338ca;
+}
+.tool-btn--danger {
+  color: #b91c1c;
+  background: #fee2e2;
+  border-color: #fecaca;
+}
+.tool-btn--danger:hover {
+  background: #fecaca;
+}
+.tool-btn--ghost {
+  background: transparent;
+  border-color: transparent;
+}
+.tool-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.tool-btn--sm {
+  padding: 5px 10px;
+  font-size: 12px;
+}
+
+/* ---- status badge ---- */
+.tool-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 9px;
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+/* ---- inputs ---- */
+.tool-input,
+.tool-select {
+  padding: 7px 10px;
+  font-size: 13px;
+  color: #0f172a;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+}
+.tool-input:focus,
+.tool-select:focus {
+  outline: none;
+  border-color: #4f46e5;
+}
+.tool-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.tool-field__label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #64748b;
+}
+
+/* ---- table ---- */
+.tool-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.tool-table th {
+  text-align: left;
+  padding: 10px 12px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #64748b;
+  border-bottom: 1px solid #e2e8f0;
+  background: #f8fafc;
+}
+.tool-table td {
+  padding: 12px;
+  border-bottom: 1px solid #f1f5f9;
+  vertical-align: middle;
+}
+.tool-table tr.is-clickable {
+  cursor: pointer;
+}
+.tool-table tr.is-clickable:hover td {
+  background: #f8fafc;
+}
+
+/* ---- toolbar ---- */
+.tool-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.tool-toolbar__spacer {
+  flex: 1;
+}
+.tool-count {
+  font-size: 13px;
+  font-weight: 600;
+  color: #475569;
+}
+.tool-count strong {
+  color: #4f46e5;
+}
+
+/* ---- progress bar ---- */
+.tool-progress {
+  height: 8px;
+  width: 100%;
+  background: #e2e8f0;
+  border-radius: 999px;
+  overflow: hidden;
+}
+.tool-progress__fill {
+  height: 100%;
+  background: #4f46e5;
+  border-radius: 999px;
+  transition: width 0.3s ease;
+}
+
+.tool-progress--mini {
+  width: 120px;
+  display: inline-block;
+}
+
+/* ---- meta grid ---- */
+.tool-meta {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+}
+.tool-meta__item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.tool-meta__k {
+  font-size: 11px;
+  color: #94a3b8;
+  font-weight: 600;
+}
+.tool-meta__v {
+  font-size: 14px;
+  font-weight: 700;
+}

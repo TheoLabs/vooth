@@ -79,14 +79,13 @@ export class AdminContentService extends DddService {
       this.contentRepository.count({ statuses, searchKey, searchValue, tagIds }),
     ]);
 
-    const thumbnailFileIds = contents.map((c) => c.thumbnailFileId);
-    const thumbnailUrls = await this.fileService.resolvePublicUrls(thumbnailFileIds);
+    const getPublicUrl = await this.fileService.getPublicUrl(contents.map((c) => c.thumbnailFileId));
 
     return {
       items: contents.map((content) =>
         plainToInstance(AdminContentResponseDto, {
           ...content,
-          thumbnailUrl: thumbnailUrls.get(content.thumbnailFileId) ?? null,
+          thumbnailUrl: getPublicUrl(content.thumbnailFileId),
         })
       ),
       total,

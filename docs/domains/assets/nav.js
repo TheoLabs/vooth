@@ -22,6 +22,7 @@
         ['Character', 'character'],
         ['Casting', 'casting'],
         ['Episode', 'episode'],
+        ['Cut', 'cut'],
         ['Playback', 'playback'],
       ],
     },

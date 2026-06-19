@@ -1,12 +1,33 @@
 import { useEffect, useRef, useState } from 'react';
-import { App as AntApp, Avatar, Button, Drawer, Empty, Space, Spin, Typography } from 'antd';
+import {
+  App as AntApp,
+  Avatar,
+  Button,
+  Drawer,
+  Empty,
+  Popconfirm,
+  Space,
+  Spin,
+  Switch,
+  Tooltip,
+  Typography,
+} from 'antd';
+import { PlusOutlined } from '@ant-design/icons';
 import { useCharacter, useUpdateCharacter } from './useCharacters';
+import {
+  useCastings,
+  useChangeCastingPublish,
+  useCreateCasting,
+  useDeleteCasting,
+} from './useCastings';
 import { avatarColor, TypeChip } from './characterDisplay';
+import { avatarColor as creatorAvatarColor } from '../creators/creator.types';
 import {
   CharacterFormFields,
   type CharacterFormHandle,
   type CharacterFormPayload,
 } from './CharacterFormFields';
+import { CastingPickerModal, type PickedCreator } from './CastingPickerModal';
 import { uploadImage } from '../../api/file.api';
 import type { AdminCharacter, UpdateCharacterInput } from '../../api/character.api';
 
@@ -30,12 +51,48 @@ export function CharacterDetailDrawer({
   const [submitting, setSubmitting] = useState(false);
   const formRef = useRef<CharacterFormHandle>(null);
 
+  // 캐스팅(캐릭터 ↔ 성우)
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const { data: castingData } = useCastings(characterId);
+  const castings = castingData?.items ?? [];
+  const createCasting = useCreateCasting(characterId ?? 0);
+  const changePublish = useChangeCastingPublish(characterId ?? 0);
+  const deleteCasting = useDeleteCasting(characterId ?? 0);
+
   const open = characterId != null;
 
   // 다른 캐릭터를 열거나 닫으면 항상 보기 모드로 초기화
   useEffect(() => {
     setMode('view');
   }, [characterId]);
+
+  const addCast = async (creator: PickedCreator) => {
+    if (characterId == null || !character) return;
+    try {
+      await createCasting.mutateAsync({ contentId, creatorId: creator.id });
+      message.success(`${creator.nickname} 캐스팅 완료`);
+      setPickerOpen(false);
+    } catch (e) {
+      message.error(e instanceof Error ? e.message : '캐스팅에 실패했습니다.');
+    }
+  };
+
+  const removeCast = (castingId: number) => {
+    deleteCasting.mutate(castingId, {
+      onSuccess: () => message.success('캐스팅을 해제했습니다.'),
+      onError: (e) => message.error(e.message),
+    });
+  };
+
+  const togglePublish = (castingId: number, next: boolean) => {
+    changePublish.mutate(
+      { castingId, isPublished: next },
+      {
+        onSuccess: () => message.success(next ? '공개로 전환했습니다.' : '비공개로 전환했습니다.'),
+        onError: (e) => message.error(e.message),
+      },
+    );
+  };
 
   const saveEdit = async () => {
     if (!character) return;
@@ -125,8 +182,85 @@ export function CharacterDetailDrawer({
               {character.description?.trim() || '-'}
             </Typography.Paragraph>
           </div>
+
+          {/* 캐스팅(성우 매칭) */}
+          <div style={{ width: '100%', borderTop: '1px solid #f0f0f0', paddingTop: 16 }}>
+            <div style={{ display: 'flex', alignItems: 'center', marginBottom: 10 }}>
+              <Typography.Text strong>캐스팅</Typography.Text>
+              <Typography.Text type="secondary" style={{ fontSize: 12, marginLeft: 6 }}>
+                {castings.length}명
+              </Typography.Text>
+              <Button
+                size="small"
+                type="primary"
+                icon={<PlusOutlined />}
+                onClick={() => setPickerOpen(true)}
+                style={{ marginLeft: 'auto' }}
+              >
+                성우 추가
+              </Button>
+            </div>
+
+            {castings.length === 0 ? (
+              <Typography.Text type="secondary" style={{ fontSize: 13 }}>
+                아직 캐스팅된 성우가 없습니다.
+              </Typography.Text>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {castings.map((c) => (
+                  <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <Avatar
+                      size={32}
+                      src={c.creator.avatarUrl ?? undefined}
+                      style={{
+                        flex: 'none',
+                        background: c.creator.avatarUrl
+                          ? undefined
+                          : creatorAvatarColor(c.creator.nickname),
+                      }}
+                    >
+                      {c.creator.nickname.slice(0, 1)}
+                    </Avatar>
+                    <div style={{ minWidth: 0, flex: 1, lineHeight: 1.3 }}>
+                      <Typography.Text strong style={{ fontSize: 13 }}>
+                        {c.creator.nickname}
+                      </Typography.Text>
+                    </div>
+                    <Tooltip title={c.isPublished ? '공개 중 (끄면 비공개)' : '비공개 (켜면 공개)'}>
+                      <Switch
+                        size="small"
+                        checked={Boolean(c.isPublished)}
+                        loading={changePublish.isPending}
+                        checkedChildren="공개"
+                        unCheckedChildren="비공개"
+                        onChange={(next) => togglePublish(c.id, next)}
+                      />
+                    </Tooltip>
+                    <Popconfirm
+                      title="캐스팅을 해제할까요?"
+                      okText="해제"
+                      cancelText="취소"
+                      okButtonProps={{ danger: true }}
+                      onConfirm={() => removeCast(c.id)}
+                    >
+                      <Button size="small" type="text" danger>
+                        해제
+                      </Button>
+                    </Popconfirm>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       )}
+
+      <CastingPickerModal
+        open={pickerOpen}
+        assignedIds={castings.map((c) => c.creatorId)}
+        onClose={() => setPickerOpen(false)}
+        onPick={addCast}
+      />
     </Drawer>
   );
 }
