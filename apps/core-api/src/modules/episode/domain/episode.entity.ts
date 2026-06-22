@@ -1,8 +1,8 @@
 import { DddAggregate } from '@libs/ddd';
 import { BadRequestException } from '@nestjs/common';
 import { CalendarDate, type CropBox, EpisodeStatus } from '@vooth/shared';
-import { Column, Entity, Index, PrimaryGeneratedColumn } from 'typeorm';
-import { EpisodeRemovedEvent } from './events';
+import { AfterInsert, Column, Entity, Index, PrimaryGeneratedColumn } from 'typeorm';
+import { EpisodeCreatedEvent, EpisodeRemovedEvent } from './events';
 
 type Ctor = {
   contentId: number;
@@ -41,6 +41,11 @@ export class Episode extends DddAggregate {
 
   @Column({ type: 'varchar', length: 100, nullable: true })
   expectedPublishOn: CalendarDate | null;
+
+  @AfterInsert()
+  private afterInsert() {
+    this.publishEvent(new EpisodeCreatedEvent({ episodeId: this.id, contentId: this.contentId }));
+  }
 
   private constructor(args: Ctor) {
     super();
@@ -112,6 +117,6 @@ export class Episode extends DddAggregate {
       });
     }
 
-    this.publishEvent(new EpisodeRemovedEvent({ episodeId: this.id }));
+    this.publishEvent(new EpisodeRemovedEvent({ episodeId: this.id, contentId: this.contentId }));
   }
 }

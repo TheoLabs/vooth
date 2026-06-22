@@ -39,6 +39,9 @@ abstract class BaseContentResponseDto extends ResponseDto {
 
   @Expose()
   expectedPublishOn: CalendarDate | null;
+
+  @Expose()
+  episodeCount: number;
 }
 
 @Exclude()

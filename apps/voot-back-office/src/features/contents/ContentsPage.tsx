@@ -149,12 +149,12 @@ export function ContentsPage() {
       ),
     },
     {
-      title: '에피소드 (M)',
+      title: '에피소드',
+      dataIndex: 'episodeCount',
       key: 'episodeCount',
-      width: 110,
+      width: 100,
       align: 'right',
-      // 목록 응답에 집계가 없어 id 기반 mock. 집계 필드(episodeCount) 추가 시 교체.
-      render: (_, c) => `${c.id % 24}화`,
+      render: (count: number) => `${count}화`,
     },
     {
       title: '발행 예정일',

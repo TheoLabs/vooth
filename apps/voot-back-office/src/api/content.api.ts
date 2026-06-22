@@ -20,6 +20,8 @@ export interface AdminContent {
   /** 표시용 썸네일 public URL (없으면 null) */
   thumbnailUrl: string | null;
   expectedPublishOn: CalendarDate | null;
+  /** 회차(에피소드) 수 */
+  episodeCount: number;
   tags: ContentTagRef[];
   createdAt: string;
   updatedAt: string;

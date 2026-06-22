@@ -9,13 +9,17 @@ import { Content } from '../domain/content.entity';
 import { TagRepository } from '@modules/tag/infrastructure/tag.repository';
 import { plainToInstance } from 'class-transformer';
 import { AdminContentResponseDto } from '../presentation/dto';
+import { EventHandler } from '@libs/decorators/event-handler.decorator';
+import { EpisodeCreatedEvent, EpisodeRemovedEvent } from '@modules/episode/domain/events';
+import { EpisodeRepository } from '@modules/episode/infrastructure/episode.repository';
 
 @Injectable()
 export class AdminContentService extends DddService {
   constructor(
     private readonly fileService: FileService,
     private readonly contentRepository: ContentRepository,
-    private readonly tagRepository: TagRepository
+    private readonly tagRepository: TagRepository,
+    private readonly episodeRepository: EpisodeRepository
   ) {
     super();
   }
@@ -187,5 +191,21 @@ export class AdminContentService extends DddService {
     content.transitionManually(nextStatus);
 
     await this.contentRepository.save([content]);
+  }
+
+  @EventHandler(EpisodeRemovedEvent, { description: '에피소드가 삭제되면 episodeCount를 최신화한다.' })
+  @EventHandler(EpisodeCreatedEvent, { description: '에피소드가 생성되면 episodeCount를 최신화한다.' })
+  @Transactional()
+  async handleSyncEpisodeCountEvent(event: EpisodeCreatedEvent | EpisodeRemovedEvent) {
+    const { contentId } = event;
+
+    const [content] = await this.contentRepository.find({ id: contentId });
+
+    if (content) {
+      const episodeCount = await this.episodeRepository.count({ contentId });
+
+      content.update({ episodeCount });
+      await this.contentRepository.save([content]);
+    }
   }
 }

@@ -1,6 +1,12 @@
 import { DddAggregate } from '@libs/ddd';
 import { Tag } from '@modules/tag/domain/tag.entity';
-import { CalendarDate, canManualTransitionContent, canTransitionContent, ContentStatus, type CropBox } from '@vooth/shared';
+import {
+  CalendarDate,
+  canManualTransitionContent,
+  canTransitionContent,
+  ContentStatus,
+  type CropBox,
+} from '@vooth/shared';
 import { Column, Entity, JoinTable, ManyToMany, PrimaryGeneratedColumn } from 'typeorm';
 import { ContentSetTagEvent } from './events';
 import { BadRequestException } from '@nestjs/common';
@@ -36,6 +42,9 @@ export class Content extends DddAggregate {
   @Column({ type: 'varchar', length: 100, nullable: true })
   expectedPublishOn: CalendarDate | null;
 
+  @Column()
+  episodeCount: number;
+
   @ManyToMany(() => Tag)
   @JoinTable({
     name: 'content_tag',
@@ -54,6 +63,7 @@ export class Content extends DddAggregate {
       this.thumbnailCropBox = args.thumbnailCropBox;
       this.status = ContentStatus.DRAFT;
       this.tags = [];
+      this.episodeCount = 0;
     }
   }
 
@@ -79,7 +89,13 @@ export class Content extends DddAggregate {
     }
   }
 
-  update(args: { title?: string; description?: string; thumbnailFileId?: number; thumbnailCropBox?: CropBox }) {
+  update(args: {
+    title?: string;
+    description?: string;
+    thumbnailFileId?: number;
+    thumbnailCropBox?: CropBox;
+    episodeCount?: number;
+  }) {
     const changed = this.stripUnchanged(args);
 
     if (!changed) {

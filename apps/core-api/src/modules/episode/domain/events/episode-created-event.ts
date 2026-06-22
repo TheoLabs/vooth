@@ -1,6 +1,6 @@
 import { DddEvent } from '@libs/ddd';
 
-export class EpisodeRemovedEvent extends DddEvent {
+export class EpisodeCreatedEvent extends DddEvent {
   public readonly episodeId: number;
   public readonly contentId: number;
 
