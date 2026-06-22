@@ -10,5 +10,20 @@ import { Character } from '@modules/character/domain/character.entity';
 import { Episode } from '@modules/episode/domain/episode.entity';
 import { Casting } from '@modules/casting/domain/casting.entity';
 import { Cut } from '@modules/cut/domain/cut.entity';
+import { Line } from '@modules/cut/domain/line.entity';
 
-export default [DddEvent, Account, Role, Permission, File, Creator, Content, Tag, Character, Episode, Casting, Cut];
+export default [
+  DddEvent,
+  Account,
+  Role,
+  Permission,
+  File,
+  Creator,
+  Content,
+  Tag,
+  Character,
+  Episode,
+  Casting,
+  Cut,
+  Line,
+];

@@ -12,17 +12,32 @@ import {
   Spin,
   Typography,
 } from 'antd';
-import { DeleteOutlined, DownOutlined, PlusOutlined, UpOutlined } from '@ant-design/icons';
+import {
+  CheckOutlined,
+  CloseOutlined,
+  DeleteOutlined,
+  DownOutlined,
+  EditOutlined,
+  PlusOutlined,
+  UpOutlined,
+} from '@ant-design/icons';
 import { EpisodeStatus, type CropBox } from '@vooth/shared';
 import { useContent } from './useContents';
 import { useEpisode } from './useEpisodes';
-import { useCuts, useCreateCut, useDeleteCut } from './useCuts';
+import {
+  useCuts,
+  useCreateCut,
+  useCreateLine,
+  useDeleteCut,
+  useUpdateCut,
+  useUpdateLine,
+} from './useCuts';
 import { useCharacters } from './useCharacters';
 import { EpisodeStatusBadge } from './EpisodeStatusBadge';
 import { CutCropper } from './CutCropper';
 import { avatarColor } from './characterDisplay';
 import { uploadImage } from '../../api/file.api';
-import type { AdminCut } from '../../api/cut.api';
+import type { AdminCut, AdminLine } from '../../api/cut.api';
 
 const FULL_CROP: CropBox = { x: 0, y: 0, w: 1, h: 1 };
 
@@ -43,20 +58,12 @@ function readImageSize(file: File): Promise<{ width: number; height: number }> {
   });
 }
 
-// ── 대사(라인) MOCK ─ 라인 등록 API 준비 전, 컷별 로컬 상태 ──────────────────
-let lineSeq = 0;
-const uid = () => `line-${Date.now()}-${lineSeq++}`;
-interface LineDraft {
-  key: string;
+// ── 대사(라인) ──────────────────────────────────────────────────────────────
+// 컷 목록 응답에 lines 가 조인되어 온다. 등록(create)만 제공되며(수정/삭제 없음),
+// 등록 후 컷 목록을 무효화해 최신 lines 를 다시 불러온다.
+interface LineDraftInput {
   characterId?: number;
-  text: string;
-}
-function move<T>(arr: T[], from: number, to: number): T[] {
-  if (to < 0 || to >= arr.length) return arr;
-  const copy = [...arr];
-  const [item] = copy.splice(from, 1);
-  copy.splice(to, 0, item);
-  return copy;
+  script: string;
 }
 
 export function CutEditorPage() {
@@ -71,7 +78,10 @@ export function CutEditorPage() {
   const { data: cutData, isLoading: cutsLoading } = useCuts(eId);
   const { data: characterData } = useCharacters(cId, { limit: 100 });
   const createCut = useCreateCut(eId);
+  const updateCut = useUpdateCut(eId);
   const deleteCut = useDeleteCut(eId);
+  const createLine = useCreateLine(eId);
+  const updateLineMut = useUpdateLine(eId);
 
   const cuts = [...(cutData?.items ?? [])].sort((a, b) => a.order - b.order);
   const characterOptions = (characterData?.items ?? []).map((c) => ({ value: c.id, label: c.name }));
@@ -89,10 +99,53 @@ export function CutEditorPage() {
   const [pending, setPending] = useState<{ file: File; url: string } | null>(null);
   const [cropBox, setCropBox] = useState<CropBox>(FULL_CROP);
 
-  // 대사(라인) MOCK 로컬 상태: cutId → lines
-  const [linesByCut, setLinesByCut] = useState<Record<number, LineDraft[]>>({});
-  const setLines = (cutId: number, updater: (prev: LineDraft[]) => LineDraft[]) =>
-    setLinesByCut((prev) => ({ ...prev, [cutId]: updater(prev[cutId] ?? []) }));
+  // 대사(라인): 목록은 cut.lines(서버 조인)에서 읽고, 입력 드래프트만 컷별 로컬 관리
+  const [draftByCut, setDraftByCut] = useState<Record<number, LineDraftInput>>({});
+  const setDraft = (cutId: number, patch: Partial<LineDraftInput>) =>
+    setDraftByCut((prev) => {
+      const base: LineDraftInput = prev[cutId] ?? { script: '' };
+      return { ...prev, [cutId]: { ...base, ...patch } };
+    });
+
+  const submitLine = async (cut: AdminCut) => {
+    const draft = draftByCut[cut.id] ?? { script: '' };
+    if (draft.characterId == null) {
+      message.warning('화자(캐릭터)를 선택해주세요.');
+      return;
+    }
+    if (!draft.script.trim()) {
+      message.warning('대사를 입력해주세요.');
+      return;
+    }
+    const order = cut.lines.reduce((m, l) => Math.max(m, l.order), 0) + 1;
+    try {
+      await createLine.mutateAsync({
+        cutId: cut.id,
+        input: { characterId: draft.characterId, script: draft.script.trim(), order },
+      });
+      setDraftByCut((prev) => ({ ...prev, [cut.id]: { characterId: draft.characterId, script: '' } }));
+      message.success('대사를 등록했습니다.');
+    } catch (err) {
+      message.error(err instanceof Error ? err.message : '대사 등록에 실패했습니다.');
+    }
+  };
+
+  /** 대사 수정: 원본과 비교해 변경된 필드만 전송. */
+  const updateLine = async (
+    cutId: number,
+    line: AdminLine,
+    next: { characterId: number; script: string },
+  ) => {
+    const input: { characterId?: number; script?: string } = {};
+    if (next.characterId !== line.characterId) input.characterId = next.characterId;
+    if (next.script !== line.script) input.script = next.script;
+    if (Object.keys(input).length === 0) {
+      message.info('변경된 내용이 없습니다.');
+      return;
+    }
+    await updateLineMut.mutateAsync({ cutId, lineId: line.id, input });
+    message.success('대사를 수정했습니다.');
+  };
 
   const pickCutImage = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -137,6 +190,42 @@ export function CutEditorPage() {
     });
   };
 
+  // 순서 변경: order 유니크 제약 때문에 임시값(-1)을 거쳐 스왑.
+  const [reordering, setReordering] = useState(false);
+  const moveCut = async (index: number, dir: -1 | 1) => {
+    const a = cuts[index];
+    const b = cuts[index + dir];
+    if (!a || !b) return;
+    setReordering(true);
+    try {
+      await updateCut.mutateAsync({ cutId: a.id, input: { order: -1 } });
+      await updateCut.mutateAsync({ cutId: b.id, input: { order: a.order } });
+      await updateCut.mutateAsync({ cutId: a.id, input: { order: b.order } });
+    } catch (err) {
+      message.error(err instanceof Error ? err.message : '순서 변경에 실패했습니다.');
+    } finally {
+      setReordering(false);
+    }
+  };
+
+  // 크롭(초점 영역) 수정
+  const [editingCut, setEditingCut] = useState<AdminCut | null>(null);
+  const [editCrop, setEditCrop] = useState<CropBox>(FULL_CROP);
+  const openCropEdit = (cut: AdminCut) => {
+    setEditCrop(cut.imageCropBox ?? FULL_CROP);
+    setEditingCut(cut);
+  };
+  const confirmCropEdit = async () => {
+    if (!editingCut) return;
+    try {
+      await updateCut.mutateAsync({ cutId: editingCut.id, input: { imageCropBox: editCrop } });
+      message.success('크롭을 수정했습니다.');
+      setEditingCut(null);
+    } catch (err) {
+      message.error(err instanceof Error ? err.message : '크롭 수정에 실패했습니다.');
+    }
+  };
+
   const goBack = () => navigate(`/contents/${cId}?tab=episodes`);
 
   if (isLoading) {
@@ -159,7 +248,7 @@ export function CutEditorPage() {
     );
   }
 
-  const totalLines = cuts.reduce((n, c) => n + (linesByCut[c.id]?.length ?? 0), 0);
+  const totalLines = cuts.reduce((n, c) => n + c.lines.length, 0);
 
   return (
     <div className="bo-page">
@@ -219,24 +308,28 @@ export function CutEditorPage() {
         ) : cuts.length === 0 ? (
           <Empty description="등록된 컷이 없습니다." style={{ margin: '24px 0' }} />
         ) : (
-          cuts.map((cut) => (
+          cuts.map((cut, index) => (
             <CutCard
               key={cut.id}
               cut={cut}
-              lines={linesByCut[cut.id] ?? []}
-              canDelete={isDraft}
+              index={index}
+              isFirst={index === 0}
+              isLast={index === cuts.length - 1}
+              lines={[...cut.lines].sort((a, b) => a.order - b.order)}
+              draft={draftByCut[cut.id] ?? { script: '' }}
+              lineSubmitting={createLine.isPending}
+              lineUpdating={updateLineMut.isPending}
+              onUpdateLine={(line, next) => updateLine(cut.id, line, next)}
+              editable={isDraft}
+              busy={reordering || updateCut.isPending}
               deleting={deleteCut.isPending}
               characterOptions={characterOptions}
               characterColor={characterColor}
+              onMove={(dir) => moveCut(index, dir)}
+              onEditCrop={() => openCropEdit(cut)}
               onRemove={() => removeCut(cut.id)}
-              onAddLine={() => setLines(cut.id, (p) => [...p, { key: uid(), text: '' }])}
-              onChangeLine={(lineKey, patch) =>
-                setLines(cut.id, (p) => p.map((l) => (l.key === lineKey ? { ...l, ...patch } : l)))
-              }
-              onRemoveLine={(lineKey) =>
-                setLines(cut.id, (p) => p.filter((l) => l.key !== lineKey))
-              }
-              onMoveLine={(idx, dir) => setLines(cut.id, (p) => move(p, idx, idx + dir))}
+              onDraftChange={(patch) => setDraft(cut.id, patch)}
+              onSubmitLine={() => submitLine(cut)}
             />
           ))
         )}
@@ -283,37 +376,154 @@ export function CutEditorPage() {
           </>
         )}
       </Modal>
+
+      {/* 기존 컷의 크롭(초점 영역) 수정 */}
+      <Modal
+        title={editingCut ? `컷 ${editingCut.order} 크롭 수정` : '크롭 수정'}
+        open={editingCut != null}
+        onCancel={() => setEditingCut(null)}
+        maskClosable={false}
+        okText="저장"
+        cancelText="취소"
+        confirmLoading={updateCut.isPending}
+        onOk={confirmCropEdit}
+        width={520}
+      >
+        {editingCut && (
+          <>
+            <Typography.Paragraph type="secondary" style={{ fontSize: 12, marginTop: 4 }}>
+              드래그로 이동, 모서리로 크기 조절.
+            </Typography.Paragraph>
+            <CutCropper src={editingCut.imageUrl} value={editCrop} onChange={setEditCrop} />
+            <Space style={{ marginTop: 10 }}>
+              <Button size="small" onClick={() => setEditCrop(FULL_CROP)}>
+                전체로 초기화
+              </Button>
+              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                x {Math.round(editCrop.x * 100)}% · y {Math.round(editCrop.y * 100)}% · w{' '}
+                {Math.round(editCrop.w * 100)}% · h {Math.round(editCrop.h * 100)}%
+              </Typography.Text>
+            </Space>
+          </>
+        )}
+      </Modal>
     </div>
   );
 }
 
 interface CutCardProps {
   cut: AdminCut;
-  lines: LineDraft[];
-  canDelete: boolean;
+  index: number;
+  isFirst: boolean;
+  isLast: boolean;
+  lines: AdminLine[];
+  draft: LineDraftInput;
+  lineSubmitting: boolean;
+  lineUpdating: boolean;
+  onUpdateLine: (line: AdminLine, next: { characterId: number; script: string }) => Promise<void>;
+  /** 초안 회차에서만 컷 수정/삭제 가능 */
+  editable: boolean;
+  /** 순서/크롭 수정 진행 중 */
+  busy: boolean;
   deleting: boolean;
   characterOptions: { value: number; label: string }[];
   characterColor: (id?: number) => string;
+  onMove: (dir: -1 | 1) => void;
+  onEditCrop: () => void;
   onRemove: () => void;
-  onAddLine: () => void;
-  onChangeLine: (lineKey: string, patch: Partial<LineDraft>) => void;
-  onRemoveLine: (lineKey: string) => void;
-  onMoveLine: (idx: number, dir: -1 | 1) => void;
+  onDraftChange: (patch: Partial<LineDraftInput>) => void;
+  onSubmitLine: () => void;
 }
 
 function CutCard({
   cut,
+  isFirst,
+  isLast,
   lines,
-  canDelete,
+  draft,
+  lineSubmitting,
+  lineUpdating,
+  onUpdateLine,
+  editable,
+  busy,
   deleting,
   characterOptions,
   characterColor,
+  onMove,
+  onEditCrop,
   onRemove,
-  onAddLine,
-  onChangeLine,
-  onRemoveLine,
-  onMoveLine,
+  onDraftChange,
+  onSubmitLine,
 }: CutCardProps) {
+  const { message } = AntApp.useApp();
+  const characterName = (id: number) =>
+    characterOptions.find((o) => o.value === id)?.label ?? '알 수 없음';
+
+  // 수정은 실제 API. 삭제는 아직 API 준비 전 — 화면 미리보기용 로컬 오버레이.
+  const [deleted, setDeleted] = useState<Record<number, boolean>>({});
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editDraft, setEditDraft] = useState<LineDraftInput>({ script: '' });
+
+  const effectiveLines = lines.filter((l) => !deleted[l.id]);
+
+  const startEdit = (line: AdminLine) => {
+    setEditingId(line.id);
+    setEditDraft({ characterId: line.characterId, script: line.script });
+  };
+  const saveEdit = async (line: AdminLine) => {
+    if (editDraft.characterId == null) {
+      message.warning('화자(캐릭터)를 선택해주세요.');
+      return;
+    }
+    if (!editDraft.script.trim()) {
+      message.warning('대사를 입력해주세요.');
+      return;
+    }
+    try {
+      await onUpdateLine(line, {
+        characterId: editDraft.characterId,
+        script: editDraft.script.trim(),
+      });
+      setEditingId(null);
+    } catch (err) {
+      message.error(err instanceof Error ? err.message : '대사 수정에 실패했습니다.');
+    }
+  };
+  const removeLine = (lineId: number) => {
+    setDeleted((p) => ({ ...p, [lineId]: true }));
+    message.info('대사 삭제 API 준비 전입니다 — 화면에만 반영됩니다. (mock)');
+  };
+
+  const characterSelect = (
+    value: number | undefined,
+    onChange: (v: number | undefined) => void,
+  ) => (
+    <Select<number>
+      showSearch
+      placeholder="화자 선택"
+      style={{ width: 150, flex: 'none' }}
+      value={value}
+      onChange={onChange}
+      options={characterOptions}
+      optionFilterProp="label"
+      optionRender={(option) => (
+        <Space size={8}>
+          <span
+            style={{
+              display: 'inline-block',
+              width: 8,
+              height: 8,
+              borderRadius: '50%',
+              background: characterColor(option.value as number),
+              flex: 'none',
+            }}
+          />
+          {option.label}
+        </Space>
+      )}
+    />
+  );
+
   return (
     <div
       style={{
@@ -329,23 +539,35 @@ function CutCard({
         <Typography.Text type="secondary" style={{ marginLeft: 8, fontSize: 12 }}>
           {cut.imageWidth}×{cut.imageHeight}
         </Typography.Text>
-        {canDelete && (
-          <Popconfirm
-            title="이 컷을 삭제할까요?"
-            okText="삭제"
-            cancelText="취소"
-            okButtonProps={{ danger: true }}
-            onConfirm={onRemove}
-          >
+        {editable && (
+          <Space size={4} style={{ marginLeft: 'auto' }}>
             <Button
               size="small"
               type="text"
-              danger
-              icon={<DeleteOutlined />}
-              loading={deleting}
-              style={{ marginLeft: 'auto' }}
+              icon={<UpOutlined />}
+              disabled={isFirst || busy}
+              onClick={() => onMove(-1)}
             />
-          </Popconfirm>
+            <Button
+              size="small"
+              type="text"
+              icon={<DownOutlined />}
+              disabled={isLast || busy}
+              onClick={() => onMove(1)}
+            />
+            <Button size="small" onClick={onEditCrop} disabled={busy}>
+              크롭 수정
+            </Button>
+            <Popconfirm
+              title="이 컷을 삭제할까요?"
+              okText="삭제"
+              cancelText="취소"
+              okButtonProps={{ danger: true }}
+              onConfirm={onRemove}
+            >
+              <Button size="small" type="text" danger icon={<DeleteOutlined />} loading={deleting} />
+            </Popconfirm>
+          </Space>
         )}
       </div>
 
@@ -366,73 +588,131 @@ function CutCard({
           }}
         />
 
-        {/* 대사(라인) — MOCK */}
+        {/* 대사(라인) */}
         <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
           <Typography.Text type="secondary" style={{ fontSize: 11 }}>
-            대사 (라인 등록 API 준비 전 · mock)
+            대사 {effectiveLines.length > 0 && `(${effectiveLines.length})`}
           </Typography.Text>
-          {lines.map((line, idx) => (
-            <div key={line.key} style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
-              <Select<number>
-                allowClear
-                placeholder="나레이션"
-                style={{ width: 150, flex: 'none' }}
-                value={line.characterId}
-                onChange={(v) => onChangeLine(line.key, { characterId: v })}
-                options={characterOptions}
-                optionFilterProp="label"
-                optionRender={(option) => (
-                  <Space size={8}>
-                    <span
-                      style={{
-                        display: 'inline-block',
-                        width: 8,
-                        height: 8,
-                        borderRadius: '50%',
-                        background: characterColor(option.value as number),
-                        flex: 'none',
-                      }}
+
+          {effectiveLines.map((line, idx) =>
+            editingId === line.id ? (
+              /* 인라인 수정 */
+              <div key={line.id} style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+                {characterSelect(editDraft.characterId, (v) =>
+                  setEditDraft((d) => ({ ...d, characterId: v })),
+                )}
+                <Input.TextArea
+                  value={editDraft.script}
+                  onChange={(e) => setEditDraft((d) => ({ ...d, script: e.target.value }))}
+                  autoSize={{ minRows: 1, maxRows: 4 }}
+                  style={{ flex: 1 }}
+                />
+                <Space size={2} style={{ flex: 'none' }}>
+                  <Button
+                    size="small"
+                    type="text"
+                    icon={<CheckOutlined />}
+                    loading={lineUpdating}
+                    onClick={() => saveEdit(line)}
+                    aria-label="저장"
+                  />
+                  <Button
+                    size="small"
+                    type="text"
+                    icon={<CloseOutlined />}
+                    disabled={lineUpdating}
+                    onClick={() => setEditingId(null)}
+                    aria-label="취소"
+                  />
+                </Space>
+              </div>
+            ) : (
+              /* 읽기 전용 행 + 수정/삭제 */
+              <div
+                key={line.id}
+                className="cut-line-row"
+                style={{ display: 'flex', gap: 8, alignItems: 'flex-start', fontSize: 13 }}
+              >
+                <Typography.Text type="secondary" style={{ flex: 'none', width: 20 }}>
+                  {idx + 1}
+                </Typography.Text>
+                <span
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 6, flex: 'none', width: 110 }}
+                >
+                  <span
+                    style={{
+                      display: 'inline-block',
+                      width: 8,
+                      height: 8,
+                      borderRadius: '50%',
+                      background: characterColor(line.characterId),
+                      flex: 'none',
+                    }}
+                  />
+                  <Typography.Text ellipsis style={{ fontSize: 13 }}>
+                    {characterName(line.characterId)}
+                  </Typography.Text>
+                </span>
+                <Typography.Text style={{ flex: 1, whiteSpace: 'pre-wrap' }}>
+                  {line.script}
+                </Typography.Text>
+                {editable && (
+                  <Space size={2} style={{ flex: 'none' }}>
+                    <Button
+                      size="small"
+                      type="text"
+                      icon={<EditOutlined />}
+                      onClick={() => startEdit(line)}
+                      aria-label="대사 수정"
                     />
-                    {option.label}
+                    <Popconfirm
+                      title="이 대사를 삭제할까요?"
+                      okText="삭제"
+                      cancelText="취소"
+                      okButtonProps={{ danger: true }}
+                      onConfirm={() => removeLine(line.id)}
+                    >
+                      <Button
+                        size="small"
+                        type="text"
+                        danger
+                        icon={<DeleteOutlined />}
+                        aria-label="대사 삭제"
+                      />
+                    </Popconfirm>
                   </Space>
                 )}
-              />
+              </div>
+            ),
+          )}
+
+          {/* 대사 등록 폼 (초안 회차에서만) */}
+          {editable ? (
+            <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginTop: 4 }}>
+              {characterSelect(draft.characterId, (v) => onDraftChange({ characterId: v }))}
               <Input.TextArea
-                value={line.text}
-                onChange={(e) => onChangeLine(line.key, { text: e.target.value })}
+                value={draft.script}
+                onChange={(e) => onDraftChange({ script: e.target.value })}
                 placeholder="대사를 입력하세요"
                 autoSize={{ minRows: 1, maxRows: 4 }}
                 style={{ flex: 1 }}
               />
-              <Space size={2} style={{ flex: 'none' }}>
-                <Button
-                  size="small"
-                  type="text"
-                  icon={<UpOutlined />}
-                  disabled={idx === 0}
-                  onClick={() => onMoveLine(idx, -1)}
-                />
-                <Button
-                  size="small"
-                  type="text"
-                  icon={<DownOutlined />}
-                  disabled={idx === lines.length - 1}
-                  onClick={() => onMoveLine(idx, 1)}
-                />
-                <Button
-                  size="small"
-                  type="text"
-                  danger
-                  icon={<DeleteOutlined />}
-                  onClick={() => onRemoveLine(line.key)}
-                />
-              </Space>
+              <Button
+                type="primary"
+                icon={<PlusOutlined />}
+                loading={lineSubmitting}
+                onClick={onSubmitLine}
+                style={{ flex: 'none' }}
+                aria-label="대사 등록"
+              />
             </div>
-          ))}
-
-          <Button type="dashed" size="small" icon={<PlusOutlined />} onClick={onAddLine}>
-            대사 추가
-          </Button>
+          ) : (
+            effectiveLines.length === 0 && (
+              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                초안(draft) 회차에서만 대사를 등록할 수 있습니다.
+              </Typography.Text>
+            )
+          )}
         </div>
       </div>
     </div>

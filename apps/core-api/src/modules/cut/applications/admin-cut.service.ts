@@ -64,7 +64,10 @@ export class AdminCutService extends DddService {
 
   async list({ episodeId }: { episodeId?: number }) {
     const [cuts, total] = await Promise.all([
-      this.cutRepository.find({ episodeId }, { options: { order: OrderType.ASC, sort: 'order' } }),
+      this.cutRepository.find(
+        { episodeId },
+        { options: { order: OrderType.ASC, sort: 'order' }, relations: { lines: true } }
+      ),
       this.cutRepository.count({ episodeId }),
     ]);
 

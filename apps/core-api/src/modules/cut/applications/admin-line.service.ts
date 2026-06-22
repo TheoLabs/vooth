@@ -1,0 +1,143 @@
+import { DddService } from '@libs/ddd';
+import { BadRequestException, Injectable } from '@nestjs/common';
+import { Transactional } from '@libs/decorators';
+import { Anchor, EpisodeStatus } from '@vooth/shared';
+import { CutRepository } from '../infrastructure/cut.repository';
+import { EpisodeRepository } from '@modules/episode/infrastructure/episode.repository';
+import { CharacterRepository } from '@modules/character/infrastructure/character.repository';
+
+@Injectable()
+export class AdminLineService extends DddService {
+  constructor(
+    private readonly cutRepository: CutRepository,
+    private readonly episodeRepository: EpisodeRepository,
+    private readonly characterRepository: CharacterRepository
+  ) {
+    super();
+  }
+
+  @Transactional()
+  async create({
+    cutId,
+    characterId,
+    script,
+    order,
+    anchorMetadata,
+  }: {
+    cutId: number;
+    characterId: number;
+    script: string;
+    order: number;
+    anchorMetadata?: Anchor;
+  }) {
+    const [cut] = await this.cutRepository.find({ id: cutId }, { relations: { lines: true } });
+    if (!cut) {
+      throw new BadRequestException('해당하는 컷이 없습니다.', {
+        cause: '해당하는 컷이 없습니다.',
+      });
+    }
+
+    const [episode] = await this.episodeRepository.find({ id: cut.episodeId });
+
+    if (!episode) {
+      throw new BadRequestException('해당하는 에피소드가 없습니다.', {
+        cause: '해당하는 에피소드가 없습니다.',
+      });
+    }
+
+    if (episode.status !== EpisodeStatus.DRAFT) {
+      throw new BadRequestException('draft 상태의 에피소드에만 대사를 추가할 수 있습니다.', {
+        cause: 'draft 상태의 에피소드에만 대사를 추가할 수 있습니다.',
+      });
+    }
+
+    const [character] = await this.characterRepository.find({ id: characterId });
+
+    if (!character) {
+      throw new BadRequestException('해당하는 캐릭터가 없습니다.', {
+        cause: '해당하는 캐릭터가 없습니다.',
+      });
+    }
+
+    cut.addLine({ characterId, order, script, anchorMetadata });
+    await this.cutRepository.save([cut]);
+  }
+
+  @Transactional()
+  async update({
+    cutId,
+    lineId,
+    characterId,
+    script,
+    order,
+  }: {
+    cutId: number;
+    lineId: number;
+    characterId?: number;
+    script?: string;
+    order?: number;
+  }) {
+    const [cut] = await this.cutRepository.find({ id: cutId }, { relations: { lines: true } });
+    if (!cut) {
+      throw new BadRequestException('해당하는 컷이 없습니다.', {
+        cause: '해당하는 컷이 없습니다.',
+      });
+    }
+
+    const [episode] = await this.episodeRepository.find({ id: cut.episodeId });
+
+    if (!episode) {
+      throw new BadRequestException('해당하는 에피소드가 없습니다.', {
+        cause: '해당하는 에피소드가 없습니다.',
+      });
+    }
+
+    if (episode.status !== EpisodeStatus.DRAFT) {
+      throw new BadRequestException('draft 상태의 에피소드에만 대사를 수정할 수 있습니다.', {
+        cause: 'draft 상태의 에피소드에만 대사를 수정할 수 있습니다.',
+      });
+    }
+
+    if (characterId) {
+      const [character] = await this.characterRepository.find({ id: characterId });
+
+      if (!character) {
+        throw new BadRequestException('해당하는 캐릭터가 없습니다.', {
+          cause: '해당하는 캐릭터가 없습니다.',
+        });
+      }
+    }
+
+    cut.updateLine({ lineId, characterId, script, order });
+
+    await this.cutRepository.save([cut]);
+  }
+
+  @Transactional()
+  async remove({ cutId, lineId }: { cutId: number; lineId: number }) {
+    const [cut] = await this.cutRepository.find({ id: cutId }, { relations: { lines: true } });
+    if (!cut) {
+      throw new BadRequestException('해당하는 컷이 없습니다.', {
+        cause: '해당하는 컷이 없습니다.',
+      });
+    }
+
+    const [episode] = await this.episodeRepository.find({ id: cut.episodeId });
+
+    if (!episode) {
+      throw new BadRequestException('해당하는 에피소드가 없습니다.', {
+        cause: '해당하는 에피소드가 없습니다.',
+      });
+    }
+
+    if (episode.status !== EpisodeStatus.DRAFT) {
+      throw new BadRequestException('draft 상태의 에피소드에만 대사를 삭제할 수 있습니다.', {
+        cause: 'draft 상태의 에피소드에만 대사를 삭제할 수 있습니다.',
+      });
+    }
+
+    cut.removeLine({ lineId });
+
+    await this.cutRepository.save([cut]);
+  }
+}

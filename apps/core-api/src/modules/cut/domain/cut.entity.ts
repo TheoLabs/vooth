@@ -1,7 +1,8 @@
 import { DddAggregate } from '@libs/ddd';
 import { BadRequestException } from '@nestjs/common';
-import { type CropBox } from '@vooth/shared';
-import { Column, Entity, Index, PrimaryGeneratedColumn } from 'typeorm';
+import { Anchor, type CropBox } from '@vooth/shared';
+import { Column, Entity, Index, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
+import { Line } from './line.entity';
 
 type Ctor = {
   episodeId: number;
@@ -48,6 +49,9 @@ export class Cut extends DddAggregate {
   @Column({ type: 'int', nullable: true })
   holdOverride: number | null;
 
+  @OneToMany(() => Line, (line) => line.cut, { cascade: true, orphanedRowAction: 'delete' })
+  lines: Line[];
+
   private constructor(args: Ctor) {
     super();
 
@@ -61,6 +65,7 @@ export class Cut extends DddAggregate {
       this.anchorY = args.anchorY ?? null;
       this.gap = args.gap ?? null;
       this.holdOverride = args.holdOverride ?? null;
+      this.lines = [];
     }
   }
 
@@ -88,5 +93,77 @@ export class Cut extends DddAggregate {
     }
 
     Object.assign(this, changed);
+  }
+
+  addLine({
+    characterId,
+    script,
+    order,
+    anchorMetadata,
+  }: {
+    characterId: number;
+    script: string;
+    order: number;
+    anchorMetadata?: Anchor;
+  }) {
+    if (this.lines.some((line) => line.order === order)) {
+      throw new BadRequestException('해당 컷에 동일한 순서의 대사가 이미 존재합니다.', {
+        cause: '해당 컷에 동일한 순서의 대사가 이미 존재합니다.',
+      });
+    }
+
+    const newLine = Line.of({
+      characterId,
+      script,
+      order,
+      anchorMetadata,
+    });
+
+    this.lines.push(newLine);
+  }
+
+  updateLine({
+    lineId,
+    characterId,
+    script,
+    order,
+  }: {
+    lineId: number;
+    characterId?: number;
+    script?: string;
+    order?: number;
+  }) {
+    const targetLine = this.lines.find((line) => line.id === lineId);
+
+    if (!targetLine) {
+      throw new BadRequestException('해당하는 대사를 찾을 수 없습니다.', {
+        cause: '해당하는 대사를 찾을 수 없습니다.',
+      });
+    }
+
+    if (order) {
+      if (this.lines.find((line) => line.id !== lineId && line.order === order)) {
+        throw new BadRequestException('해당하는 컷에 동일한 순서의 대사가 이미 존재합니다.', {
+          cause: '해당 컷에 동일한 순서의 대사가 이미 존재합니다.',
+        });
+      }
+    }
+
+    targetLine.update({
+      characterId,
+      script,
+      order,
+    });
+  }
+
+  removeLine({ lineId }: { lineId: number }) {
+    const line = this.lines.find((line) => line.id === lineId);
+
+    if (!line) {
+      throw new BadRequestException('해당하는 대사를 찾을 수 없습니다.', {
+        cause: '해당하는 대사를 찾을 수 없습니다.',
+      });
+    }
+    this.lines = this.lines.filter((line) => line.id !== lineId);
   }
 }

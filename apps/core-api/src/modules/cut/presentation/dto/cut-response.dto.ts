@@ -1,6 +1,29 @@
 import { ResponseDto } from '@libs/utils';
 import { type CropBox } from '@vooth/shared';
-import { Exclude, Expose } from 'class-transformer';
+import { Exclude, Expose, Type } from 'class-transformer';
+import { AnchorDto } from './anchor.dto';
+
+@Exclude()
+class LineResponseDto {
+  @Expose()
+  id: number;
+
+  @Expose()
+  cutId: number;
+
+  @Expose()
+  characterId: number;
+
+  @Expose()
+  script: string;
+
+  @Expose()
+  order: number;
+
+  @Expose()
+  @Type(() => AnchorDto)
+  anchorMetadata: AnchorDto;
+}
 
 @Exclude()
 abstract class BaseCutResponseDto extends ResponseDto {
@@ -39,4 +62,8 @@ abstract class BaseCutResponseDto extends ResponseDto {
 }
 
 @Exclude()
-export class AdminCutResponseDto extends BaseCutResponseDto {}
+export class AdminCutResponseDto extends BaseCutResponseDto {
+  @Expose()
+  @Type(() => LineResponseDto)
+  lines: LineResponseDto[];
+}

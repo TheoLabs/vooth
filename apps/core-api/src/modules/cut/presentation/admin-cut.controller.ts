@@ -1,5 +1,5 @@
 import { AdminGuard } from '@common/guards';
-import { Body, Controller, Delete, Get, Param, ParseIntPipe, Post, Put, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, ParseIntPipe, Post, Put, UseGuards } from '@nestjs/common';
 import { AdminCutService } from '../applications/admin-cut.service';
 import { AdminCutCreateDto, AdminCutUpdateDto } from './dto';
 
@@ -14,6 +14,7 @@ export class AdminCutController {
     // 2. Get context
     // 3. Get result
     await this.adminCutService.create({ episodeId, ...body });
+
     // 4. Send response
     return { data: {} };
   }
