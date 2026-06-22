@@ -151,8 +151,9 @@
     <ul class="clean">
       <li><b>Cut 생성/수정/삭제</b>(admins) — <b>episode DRAFT일 때만</b>(구조 편집 게이팅). 생성/이미지교체 시 <code>commit('image/')</code>, order 중복 거부.</li>
       <li><b>Line 생성/수정/삭제</b>(admins, <code>AdminLineService</code>) — Cut 루트 경유 + <b>episode DRAFT 게이팅</b> + character 존재 검증. 삭제는 <code>orphanedRowAction:'delete'</code>로 실제 DELETE.</li>
+      <li><b>Episode 삭제 시 EDA 정리</b>(구현) — Episode가 하드 삭제되며 <code>EpisodeRemovedEvent</code> 발행 → Cut의 <code>@EventHandler</code>가 그 회차의 컷을 일괄 삭제(컷→라인은 물리 FK cascade). cross-aggregate(Episode↔Cut 논리 FK)라 DB cascade 대신 이벤트로 정리. 멱등(episodeId 기준).</li>
       <li><b>연출 편집</b>(anchor·anchorY/gap/holdOverride, SoundEffect/CutEffect) — <code>directors</code>, 녹음 이후. <strong>설계</strong>.</li>
-      <li><b>Recording 가드</b> — Line 삭제 시 그 라인의 녹음(별도 AR)이 고아가 되므로, Recording 생기면 <b>녹음 있으면 차단</b> 추가 예정.</li>
+      <li><b>Recording 가드</b> — Line 삭제 시 그 라인의 녹음(별도 AR)이 고아가 되므로, Recording 생기면 <b>녹음 있으면 차단</b> 추가 예정. (현재는 Episode를 DRAFT일 때만 삭제 → 녹음 없어 안전)</li>
     </ul>
   </section>
 

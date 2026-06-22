@@ -34,10 +34,6 @@ export class TagRepository extends DddRepository<Tag> {
     });
   }
 
-  async remove(tags: Tag[]) {
-    return this.entityManager.remove(this.entityClass, tags);
-  }
-
   async countUsage(id: number) {
     return this.entityManager.count(this.projectionEntityClass, { where: { tags: { id } } });
   }

@@ -1,7 +1,7 @@
 import { AdminGuard } from '@common/guards';
 import { Body, Controller, Delete, Get, Param, ParseIntPipe, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { AdminEpisodeService } from '../applications/admin-episode.service';
-import { AdminEpisodeCreateDto, AdminEpisodeQueryDto } from './dto';
+import { AdminEpisodeCreateDto, AdminEpisodeQueryDto, AdminEpisodeUpdateDto } from './dto';
 
 @Controller('admins/contents/:contentId/episodes')
 @UseGuards(AdminGuard)
@@ -49,11 +49,13 @@ export class AdminEpisodeController {
   async update(
     @Param('contentId', ParseIntPipe) contentId: number,
     @Param('id', ParseIntPipe) id: number,
-    @Body() body: any
+    @Body() body: AdminEpisodeUpdateDto
   ) {
     // 1. Destructure body, params, query
     // 2. Get context
     // 3. Get result
+    await this.adminEpisodeService.update({ id, contentId, ...body });
+
     // 4. Send response
     return { data: {} };
   }
@@ -63,6 +65,8 @@ export class AdminEpisodeController {
     // 1. Destructure body, params, query
     // 2. Get context
     // 3. Get result
+    await this.adminEpisodeService.remove({ id, contentId });
+
     // 4. Send response
     return { data: {} };
   }

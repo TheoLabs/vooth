@@ -116,8 +116,51 @@ export class AdminEpisodeService extends DddService {
   }
 
   @Transactional()
-  async update() {}
+  async update({
+    id,
+    contentId,
+    thumbnailFileId,
+    thumbnailCropBox,
+    title,
+    isFree,
+    expectedPublishOn,
+  }: {
+    id: number;
+    contentId: number;
+    thumbnailFileId?: number | null;
+    thumbnailCropBox?: CropBox | null;
+    title?: string;
+    isFree?: boolean;
+    expectedPublishOn?: CalendarDate | null;
+  }) {
+    const [episode] = await this.episodeRepository.find({ id, contentId });
+
+    if (!episode) {
+      throw new BadRequestException('등록되지 않은 에피소드입니다.', {
+        cause: '등록되지 않은 에피소드입니다.',
+      });
+    }
+
+    if (thumbnailFileId) {
+      await this.fileService.commit(thumbnailFileId, { mimePrefix: 'image/' });
+    }
+
+    episode.update({ thumbnailCropBox, thumbnailFileId, title, isFree, expectedPublishOn });
+
+    await this.episodeRepository.save([episode]);
+  }
 
   @Transactional()
-  async remove() {}
+  async remove({ id, contentId }: { id: number; contentId: number }) {
+    const [episode] = await this.episodeRepository.find({ id, contentId });
+
+    if (!episode) {
+      throw new BadRequestException('등록되지 않은 에피소드입니다.', {
+        cause: '등록되지 않은 에피소드입니다.',
+      });
+    }
+
+    episode.remove();
+    await this.episodeRepository.remove([episode]);
+  }
 }

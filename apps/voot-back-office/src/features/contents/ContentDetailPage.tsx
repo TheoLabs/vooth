@@ -43,7 +43,7 @@ import {
   useUpdateContentStatus,
 } from './useContents';
 import { CONTENT_STATUS_DOT } from './content.types';
-import { useCreateEpisode, useEpisodes } from './useEpisodes';
+import { useCreateEpisode, useDeleteEpisode, useEpisodes } from './useEpisodes';
 import { uploadImage } from '../../api/file.api';
 import type { UpdateContentInput } from '../../api/content.api';
 import type { AdminEpisode } from '../../api/episode.api';
@@ -118,13 +118,14 @@ export function ContentDetailPage() {
 
   const { data: episodeData, isLoading: episodesLoading } = useEpisodes(numId, episodeQuery);
   const createEpisode = useCreateEpisode(numId);
+  const deleteEpisode = useDeleteEpisode(numId);
 
-  // 회차 생성 / 상세
+  // 회차 생성 / 상세 (수정은 상세 Drawer 안에서 인라인 처리)
   const [episodeFormOpen, setEpisodeFormOpen] = useState(false);
   const [episodeSubmitting, setEpisodeSubmitting] = useState(false);
   const [selectedEpisodeId, setSelectedEpisodeId] = useState<number | null>(null);
 
-  const submitCreateEpisode = async (payload: EpisodeFormPayload) => {
+  const submitEpisodeCreate = async (payload: EpisodeFormPayload) => {
     setEpisodeSubmitting(true);
     try {
       const thumbnailFileId = payload.thumbnailFile
@@ -144,6 +145,16 @@ export function ContentDetailPage() {
     } finally {
       setEpisodeSubmitting(false);
     }
+  };
+
+  const removeEpisode = (episode: AdminEpisode) => {
+    deleteEpisode.mutate(episode.id, {
+      onSuccess: () => {
+        message.success('회차를 삭제했습니다.');
+        setSelectedEpisodeId(null);
+      },
+      onError: (e) => message.error(e.message),
+    });
   };
 
   if (isLoading) {
@@ -466,13 +477,15 @@ export function ContentDetailPage() {
         defaultChapter={(episodeData?.total ?? 0) + 1}
         submitting={episodeSubmitting}
         onClose={() => setEpisodeFormOpen(false)}
-        onSubmit={submitCreateEpisode}
+        onSubmit={submitEpisodeCreate}
       />
 
       <EpisodeDetailDrawer
         contentId={content.id}
         episodeId={selectedEpisodeId}
+        deleting={deleteEpisode.isPending}
         onClose={() => setSelectedEpisodeId(null)}
+        onDelete={removeEpisode}
       />
     </div>
   );

@@ -7,11 +7,14 @@ import {
 } from '@tanstack/react-query';
 import {
   createEpisode,
+  deleteEpisode,
   fetchEpisode,
   fetchEpisodes,
+  updateEpisode,
   type AdminEpisode,
   type CreateEpisodeInput,
   type EpisodeListQuery,
+  type UpdateEpisodeInput,
 } from '../../api/episode.api';
 import type { PaginatedResponse } from '../../api/pagination';
 import type { ApiError } from '../../lib/apiClient';
@@ -50,6 +53,29 @@ export function useCreateEpisode(
   const queryClient = useQueryClient();
   return useMutation<void, ApiError, CreateEpisodeInput>({
     mutationFn: (input) => createEpisode(contentId, input),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: [EPISODES_KEY, 'list', contentId] }),
+  });
+}
+
+/** 회차 수정(PUT /admins/contents/:contentId/episodes/:id). 성공 시 목록·상세 무효화. */
+export function useUpdateEpisode(
+  contentId: number,
+): UseMutationResult<void, ApiError, { id: number; input: UpdateEpisodeInput }> {
+  const queryClient = useQueryClient();
+  return useMutation<void, ApiError, { id: number; input: UpdateEpisodeInput }>({
+    mutationFn: ({ id, input }) => updateEpisode(contentId, id, input),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: [EPISODES_KEY] }),
+  });
+}
+
+/** 회차 삭제(DELETE /admins/contents/:contentId/episodes/:id). 성공 시 목록 무효화. */
+export function useDeleteEpisode(
+  contentId: number,
+): UseMutationResult<void, ApiError, number> {
+  const queryClient = useQueryClient();
+  return useMutation<void, ApiError, number>({
+    mutationFn: (id) => deleteEpisode(contentId, id),
     onSuccess: () =>
       queryClient.invalidateQueries({ queryKey: [EPISODES_KEY, 'list', contentId] }),
   });

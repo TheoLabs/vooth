@@ -8,6 +8,8 @@ import { Cut } from '../domain/cut.entity';
 import { AdminCutResponseDto } from '../presentation/dto';
 import { FileService } from '@modules/file/applications/file.service';
 import { OrderType } from '@libs/utils';
+import { EventHandler } from '@libs/decorators/event-handler.decorator';
+import { EpisodeRemovedEvent } from '@modules/episode/domain/events';
 
 @Injectable()
 export class AdminCutService extends DddService {
@@ -149,5 +151,17 @@ export class AdminCutService extends DddService {
     episode.validateChildEditable();
 
     await this.cutRepository.remove([cut]);
+  }
+
+  @EventHandler(EpisodeRemovedEvent, { description: '에피소드가 삭제되면 속한 cut을 전부 제거한다.' })
+  @Transactional()
+  async handleEpisodeRemoved(event: EpisodeRemovedEvent) {
+    const { episodeId } = event;
+
+    const cuts = await this.cutRepository.find({ episodeId });
+
+    if (cuts.length > 0) {
+      await this.cutRepository.remove(cuts);
+    }
   }
 }

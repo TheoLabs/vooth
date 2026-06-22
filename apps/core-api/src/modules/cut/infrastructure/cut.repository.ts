@@ -27,8 +27,4 @@ export class CutRepository extends DddRepository<Cut> {
       }),
     });
   }
-
-  async remove(cuts: Cut[]) {
-    return this.entityManager.remove(this.entityClass, cuts);
-  }
 }

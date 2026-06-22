@@ -40,8 +40,4 @@ export class CastingRepository extends DddRepository<Casting> {
       }),
     });
   }
-
-  async remove(castings: Casting[]) {
-    return this.entityManager.remove(this.entityClass, castings);
-  }
 }

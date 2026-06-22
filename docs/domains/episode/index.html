@@ -26,7 +26,7 @@
   </div>
 
   <div class="note warn">
-    <span class="label">구현 상태.</span> <b>생성·목록·상세 구현됨</b>. <b>수정·삭제·상태전이는 스텁(WIP)</b>. 공유 enum은 <code>packages/shared/src/episode.ts</code>.
+    <span class="label">구현 상태.</span> <b>생성·목록·상세·수정·삭제 구현됨</b>. 삭제는 <b>하드 삭제 + EDA</b>(<code>EpisodeRemovedEvent</code> → Cut 정리). <b>상태 전이</b>(PUT :id/status)는 예정. 공유 enum은 <code>packages/shared/src/episode.ts</code>.
     상위 구성·재생 모델은 <a href="../playback/index.html">Playback</a>, 발행 상위는 <a href="../content/index.html">Content</a> 참고.
   </div>
 
@@ -51,7 +51,7 @@
           <tr><td><code>chapter</code></td><td>number</td><td>✗</td><td>회차 번호(0·1화…). <code>(contentId, chapter)</code> unique. 0 미만 거부</td></tr>
           <tr><td><code>title</code></td><td>string</td><td>✗</td><td>회차 제목("1화: 만남")</td></tr>
           <tr><td><code>status</code></td><td>enum</td><td>✗</td><td><code>EpisodeStatus</code>(§03). 생성 시 DRAFT</td></tr>
-          <tr><td><code>isFree</code></td><td>boolean</td><td>✗</td><td><b>파생: <code>chapter &lt; 2</code></b>(0·1화 자동 무료). 클라 입력 없음</td></tr>
+          <tr><td><code>isFree</code></td><td>boolean</td><td>✗</td><td><b>기본 파생: <code>chapter &lt; 2</code></b>(0·1화 자동 무료). update로 <b>수동 오버라이드 가능</b>(프로모션 등)</td></tr>
           <tr><td><code>thumbnailFileId</code></td><td>number</td><td>✓</td><td>회차 썸네일(File). <b>commit-on-attach</b>(<code>image/</code>)</td></tr>
           <tr><td><code>thumbnailCropBox</code></td><td>CropBox json</td><td>✓</td><td>썸네일 표시 영역(정규화 0~1). <code>@vooth/shared</code></td></tr>
           <tr><td><code>expectedPublishOn</code></td><td>CalendarDate</td><td>✓</td><td>예정 발행 일시(<code>varchar(100)</code>). 생성 시 null, 수정/예약으로 설정 → 스케줄러 발행(§06)</td></tr>
@@ -59,7 +59,7 @@
       </table>
     </div>
     <div class="note">
-      <span class="label">가격.</span> 회차가 구매 단위지만 <b>가격은 별도 커머스 도메인</b>으로 분리하고, Episode엔 <code>isFree</code>(무료 공개)만 둔다. <code>isFree</code>는 입력값이 아니라 <code>chapter</code>에서 파생된다.
+      <span class="label">가격.</span> 회차가 구매 단위지만 <b>가격은 별도 커머스 도메인</b>으로 분리하고, Episode엔 <code>isFree</code>(무료 공개)만 둔다. <code>isFree</code>는 생성 시 <code>chapter</code>에서 파생되고, 이후 update로 수동 변경 가능.
     </div>
   </section>
 
@@ -127,7 +127,9 @@
     <ul class="clean">
       <li><b>생성</b> — back-office. content 존재 검증 + <code>(contentId, chapter)</code> 중복 거부(앱 + DB unique). 썸네일 있으면 <code>commit(image/)</code>. <code>isFree</code>는 chapter에서 자동, status=DRAFT.</li>
       <li><b>목록·상세</b> — content-scoped(<code>contentId</code>). 상세는 <code>{ id, contentId }</code> 정합 조회. <b>서버 기본 정렬 없음</b>(프론트가 <code>sort/order</code> 지정) — 의도.</li>
-      <li><b>수정·삭제·상태전이</b> — <b>스텁(WIP)</b>. 삭제는 Cut/녹음 참조 시 차단, 발행된 회차 삭제 불가 방향(설계).</li>
+      <li><b>수정</b>(구현) — 정보 수정(title/isFree/expectedPublishOn/thumbnail, 변경 필드만). <b>구조 게이팅(<code>validateChildEditable</code>) 안 함</b> — Episode 자체 정보는 DRAFT 이후에도 수정 가능(자식 Cut/Line 편집만 DRAFT 한정).</li>
+      <li><b>삭제</b>(구현) — <b>하드 삭제</b>. soft delete는 <code>(contentId, chapter)</code> unique를 점유해 재등록을 막으므로 불가. <b>DRAFT일 때만</b>(<code>Episode.remove()</code> 검증). <code>Episode.remove()</code>가 <code>EpisodeRemovedEvent</code>를 발행 → repo가 아웃박스 적재 + 하드삭제 → <b>Cut <code>@EventHandler</code>가 속한 컷을 EDA로 정리</b>(컷→라인은 물리 FK cascade). DRAFT라 녹음 등 다운스트림 참조가 없어 안전.</li>
+      <li><b>상태 전이</b>(PUT :id/status) — 예정(<code>canTransitionEpisode</code>).</li>
     </ul>
   </section>
 
@@ -151,9 +153,9 @@
           <tr><td><span class="method post">POST</span></td><td><code>/…/episodes</code></td><td>생성(content 검증 + chapter 유일, isFree 자동, 썸네일 commit)</td><td><code>{ title, chapter, thumbnailFileId?, thumbnailCropBox? }</code></td><td><span class="badge ok">구현됨</span></td></tr>
           <tr><td><span class="method get">GET</span></td><td><code>/…/episodes</code></td><td>목록(title 검색, <code>statuses</code>·<code>isFree</code>·<code>expectedPublishOn</code> 범위 필터, 페이지네이션) → <code>{ items, total }</code></td><td>—</td><td><span class="badge ok">구현됨</span></td></tr>
           <tr><td><span class="method get">GET</span></td><td><code>/…/episodes/:id</code></td><td>단건 조회(<code>id</code>+<code>contentId</code>)</td><td>—</td><td><span class="badge ok">구현됨</span></td></tr>
-          <tr><td><span class="method put">PUT</span></td><td><code>/…/episodes/:id</code></td><td>수정(변경 필드만)</td><td><code>{ title?, expectedPublishOn?, … }</code></td><td><span class="badge plan">예정</span></td></tr>
+          <tr><td><span class="method put">PUT</span></td><td><code>/…/episodes/:id</code></td><td>수정(변경 필드만, 정보 수정 — 게이팅 없음)</td><td><code>{ title?, isFree?, expectedPublishOn?, thumbnailFileId?, thumbnailCropBox? }</code></td><td><span class="badge ok">구현됨</span></td></tr>
+          <tr><td><span class="method del">DELETE</span></td><td><code>/…/episodes/:id</code></td><td>하드 삭제(DRAFT만) → <code>EpisodeRemovedEvent</code>로 Cut EDA 정리</td><td>—</td><td><span class="badge ok">구현됨</span></td></tr>
           <tr><td><span class="method put">PUT</span></td><td><code>/…/episodes/:id/status</code></td><td>상태 전이(<code>canTransitionEpisode</code> 검증)</td><td><code>{ status }</code></td><td><span class="badge plan">예정</span></td></tr>
-          <tr><td><span class="method del">DELETE</span></td><td><code>/…/episodes/:id</code></td><td>삭제(참조 컷 있으면 차단)</td><td>—</td><td><span class="badge plan">예정</span></td></tr>
         </tbody>
       </table>
     </div>

@@ -2,6 +2,7 @@ import { DddAggregate } from '@libs/ddd';
 import { BadRequestException } from '@nestjs/common';
 import { CalendarDate, type CropBox, EpisodeStatus } from '@vooth/shared';
 import { Column, Entity, Index, PrimaryGeneratedColumn } from 'typeorm';
+import { EpisodeRemovedEvent } from './events';
 
 type Ctor = {
   contentId: number;
@@ -63,6 +64,34 @@ export class Episode extends DddAggregate {
     return new Episode(args);
   }
 
+  update(args: {
+    thumbnailFileId?: number | null;
+    thumbnailCropBox?: CropBox | null;
+    title?: string;
+    isFree?: boolean;
+    expectedPublishOn?: CalendarDate | null;
+  }) {
+    const changed = this.stripUnchanged(args);
+
+    if (!changed) {
+      return;
+    }
+
+    Object.assign(this, changed);
+
+    if (args.expectedPublishOn) {
+      if (this.status === EpisodeStatus.APPROVED) {
+        this.status = EpisodeStatus.SCHEDULED;
+      }
+    }
+
+    if (args.expectedPublishOn === null) {
+      if (this.status === EpisodeStatus.SCHEDULED) {
+        this.status = EpisodeStatus.APPROVED;
+      }
+    }
+  }
+
   /**
    * Cut, Line과 같은 엔티티들은 성우/이용자에게 제공된 시점에서는 임의로 변경할 순 없음.
    * Episode의 간단한 정보를 업데이트하는 경우는 제외한다.
@@ -74,5 +103,15 @@ export class Episode extends DddAggregate {
         cause: '초안 상태의 회차만 생성/수정/삭제 할 수 있습니다.',
       });
     }
+  }
+
+  remove() {
+    if (this.status !== EpisodeStatus.DRAFT) {
+      throw new BadRequestException('draft 상태의 에피소드만 삭제할 수 있습니다.', {
+        cause: 'draft 상태의 에피소드만 삭제할 수 있습니다.',
+      });
+    }
+
+    this.publishEvent(new EpisodeRemovedEvent({ episodeId: this.id }));
   }
 }
