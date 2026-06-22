@@ -88,7 +88,7 @@ export class AdminCutService extends DddService {
   }: {
     id: number;
     episodeId: number;
-    order: number;
+    order?: number;
     imageFileId?: number;
     imageWidth?: number;
     imageHeight?: number;

@@ -38,6 +38,7 @@ export class AdminCutController {
     // 1. Destructure body, params, query
     // 2. Get context
     // 3. Get result
+    await this.adminCutService.update({ id, episodeId, ...body });
     // 4. Send response
     return { data: {} };
   }
