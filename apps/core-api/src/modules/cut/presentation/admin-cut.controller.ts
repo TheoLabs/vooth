@@ -1,32 +1,40 @@
 import { AdminGuard } from '@common/guards';
 import { Body, Controller, Delete, Get, Param, ParseIntPipe, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { AdminCutService } from '../applications/admin-cut.service';
+import { AdminCutCreateDto, AdminCutUpdateDto } from './dto';
 
-@Controller('admins/cuts')
+@Controller('admins/episodes/:episodeId/cuts')
 @UseGuards(AdminGuard)
 export class AdminCutController {
   constructor(private readonly adminCutService: AdminCutService) {}
 
   @Post()
-  async create(@Body() body: any) {
+  async create(@Param('episodeId', ParseIntPipe) episodeId: number, @Body() body: AdminCutCreateDto) {
     // 1. Destructure body, params, query
     // 2. Get context
     // 3. Get result
+    await this.adminCutService.create({ episodeId, ...body });
     // 4. Send response
     return { data: {} };
   }
 
   @Get()
-  async list(@Query() query: any) {
+  async list(@Param('episodeId', ParseIntPipe) episodeId: number) {
     // 1. Destructure body, params, query
     // 2. Get context
     // 3. Get result
+    const data = await this.adminCutService.list({ episodeId });
+
     // 4. Send response
-    return { data: {} };
+    return { data };
   }
 
   @Put(':id')
-  async update(@Param('id', ParseIntPipe) id: number, @Body() body: any) {
+  async update(
+    @Param('episodeId', ParseIntPipe) episodeId: number,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: AdminCutUpdateDto
+  ) {
     // 1. Destructure body, params, query
     // 2. Get context
     // 3. Get result
@@ -35,10 +43,12 @@ export class AdminCutController {
   }
 
   @Delete(':id')
-  async remove(@Param('id', ParseIntPipe) id: number) {
+  async remove(@Param('episodeId', ParseIntPipe) episodeId: number, @Param('id', ParseIntPipe) id: number) {
     // 1. Destructure body, params, query
     // 2. Get context
     // 3. Get result
+    await this.adminCutService.remove({ id, episodeId });
+
     // 4. Send response
     return { data: {} };
   }

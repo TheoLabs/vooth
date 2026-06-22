@@ -16,7 +16,7 @@ type Ctor = {
 };
 
 @Entity()
-@Index('idx_cut_episode_id', ['episodeId'])
+@Index('idx_cut_episode_id_order', ['episodeId', 'order'], { unique: true })
 export class Cut extends DddAggregate {
   @PrimaryGeneratedColumn()
   id: number;
@@ -24,7 +24,7 @@ export class Cut extends DddAggregate {
   @Column()
   episodeId: number;
 
-  @Column()
+  @Column({ comment: '회차는 10단위로 구분.' })
   order: number;
 
   @Column()
@@ -39,7 +39,7 @@ export class Cut extends DddAggregate {
   @Column({ type: 'json' })
   imageCropBox: CropBox;
 
-  @Column({ type: 'int', nullable: true })
+  @Column({ type: 'float', nullable: true })
   anchorY: number | null;
 
   @Column({ type: 'int', nullable: true })
@@ -66,9 +66,27 @@ export class Cut extends DddAggregate {
 
   static of(args: Ctor) {
     if (args.anchorY && (args.anchorY < 0 || args.anchorY > 1)) {
-      throw new BadRequestException('앵커의 위치값응ㄴ 0~1 사이의 값이여야합니다.', { cause: 'anchorY' });
+      throw new BadRequestException('앵커의 위치값은 0~1 사이의 값이여야합니다.', {
+        cause: '앵커의 위치값은 0~1 사이의 값이여야합니다.',
+      });
     }
 
     return new Cut(args);
+  }
+
+  update(args: {
+    order?: number;
+    imageFileId?: number;
+    imageWidth?: number;
+    imageHeight?: number;
+    imageCropBox?: CropBox;
+  }) {
+    const changed = this.stripUnchanged(args);
+
+    if (!changed) {
+      return;
+    }
+
+    Object.assign(this, changed);
   }
 }

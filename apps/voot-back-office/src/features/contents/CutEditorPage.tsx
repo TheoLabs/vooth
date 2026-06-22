@@ -1,62 +1,56 @@
-import { useMemo, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   App as AntApp,
   Button,
   Empty,
   Input,
+  Modal,
   Popconfirm,
   Select,
   Space,
   Spin,
   Typography,
 } from 'antd';
-import {
-  DeleteOutlined,
-  DownOutlined,
-  PictureOutlined,
-  PlusOutlined,
-  UpOutlined,
-} from '@ant-design/icons';
+import { DeleteOutlined, DownOutlined, PlusOutlined, UpOutlined } from '@ant-design/icons';
+import { EpisodeStatus, type CropBox } from '@vooth/shared';
 import { useContent } from './useContents';
 import { useEpisode } from './useEpisodes';
+import { useCuts, useCreateCut, useDeleteCut } from './useCuts';
 import { useCharacters } from './useCharacters';
 import { EpisodeStatusBadge } from './EpisodeStatusBadge';
+import { CutCropper } from './CutCropper';
 import { avatarColor } from './characterDisplay';
+import { uploadImage } from '../../api/file.api';
+import type { AdminCut } from '../../api/cut.api';
 
-/** 임시 키 생성기(저장 전 로컬 식별). */
-let seq = 0;
-const uid = () => `tmp-${Date.now()}-${seq++}`;
+const FULL_CROP: CropBox = { x: 0, y: 0, w: 1, h: 1 };
 
+/** 파일에서 이미지 원본 픽셀 크기를 읽는다. */
+function readImageSize(file: File): Promise<{ width: number; height: number }> {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      resolve({ width: img.naturalWidth, height: img.naturalHeight });
+      URL.revokeObjectURL(url);
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error('이미지를 읽을 수 없습니다.'));
+    };
+    img.src = url;
+  });
+}
+
+// ── 대사(라인) MOCK ─ 라인 등록 API 준비 전, 컷별 로컬 상태 ──────────────────
+let lineSeq = 0;
+const uid = () => `line-${Date.now()}-${lineSeq++}`;
 interface LineDraft {
   key: string;
-  /** 화자 캐릭터 id (없으면 나레이션) */
   characterId?: number;
   text: string;
 }
-
-interface CutDraft {
-  key: string;
-  imageUrl: string | null;
-  imageFile: File | null;
-  lines: LineDraft[];
-}
-
-function newLine(): LineDraft {
-  return { key: uid(), text: '' };
-}
-function newCut(): CutDraft {
-  return { key: uid(), imageUrl: null, imageFile: null, lines: [newLine()] };
-}
-
-/** 회차당 mock 초기 컷(컷 등록 API 준비 전 UI/UX). */
-function makeMockCuts(): CutDraft[] {
-  return [
-    { key: uid(), imageUrl: null, imageFile: null, lines: [{ key: uid(), text: '...' }] },
-    { key: uid(), imageUrl: null, imageFile: null, lines: [newLine()] },
-  ];
-}
-
 function move<T>(arr: T[], from: number, to: number): T[] {
   if (to < 0 || to >= arr.length) return arr;
   const copy = [...arr];
@@ -74,55 +68,73 @@ export function CutEditorPage() {
 
   const { data: content } = useContent(cId);
   const { data: episode, isLoading } = useEpisode(cId, eId);
+  const { data: cutData, isLoading: cutsLoading } = useCuts(eId);
   const { data: characterData } = useCharacters(cId, { limit: 100 });
+  const createCut = useCreateCut(eId);
+  const deleteCut = useDeleteCut(eId);
 
-  const characterOptions = useMemo(
-    () => (characterData?.items ?? []).map((c) => ({ value: c.id, label: c.name })),
-    [characterData],
-  );
+  const cuts = [...(cutData?.items ?? [])].sort((a, b) => a.order - b.order);
+  const characterOptions = (characterData?.items ?? []).map((c) => ({ value: c.id, label: c.name }));
   const characterColor = (id?: number) => {
     const c = characterData?.items.find((x) => x.id === id);
     return c ? avatarColor(c.name) : '#cbd5e1';
   };
 
-  // 컷/대사는 mock 로컬 상태.
-  const [cuts, setCuts] = useState<CutDraft[]>(makeMockCuts);
+  const isDraft = episode?.status === EpisodeStatus.DRAFT;
 
-  const updateCut = (key: string, patch: Partial<CutDraft>) =>
-    setCuts((prev) => prev.map((c) => (c.key === key ? { ...c, ...patch } : c)));
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [adding, setAdding] = useState(false);
 
-  const updateLine = (cutKey: string, lineKey: string, patch: Partial<LineDraft>) =>
-    setCuts((prev) =>
-      prev.map((c) =>
-        c.key === cutKey
-          ? { ...c, lines: c.lines.map((l) => (l.key === lineKey ? { ...l, ...patch } : l)) }
-          : c,
-      ),
-    );
+  // 컷 추가: 이미지 선택 → 크롭(초점 영역) 지정 → 저장
+  const [pending, setPending] = useState<{ file: File; url: string } | null>(null);
+  const [cropBox, setCropBox] = useState<CropBox>(FULL_CROP);
 
-  const addCut = () => setCuts((prev) => [...prev, newCut()]);
-  const removeCut = (key: string) => setCuts((prev) => prev.filter((c) => c.key !== key));
-  const moveCut = (idx: number, dir: -1 | 1) => setCuts((prev) => move(prev, idx, idx + dir));
+  // 대사(라인) MOCK 로컬 상태: cutId → lines
+  const [linesByCut, setLinesByCut] = useState<Record<number, LineDraft[]>>({});
+  const setLines = (cutId: number, updater: (prev: LineDraft[]) => LineDraft[]) =>
+    setLinesByCut((prev) => ({ ...prev, [cutId]: updater(prev[cutId] ?? []) }));
 
-  const addLine = (cutKey: string) =>
-    setCuts((prev) =>
-      prev.map((c) => (c.key === cutKey ? { ...c, lines: [...c.lines, newLine()] } : c)),
-    );
-  const removeLine = (cutKey: string, lineKey: string) =>
-    setCuts((prev) =>
-      prev.map((c) =>
-        c.key === cutKey ? { ...c, lines: c.lines.filter((l) => l.key !== lineKey) } : c,
-      ),
-    );
-  const moveLine = (cutKey: string, idx: number, dir: -1 | 1) =>
-    setCuts((prev) =>
-      prev.map((c) => (c.key === cutKey ? { ...c, lines: move(c.lines, idx, idx + dir) } : c)),
-    );
+  const pickCutImage = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setCropBox(FULL_CROP);
+    setPending({ file, url: URL.createObjectURL(file) });
+  };
 
-  const totalLines = cuts.reduce((n, c) => n + c.lines.length, 0);
+  const cancelCrop = () => {
+    if (pending) URL.revokeObjectURL(pending.url);
+    setPending(null);
+  };
 
-  const handleSave = () => {
-    message.info('컷 저장 API 연동 준비 중입니다. (mock)');
+  const confirmCrop = async () => {
+    if (!pending) return;
+    setAdding(true);
+    try {
+      const { width, height } = await readImageSize(pending.file);
+      const imageFileId = await uploadImage(pending.file, 'episodes/cut');
+      const nextOrder = cuts.reduce((m, c) => Math.max(m, c.order), 0) + 1;
+      await createCut.mutateAsync({
+        order: nextOrder,
+        imageFileId,
+        imageWidth: width,
+        imageHeight: height,
+        imageCropBox: cropBox,
+      });
+      message.success('컷을 추가했습니다.');
+      cancelCrop();
+    } catch (err) {
+      message.error(err instanceof Error ? err.message : '컷 추가에 실패했습니다.');
+    } finally {
+      setAdding(false);
+    }
+  };
+
+  const removeCut = (cutId: number) => {
+    deleteCut.mutate(cutId, {
+      onSuccess: () => message.success('컷을 삭제했습니다.'),
+      onError: (err) => message.error(err.message),
+    });
   };
 
   const goBack = () => navigate(`/contents/${cId}?tab=episodes`);
@@ -147,6 +159,8 @@ export function CutEditorPage() {
     );
   }
 
+  const totalLines = cuts.reduce((n, c) => n + (linesByCut[c.id]?.length ?? 0), 0);
+
   return (
     <div className="bo-page">
       {/* 상단 바 */}
@@ -154,14 +168,9 @@ export function CutEditorPage() {
         <Button type="text" onClick={goBack}>
           ← 회차 목록
         </Button>
-        <Space>
-          <Typography.Text type="secondary">
-            컷 {cuts.length} · 대사 {totalLines}
-          </Typography.Text>
-          <Button type="primary" onClick={handleSave}>
-            저장
-          </Button>
-        </Space>
+        <Typography.Text type="secondary">
+          컷 {cuts.length} · 대사 {totalLines}
+        </Typography.Text>
       </Space>
 
       {/* 회차 헤더 */}
@@ -184,9 +193,14 @@ export function CutEditorPage() {
           {episode.title}
         </Typography.Title>
         <EpisodeStatusBadge status={episode.status} />
+        {!isDraft && (
+          <Typography.Text type="warning" style={{ marginLeft: 'auto', fontSize: 12 }}>
+            초안(draft) 상태에서만 컷을 추가할 수 있습니다.
+          </Typography.Text>
+        )}
       </div>
 
-      {/* 컷 목록 (남은 높이 채우고 내부 스크롤) */}
+      {/* 컷 목록 */}
       <div
         style={{
           flex: 1,
@@ -198,77 +212,108 @@ export function CutEditorPage() {
           paddingRight: 4,
         }}
       >
-        {cuts.map((cut, idx) => (
-          <CutCard
-            key={cut.key}
-            index={idx}
-            cut={cut}
-            isFirst={idx === 0}
-            isLast={idx === cuts.length - 1}
-            characterOptions={characterOptions}
-            characterColor={characterColor}
-            onMove={(dir) => moveCut(idx, dir)}
-            onRemove={() => removeCut(cut.key)}
-            onSetImage={(file, url) => updateCut(cut.key, { imageFile: file, imageUrl: url })}
-            onAddLine={() => addLine(cut.key)}
-            onRemoveLine={(lineKey) => removeLine(cut.key, lineKey)}
-            onMoveLine={(lineIdx, dir) => moveLine(cut.key, lineIdx, dir)}
-            onChangeLine={(lineKey, patch) => updateLine(cut.key, lineKey, patch)}
-          />
-        ))}
+        {cutsLoading ? (
+          <div style={{ display: 'flex', justifyContent: 'center', padding: '32px 0' }}>
+            <Spin />
+          </div>
+        ) : cuts.length === 0 ? (
+          <Empty description="등록된 컷이 없습니다." style={{ margin: '24px 0' }} />
+        ) : (
+          cuts.map((cut) => (
+            <CutCard
+              key={cut.id}
+              cut={cut}
+              lines={linesByCut[cut.id] ?? []}
+              canDelete={isDraft}
+              deleting={deleteCut.isPending}
+              characterOptions={characterOptions}
+              characterColor={characterColor}
+              onRemove={() => removeCut(cut.id)}
+              onAddLine={() => setLines(cut.id, (p) => [...p, { key: uid(), text: '' }])}
+              onChangeLine={(lineKey, patch) =>
+                setLines(cut.id, (p) => p.map((l) => (l.key === lineKey ? { ...l, ...patch } : l)))
+              }
+              onRemoveLine={(lineKey) =>
+                setLines(cut.id, (p) => p.filter((l) => l.key !== lineKey))
+              }
+              onMoveLine={(idx, dir) => setLines(cut.id, (p) => move(p, idx, idx + dir))}
+            />
+          ))
+        )}
 
         <Button
           type="dashed"
           icon={<PlusOutlined />}
-          onClick={addCut}
+          disabled={!isDraft}
+          onClick={() => fileRef.current?.click()}
           style={{ height: 48, flex: 'none' }}
         >
-          컷 추가
+          컷 추가 (이미지 업로드)
         </Button>
+        <input ref={fileRef} type="file" accept="image/*" hidden onChange={pickCutImage} />
       </div>
+
+      {/* 컷 이미지 크롭(초점 영역) 지정 후 저장 */}
+      <Modal
+        title="컷 초점 영역 지정"
+        open={pending != null}
+        onCancel={cancelCrop}
+        maskClosable={false}
+        okText="컷 추가"
+        cancelText="취소"
+        confirmLoading={adding}
+        onOk={confirmCrop}
+        width={520}
+      >
+        {pending && (
+          <>
+            <Typography.Paragraph type="secondary" style={{ fontSize: 12, marginTop: 4 }}>
+              드래그로 이동, 모서리로 크기 조절. 지정한 영역이 컷의 초점(cropBox)으로 저장됩니다.
+            </Typography.Paragraph>
+            <CutCropper src={pending.url} value={cropBox} onChange={setCropBox} />
+            <Space style={{ marginTop: 10 }}>
+              <Button size="small" onClick={() => setCropBox(FULL_CROP)}>
+                전체로 초기화
+              </Button>
+              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                x {Math.round(cropBox.x * 100)}% · y {Math.round(cropBox.y * 100)}% · w{' '}
+                {Math.round(cropBox.w * 100)}% · h {Math.round(cropBox.h * 100)}%
+              </Typography.Text>
+            </Space>
+          </>
+        )}
+      </Modal>
     </div>
   );
 }
 
 interface CutCardProps {
-  index: number;
-  cut: CutDraft;
-  isFirst: boolean;
-  isLast: boolean;
+  cut: AdminCut;
+  lines: LineDraft[];
+  canDelete: boolean;
+  deleting: boolean;
   characterOptions: { value: number; label: string }[];
   characterColor: (id?: number) => string;
-  onMove: (dir: -1 | 1) => void;
   onRemove: () => void;
-  onSetImage: (file: File, url: string) => void;
   onAddLine: () => void;
-  onRemoveLine: (lineKey: string) => void;
-  onMoveLine: (lineIdx: number, dir: -1 | 1) => void;
   onChangeLine: (lineKey: string, patch: Partial<LineDraft>) => void;
+  onRemoveLine: (lineKey: string) => void;
+  onMoveLine: (idx: number, dir: -1 | 1) => void;
 }
 
 function CutCard({
-  index,
   cut,
-  isFirst,
-  isLast,
+  lines,
+  canDelete,
+  deleting,
   characterOptions,
   characterColor,
-  onMove,
   onRemove,
-  onSetImage,
   onAddLine,
+  onChangeLine,
   onRemoveLine,
   onMoveLine,
-  onChangeLine,
 }: CutCardProps) {
-  const fileRef = useRef<HTMLInputElement>(null);
-
-  const pickImage = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) onSetImage(file, URL.createObjectURL(file));
-    e.target.value = '';
-  };
-
   return (
     <div
       style={{
@@ -279,65 +324,54 @@ function CutCard({
         padding: 16,
       }}
     >
-      {/* 컷 헤더 */}
       <div style={{ display: 'flex', alignItems: 'center', marginBottom: 12 }}>
-        <Typography.Text strong>컷 {index + 1}</Typography.Text>
-        <Space size={4} style={{ marginLeft: 'auto' }}>
-          <Button
-            size="small"
-            type="text"
-            icon={<UpOutlined />}
-            disabled={isFirst}
-            onClick={() => onMove(-1)}
-          />
-          <Button
-            size="small"
-            type="text"
-            icon={<DownOutlined />}
-            disabled={isLast}
-            onClick={() => onMove(1)}
-          />
-          <Popconfirm title="이 컷을 삭제할까요?" okText="삭제" cancelText="취소" onConfirm={onRemove}>
-            <Button size="small" type="text" danger icon={<DeleteOutlined />} />
+        <Typography.Text strong>컷 {cut.order}</Typography.Text>
+        <Typography.Text type="secondary" style={{ marginLeft: 8, fontSize: 12 }}>
+          {cut.imageWidth}×{cut.imageHeight}
+        </Typography.Text>
+        {canDelete && (
+          <Popconfirm
+            title="이 컷을 삭제할까요?"
+            okText="삭제"
+            cancelText="취소"
+            okButtonProps={{ danger: true }}
+            onConfirm={onRemove}
+          >
+            <Button
+              size="small"
+              type="text"
+              danger
+              icon={<DeleteOutlined />}
+              loading={deleting}
+              style={{ marginLeft: 'auto' }}
+            />
           </Popconfirm>
-        </Space>
+        )}
       </div>
 
       <div style={{ display: 'flex', gap: 16 }}>
         {/* 컷 이미지 */}
-        <div style={{ flex: 'none' }}>
-          <button
-            type="button"
-            onClick={() => fileRef.current?.click()}
-            style={{
-              width: 132,
-              height: 176,
-              borderRadius: 8,
-              border: cut.imageUrl ? '1px solid #e2e8f0' : '1px dashed #cbd5e1',
-              background: cut.imageUrl ? `center/cover no-repeat url(${cut.imageUrl})` : '#f8fafc',
-              cursor: 'pointer',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 6,
-              color: '#94a3b8',
-              padding: 0,
-            }}
-          >
-            {!cut.imageUrl && (
-              <>
-                <PictureOutlined style={{ fontSize: 22 }} />
-                <span style={{ fontSize: 12 }}>이미지 업로드</span>
-              </>
-            )}
-          </button>
-          <input ref={fileRef} type="file" accept="image/*" hidden onChange={pickImage} />
-        </div>
+        <img
+          src={cut.imageUrl}
+          alt={`컷 ${cut.order}`}
+          style={{
+            width: 140,
+            flex: 'none',
+            height: 'auto',
+            maxHeight: 220,
+            objectFit: 'contain',
+            borderRadius: 8,
+            border: '1px solid #e2e8f0',
+            background: '#f8fafc',
+          }}
+        />
 
-        {/* 대사 목록 */}
+        {/* 대사(라인) — MOCK */}
         <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {cut.lines.map((line, lineIdx) => (
+          <Typography.Text type="secondary" style={{ fontSize: 11 }}>
+            대사 (라인 등록 API 준비 전 · mock)
+          </Typography.Text>
+          {lines.map((line, idx) => (
             <div key={line.key} style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
               <Select<number>
                 allowClear
@@ -375,22 +409,21 @@ function CutCard({
                   size="small"
                   type="text"
                   icon={<UpOutlined />}
-                  disabled={lineIdx === 0}
-                  onClick={() => onMoveLine(lineIdx, -1)}
+                  disabled={idx === 0}
+                  onClick={() => onMoveLine(idx, -1)}
                 />
                 <Button
                   size="small"
                   type="text"
                   icon={<DownOutlined />}
-                  disabled={lineIdx === cut.lines.length - 1}
-                  onClick={() => onMoveLine(lineIdx, 1)}
+                  disabled={idx === lines.length - 1}
+                  onClick={() => onMoveLine(idx, 1)}
                 />
                 <Button
                   size="small"
                   type="text"
                   danger
                   icon={<DeleteOutlined />}
-                  disabled={cut.lines.length === 1}
                   onClick={() => onRemoveLine(line.key)}
                 />
               </Space>

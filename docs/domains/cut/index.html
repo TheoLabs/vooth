@@ -53,7 +53,7 @@
           <tr><td><code>order</code></td><td>number</td><td>✗</td><td>회차 내 순서. 10단위 append</td></tr>
           <tr><td><code>imageFileId</code></td><td>number</td><td>✗</td><td>컷 패널 이미지(File). commit-on-attach(<code>image/</code>)</td></tr>
           <tr><td><code>imageWidth</code>/<code>imageHeight</code></td><td>number(px)</td><td>✗</td><td>원본 크기(클라 제공). 스크롤 레이아웃</td></tr>
-          <tr><td><code>imageCropBox</code></td><td>CropBox json</td><td>✓</td><td>표시 영역(정규화 0~1). 연출</td></tr>
+          <tr><td><code>imageCropBox</code></td><td>CropBox json</td><td>✗</td><td>표시 영역(정규화 0~1). <b>등록 시 필수</b>(FE가 업로드 시 크롭 제공) — 다른 연출 필드와 달리 not null</td></tr>
           <tr><td><code>anchorY</code></td><td>number(0~1)</td><td>✓</td><td>스크롤 정착 지점. 연출</td></tr>
           <tr><td><code>gap</code></td><td>number(px)</td><td>✓</td><td>다음 컷과의 간격. 연출</td></tr>
           <tr><td><code>holdOverride</code></td><td>number(ms)</td><td>✓</td><td>auto hold(요소 길이 기반)에 더하는 여운. null=auto. 연출</td></tr>
@@ -140,9 +140,9 @@
   <section class="section">
     <h2><span class="num">06</span> 라이프사이클 · 삭제</h2>
     <ul class="clean">
-      <li><b>생성</b> — admins. episode 존재 검증 + order append + 이미지 commit. 연출 값·요소는 이후 채움.</li>
-      <li><b>수정</b> — 등록(이미지/순서/Line 텍스트)=admins, 연출(SFX/FX/anchor/anchorY/gap/hold/cropBox)=directors. 상태 게이팅 없음(MVP).</li>
-      <li><b>삭제</b> — Cut 삭제 시 자식(Line/SFX/FX)은 <b>cascade로 함께 삭제</b>(애그리게이트 내부). 단 <a href="../recording/index.html">Recording</a>은 별도 AR이라 <code>lineId</code> 참조가 남으므로 <b>녹음 있으면 차단</b>(추후 Recording 연동).</li>
+      <li><b>생성</b> — admins. episode 존재 검증 + <b>episode가 DRAFT일 때만</b>(구조 편집 게이팅) + order 중복 거부 + 이미지 commit. 연출 값·요소는 이후 채움.</li>
+      <li><b>수정</b> — 등록(이미지/순서/Line 텍스트)=admins, 연출(SFX/FX/anchor/anchorY/gap/hold/cropBox)=directors. <b>구조 편집은 episode DRAFT 한정</b>(연출 편집 게이팅은 추후 분리 검토).</li>
+      <li><b>삭제</b> — <b>episode DRAFT일 때만</b>. Cut 삭제 시 자식(Line/SFX/FX)은 <b>cascade로 함께 삭제</b>(애그리게이트 내부). 단 <a href="../recording/index.html">Recording</a>은 별도 AR이라 <code>lineId</code> 참조가 남으므로 <b>녹음 있으면 차단</b>(추후 Recording 연동).</li>
     </ul>
   </section>
 
