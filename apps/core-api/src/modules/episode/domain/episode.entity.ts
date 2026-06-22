@@ -62,4 +62,17 @@ export class Episode extends DddAggregate {
 
     return new Episode(args);
   }
+
+  /**
+   * Cut, Line과 같은 엔티티들은 성우/이용자에게 제공된 시점에서는 임의로 변경할 순 없음.
+   * Episode의 간단한 정보를 업데이트하는 경우는 제외한다.
+   * 추후 Suspend 상태도 가능하게 만들어야 할 수 있음 <- 검토 필요.
+   */
+  validateChildEditable() {
+    if (this.status !== EpisodeStatus.DRAFT) {
+      throw new BadRequestException('초안 상태의 회차만 생성/수정/삭제 할 수 있습니다.', {
+        cause: '초안 상태의 회차만 생성/수정/삭제 할 수 있습니다.',
+      });
+    }
+  }
 }

@@ -1,7 +1,7 @@
 import { DddService } from '@libs/ddd';
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { Transactional } from '@libs/decorators';
-import { Anchor, EpisodeStatus } from '@vooth/shared';
+import { Anchor } from '@vooth/shared';
 import { CutRepository } from '../infrastructure/cut.repository';
 import { EpisodeRepository } from '@modules/episode/infrastructure/episode.repository';
 import { CharacterRepository } from '@modules/character/infrastructure/character.repository';
@@ -45,11 +45,7 @@ export class AdminLineService extends DddService {
       });
     }
 
-    if (episode.status !== EpisodeStatus.DRAFT) {
-      throw new BadRequestException('draft 상태의 에피소드에만 대사를 추가할 수 있습니다.', {
-        cause: 'draft 상태의 에피소드에만 대사를 추가할 수 있습니다.',
-      });
-    }
+    episode.validateChildEditable();
 
     const [character] = await this.characterRepository.find({ id: characterId });
 
@@ -92,11 +88,7 @@ export class AdminLineService extends DddService {
       });
     }
 
-    if (episode.status !== EpisodeStatus.DRAFT) {
-      throw new BadRequestException('draft 상태의 에피소드에만 대사를 수정할 수 있습니다.', {
-        cause: 'draft 상태의 에피소드에만 대사를 수정할 수 있습니다.',
-      });
-    }
+    episode.validateChildEditable();
 
     if (characterId) {
       const [character] = await this.characterRepository.find({ id: characterId });
@@ -130,12 +122,7 @@ export class AdminLineService extends DddService {
       });
     }
 
-    if (episode.status !== EpisodeStatus.DRAFT) {
-      throw new BadRequestException('draft 상태의 에피소드에만 대사를 삭제할 수 있습니다.', {
-        cause: 'draft 상태의 에피소드에만 대사를 삭제할 수 있습니다.',
-      });
-    }
-
+    episode.validateChildEditable();
     cut.removeLine({ lineId });
 
     await this.cutRepository.save([cut]);

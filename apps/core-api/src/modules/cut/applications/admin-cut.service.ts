@@ -3,7 +3,7 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { CutRepository } from '../infrastructure/cut.repository';
 import { Transactional } from '@libs/decorators';
 import { EpisodeRepository } from '@modules/episode/infrastructure/episode.repository';
-import { EpisodeStatus, type CropBox } from '@vooth/shared';
+import { type CropBox } from '@vooth/shared';
 import { Cut } from '../domain/cut.entity';
 import { AdminCutResponseDto } from '../presentation/dto';
 import { FileService } from '@modules/file/applications/file.service';
@@ -43,11 +43,7 @@ export class AdminCutService extends DddService {
       });
     }
 
-    if (episode.status !== EpisodeStatus.DRAFT) {
-      throw new BadRequestException('draft 상태의 에피소드에만 컷을 추가할 수 있습니다.', {
-        cause: 'draft 상태의 에피소드에만 컷을 추가할 수 있습니다.',
-      });
-    }
+    episode.validateChildEditable();
 
     const [existingCut] = await this.cutRepository.find({ episodeId, order });
     if (existingCut) {
@@ -105,11 +101,7 @@ export class AdminCutService extends DddService {
       });
     }
 
-    if (episode.status !== EpisodeStatus.DRAFT) {
-      throw new BadRequestException('draft 상태의 에피소드에만 컷을 수정할 수 있습니다.', {
-        cause: 'draft 상태의 에피소드에만 컷을 수정할 수 있습니다.',
-      });
-    }
+    episode.validateChildEditable();
 
     const [cut] = await this.cutRepository.find({ id, episodeId });
     if (!cut) {
@@ -154,11 +146,7 @@ export class AdminCutService extends DddService {
       });
     }
 
-    if (episode.status !== EpisodeStatus.DRAFT) {
-      throw new BadRequestException('draft 상태의 에피소드에만 컷을 삭제할 수 있습니다.', {
-        cause: 'draft 상태의 에피소드에만 컷을 삭제할 수 있습니다.',
-      });
-    }
+    episode.validateChildEditable();
 
     await this.cutRepository.remove([cut]);
   }

@@ -120,10 +120,10 @@
         <div class="tags"><span>Content 소속</span><span>7-state</span><span>회차 발행</span></div>
       </a>
       <a class="dcard" href="cut/index.html">
-        <div class="top"><h3>Cut</h3><span class="badge plan">설계</span></div>
-        <div class="ns">admins · directors / …/cuts</div>
-        <p>컷 = 패널 이미지 + 타임라인 <b>구성 애그리게이트</b>. Line/SoundEffect/CutEffect를 owned child로 품어 앵커 그래프를 내부 불변식으로. Recording만 별도 AR.</p>
-        <div class="tags"><span>애그리게이트 루트</span><span>owned children</span><span>intra-aggregate 앵커</span></div>
+        <div class="top"><h3>Cut</h3><span class="badge ok">구현됨</span></div>
+        <div class="ns">admins/episodes/:episodeId/cuts · admins/cuts/:cutId/lines</div>
+        <p>컷 = 패널 이미지 + 타임라인 <b>구성 애그리게이트</b>. Line(구현)/SoundEffect/CutEffect(설계)를 owned child로 품음. Cut+Line CRUD 구현, 연출·효과는 설계. Recording만 별도 AR.</p>
+        <div class="tags"><span>애그리게이트 루트</span><span>Line owned</span><span>anchor(json)</span></div>
       </a>
       <a class="dcard" href="recording/index.html">
         <div class="top"><h3>Recording</h3><span class="badge plan">설계</span></div>

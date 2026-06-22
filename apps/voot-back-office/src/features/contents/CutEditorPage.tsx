@@ -29,6 +29,7 @@ import {
   useCreateCut,
   useCreateLine,
   useDeleteCut,
+  useDeleteLine,
   useUpdateCut,
   useUpdateLine,
 } from './useCuts';
@@ -36,8 +37,11 @@ import { useCharacters } from './useCharacters';
 import { EpisodeStatusBadge } from './EpisodeStatusBadge';
 import { CutCropper } from './CutCropper';
 import { avatarColor } from './characterDisplay';
+import { useQueryClient } from '@tanstack/react-query';
 import { uploadImage } from '../../api/file.api';
+import { updateCut as updateCutApi, updateLine as updateLineApi } from '../../api/cut.api';
 import type { AdminCut, AdminLine } from '../../api/cut.api';
+import { CUTS_KEY } from './useCuts';
 
 const FULL_CROP: CropBox = { x: 0, y: 0, w: 1, h: 1 };
 
@@ -70,6 +74,7 @@ export function CutEditorPage() {
   const { contentId, episodeId } = useParams();
   const navigate = useNavigate();
   const { message } = AntApp.useApp();
+  const queryClient = useQueryClient();
   const cId = Number(contentId);
   const eId = Number(episodeId);
 
@@ -82,6 +87,7 @@ export function CutEditorPage() {
   const deleteCut = useDeleteCut(eId);
   const createLine = useCreateLine(eId);
   const updateLineMut = useUpdateLine(eId);
+  const deleteLineMut = useDeleteLine(eId);
 
   const cuts = [...(cutData?.items ?? [])].sort((a, b) => a.order - b.order);
   const characterOptions = (characterData?.items ?? []).map((c) => ({ value: c.id, label: c.name }));
@@ -147,6 +153,37 @@ export function CutEditorPage() {
     message.success('대사를 수정했습니다.');
   };
 
+  const removeLine = (cutId: number, lineId: number) => {
+    deleteLineMut.mutate(
+      { cutId, lineId },
+      {
+        onSuccess: () => message.success('대사를 삭제했습니다.'),
+        onError: (err) => message.error(err.message),
+      },
+    );
+  };
+
+  // 대사 순서 변경: (cutId, order) 유니크 제약 때문에 임시값(-1)을 거쳐 스왑.
+  // 중간 단계마다 무효화하면 -1 상태가 잠깐 렌더돼 깜빡이므로, raw API 로 스왑 후 한 번만 무효화.
+  const [lineReordering, setLineReordering] = useState(false);
+  const moveLine = async (cut: AdminCut, index: number, dir: -1 | 1) => {
+    const sorted = [...cut.lines].sort((a, b) => a.order - b.order);
+    const a = sorted[index];
+    const b = sorted[index + dir];
+    if (!a || !b) return;
+    setLineReordering(true);
+    try {
+      await updateLineApi(cut.id, a.id, { order: -1 });
+      await updateLineApi(cut.id, b.id, { order: a.order });
+      await updateLineApi(cut.id, a.id, { order: b.order });
+    } catch (err) {
+      message.error(err instanceof Error ? err.message : '대사 순서 변경에 실패했습니다.');
+    } finally {
+      await queryClient.invalidateQueries({ queryKey: [CUTS_KEY, 'list', eId] });
+      setLineReordering(false);
+    }
+  };
+
   const pickCutImage = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     e.target.value = '';
@@ -198,12 +235,13 @@ export function CutEditorPage() {
     if (!a || !b) return;
     setReordering(true);
     try {
-      await updateCut.mutateAsync({ cutId: a.id, input: { order: -1 } });
-      await updateCut.mutateAsync({ cutId: b.id, input: { order: a.order } });
-      await updateCut.mutateAsync({ cutId: a.id, input: { order: b.order } });
+      await updateCutApi(eId, a.id, { order: -1 });
+      await updateCutApi(eId, b.id, { order: a.order });
+      await updateCutApi(eId, a.id, { order: b.order });
     } catch (err) {
       message.error(err instanceof Error ? err.message : '순서 변경에 실패했습니다.');
     } finally {
+      await queryClient.invalidateQueries({ queryKey: [CUTS_KEY, 'list', eId] });
       setReordering(false);
     }
   };
@@ -319,7 +357,11 @@ export function CutEditorPage() {
               draft={draftByCut[cut.id] ?? { script: '' }}
               lineSubmitting={createLine.isPending}
               lineUpdating={updateLineMut.isPending}
+              lineDeleting={deleteLineMut.isPending}
+              lineReordering={lineReordering}
               onUpdateLine={(line, next) => updateLine(cut.id, line, next)}
+              onRemoveLine={(lineId) => removeLine(cut.id, lineId)}
+              onMoveLine={(index, dir) => moveLine(cut, index, dir)}
               editable={isDraft}
               busy={reordering || updateCut.isPending}
               deleting={deleteCut.isPending}
@@ -420,7 +462,11 @@ interface CutCardProps {
   draft: LineDraftInput;
   lineSubmitting: boolean;
   lineUpdating: boolean;
+  lineDeleting: boolean;
+  lineReordering: boolean;
   onUpdateLine: (line: AdminLine, next: { characterId: number; script: string }) => Promise<void>;
+  onRemoveLine: (lineId: number) => void;
+  onMoveLine: (index: number, dir: -1 | 1) => void;
   /** 초안 회차에서만 컷 수정/삭제 가능 */
   editable: boolean;
   /** 순서/크롭 수정 진행 중 */
@@ -443,7 +489,11 @@ function CutCard({
   draft,
   lineSubmitting,
   lineUpdating,
+  lineDeleting,
+  lineReordering,
   onUpdateLine,
+  onRemoveLine,
+  onMoveLine,
   editable,
   busy,
   deleting,
@@ -459,12 +509,8 @@ function CutCard({
   const characterName = (id: number) =>
     characterOptions.find((o) => o.value === id)?.label ?? '알 수 없음';
 
-  // 수정은 실제 API. 삭제는 아직 API 준비 전 — 화면 미리보기용 로컬 오버레이.
-  const [deleted, setDeleted] = useState<Record<number, boolean>>({});
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editDraft, setEditDraft] = useState<LineDraftInput>({ script: '' });
-
-  const effectiveLines = lines.filter((l) => !deleted[l.id]);
 
   const startEdit = (line: AdminLine) => {
     setEditingId(line.id);
@@ -489,11 +535,6 @@ function CutCard({
       message.error(err instanceof Error ? err.message : '대사 수정에 실패했습니다.');
     }
   };
-  const removeLine = (lineId: number) => {
-    setDeleted((p) => ({ ...p, [lineId]: true }));
-    message.info('대사 삭제 API 준비 전입니다 — 화면에만 반영됩니다. (mock)');
-  };
-
   const characterSelect = (
     value: number | undefined,
     onChange: (v: number | undefined) => void,
@@ -591,10 +632,10 @@ function CutCard({
         {/* 대사(라인) */}
         <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
           <Typography.Text type="secondary" style={{ fontSize: 11 }}>
-            대사 {effectiveLines.length > 0 && `(${effectiveLines.length})`}
+            대사 {lines.length > 0 && `(${lines.length})`}
           </Typography.Text>
 
-          {effectiveLines.map((line, idx) =>
+          {lines.map((line, idx) =>
             editingId === line.id ? (
               /* 인라인 수정 */
               <div key={line.id} style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
@@ -661,6 +702,22 @@ function CutCard({
                     <Button
                       size="small"
                       type="text"
+                      icon={<UpOutlined />}
+                      disabled={idx === 0 || lineReordering}
+                      onClick={() => onMoveLine(idx, -1)}
+                      aria-label="위로"
+                    />
+                    <Button
+                      size="small"
+                      type="text"
+                      icon={<DownOutlined />}
+                      disabled={idx === lines.length - 1 || lineReordering}
+                      onClick={() => onMoveLine(idx, 1)}
+                      aria-label="아래로"
+                    />
+                    <Button
+                      size="small"
+                      type="text"
                       icon={<EditOutlined />}
                       onClick={() => startEdit(line)}
                       aria-label="대사 수정"
@@ -670,13 +727,14 @@ function CutCard({
                       okText="삭제"
                       cancelText="취소"
                       okButtonProps={{ danger: true }}
-                      onConfirm={() => removeLine(line.id)}
+                      onConfirm={() => onRemoveLine(line.id)}
                     >
                       <Button
                         size="small"
                         type="text"
                         danger
                         icon={<DeleteOutlined />}
+                        loading={lineDeleting}
                         aria-label="대사 삭제"
                       />
                     </Popconfirm>
@@ -707,7 +765,7 @@ function CutCard({
               />
             </div>
           ) : (
-            effectiveLines.length === 0 && (
+            lines.length === 0 && (
               <Typography.Text type="secondary" style={{ fontSize: 12 }}>
                 초안(draft) 회차에서만 대사를 등록할 수 있습니다.
               </Typography.Text>
