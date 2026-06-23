@@ -52,15 +52,14 @@
           <tr><td><code>episodeId</code></td><td>number</td><td>✗</td><td>소속 회차(Episode 1:N Cut). <b>논리 FK</b>(cross-aggregate). <code>(episodeId, order)</code> <b>unique</b></td></tr>
           <tr><td><code>order</code></td><td>number</td><td>✗</td><td>회차 내 순서(10단위). 클라 제공 + <code>(episodeId, order)</code> 중복 거부</td></tr>
           <tr><td><code>imageFileId</code></td><td>number</td><td>✗</td><td>컷 패널 이미지(File). commit-on-attach(<code>image/</code>)</td></tr>
-          <tr><td><code>imageWidth</code>/<code>imageHeight</code></td><td>number(px)</td><td>✗</td><td>원본 크기(클라 제공). 스크롤 레이아웃</td></tr>
-          <tr><td><code>imageCropBox</code></td><td>CropBox json</td><td>✗</td><td>표시 영역(정규화 0~1). <b>등록 시 필수</b>(FE 크롭 제공)</td></tr>
-          <tr><td><code>anchorY</code></td><td>float(0~1)</td><td>✓</td><td>스크롤 정착 지점. 연출(추후 directors)</td></tr>
+          <tr><td><code>imageWidth</code>/<code>imageHeight</code></td><td>number(px)</td><td>✗</td><td>원본 크기(클라 제공). 스크롤 레이아웃(로드 전 공간 예약) + 라인 <code>anchorY×imageHeight=픽셀 위치</code> 계산</td></tr>
           <tr><td><code>gap</code></td><td>int(px)</td><td>✓</td><td>다음 컷과의 간격. 연출</td></tr>
           <tr><td><code>holdOverride</code></td><td>int(ms)</td><td>✓</td><td>auto hold(요소 길이 기반)에 더하는 여운. null=auto. 연출</td></tr>
           <tr><td><code>lines</code></td><td><code>@OneToMany</code></td><td>—</td><td>owned child(§03). cascade + orphanedRowAction:'delete'. (soundEffects/cutEffects는 추후)</td></tr>
         </tbody>
       </table>
     </div>
+    <div class="note"><span class="label">결정.</span> 컷 이미지는 <b>풀프레임</b>으로 그대로 표시한다 — <code>imageCropBox</code> 없음. 컷은 "완성된 한 장면 이미지"(컷마다 전용 <code>imageFileId</code>)라 크롭이 불필요(썸네일과 달리 대표영역 추출 개념이 아님). 프레이밍 pan/zoom 연출이 생기면 그때 재도입 검토.</div>
   </section>
 
   <section class="section">
@@ -82,7 +81,7 @@
         </tbody>
       </table>
     </div>
-    <p class="desc" style="margin-top:8px"><b>null = 순차 기본</b>(직전 요소 뒤). 등록 땐 보통 null, 연출(directors)에서 설정. enum/필드 검증은 <code>AnchorDto</code>.</p>
+    <p class="desc" style="margin-top:8px"><b>null = 순차 기본</b>(직전 요소 뒤). <b>등록(admins/*)에선 anchor를 받지 않음</b> — 항상 null로 생성되고, 연출(directors)에서 설정(Line은 <code>update</code>로). enum/필드 검증은 <code>AnchorDto</code>.</p>
 
     <h3><code>Line</code> · 대사 <span class="badge ok" style="vertical-align:middle">구현됨</span></h3>
     <p class="desc">파일: <code>src/modules/cut/domain/line.entity.ts</code> · <code>DddBaseAggregate</code> child</p>
@@ -93,7 +92,8 @@
         <tr><td><code>characterId</code></td><td>number</td><td>화자(Character 참조, <b>논리 FK</b> cross-aggregate). INDEX</td></tr>
         <tr><td><code>script</code></td><td>text</td><td>대사 텍스트(등록=admins)</td></tr>
         <tr><td><code>order</code></td><td>number</td><td>컷 내 순서. <code>@Unique(cutId, order)</code></td></tr>
-        <tr><td><code>anchorMetadata</code></td><td>Anchor json · null</td><td>타임라인 앵커. 음성 길이는 <a href="../recording/index.html">Recording</a>(채택 take)에서 파생</td></tr>
+        <tr><td><code>anchorY</code></td><td>float(0~1) · null</td><td><b>발화 세로 위치</b>(컷 이미지 내 0~1, null=균등 분배 폴백). 스크롤 동기화 기준점. 연출(directors), 녹음 전 설정. <code>anchorY×imageHeight=픽셀</code></td></tr>
+        <tr><td><code>anchorMetadata</code></td><td>Anchor json · null</td><td>타임라인 앵커(시간 순서). 음성 길이는 <a href="../recording/index.html">Recording</a>(채택 take)에서 파생</td></tr>
       </tbody>
     </table></div>
 
@@ -141,7 +141,7 @@
     <h2><span class="num">05</span> 앵커 — intra-aggregate</h2>
     <ul class="clean">
       <li>앵커는 Line의 <code>anchorMetadata</code>(json)에 저장. <code>targetId</code>가 <b>같은 컷 안 형제</b>를 가리키므로 검증을 Cut 루트에서 한다(cross-AR soft ref 불필요).</li>
-      <li><b>현재 <code>AnchorType.LINE</code>만</b> — 등록 시 보통 <code>null</code>(순차 기본). 연출(directors)에서 대사 동기화·오버랩으로 설정(추후). SoundEffect/CutEffect 생기면 요소 간 cross-element 앵커 + DAG·same-cut 검증 강화.</li>
+      <li><b>현재 <code>AnchorType.LINE</code>만</b> — 등록(admins/*)은 anchor를 받지 않아 항상 <code>null</code>(순차 기본)로 생성. 연출(directors)에서 대사 동기화·오버랩으로 설정(추후). SoundEffect/CutEffect 생기면 요소 간 cross-element 앵커 + DAG·same-cut 검증 강화.</li>
       <li><b>해석(resolve)·버전 전환·렌더는 클라(vooth-tool, Electron)</b>. core-api는 앵커·요소 데이터만 저장(절대 시간·hold는 파생, 미저장). <a href="../playback/index.html">Playback §03</a>.</li>
     </ul>
   </section>
@@ -152,7 +152,8 @@
       <li><b>Cut 생성/수정/삭제</b>(admins) — <b>episode DRAFT일 때만</b>(구조 편집 게이팅). 생성/이미지교체 시 <code>commit('image/')</code>, order 중복 거부.</li>
       <li><b>Line 생성/수정/삭제</b>(admins, <code>AdminLineService</code>) — Cut 루트 경유 + <b>episode DRAFT 게이팅</b> + character 존재 검증. 삭제는 <code>orphanedRowAction:'delete'</code>로 실제 DELETE.</li>
       <li><b>Episode 삭제 시 EDA 정리</b>(구현) — Episode가 하드 삭제되며 <code>EpisodeRemovedEvent</code> 발행 → Cut의 <code>@EventHandler</code>가 그 회차의 컷을 일괄 삭제(컷→라인은 물리 FK cascade). cross-aggregate(Episode↔Cut 논리 FK)라 DB cascade 대신 이벤트로 정리. 멱등(episodeId 기준).</li>
-      <li><b>연출 편집</b>(anchor·anchorY/gap/holdOverride, SoundEffect/CutEffect) — <code>directors</code>, 녹음 이후. <strong>설계</strong>.</li>
+      <li><b>대사 anchorY 설정</b>(Line 발화 세로 위치) — <code>directors</code>, <b>녹음 전</b>(DRAFT). 회차 단위 벌크 PUT. <strong>설계</strong>.</li>
+      <li><b>연출 편집</b>(타임라인 anchor·Cut gap/holdOverride, SoundEffect/CutEffect) — <code>directors</code>, 녹음 이후. <strong>설계</strong>.</li>
       <li><b>Recording 가드</b> — Line 삭제 시 그 라인의 녹음(별도 AR)이 고아가 되므로, Recording 생기면 <b>녹음 있으면 차단</b> 추가 예정. (현재는 Episode를 DRAFT일 때만 삭제 → 녹음 없어 안전)</li>
     </ul>
   </section>
@@ -166,7 +167,8 @@
         <tbody>
           <tr><td><span class="method post">POST</span> <span class="method get">GET</span> <span class="method put">PUT</span> <span class="method del">DEL</span></td><td><code>admins/episodes/:episodeId/cuts[/:id]</code></td><td>컷 CRUD(목록 order순 전체, imageUrl enrich) — <code>AdminCutService</code></td><td><span class="badge ok">구현됨</span></td></tr>
           <tr><td><span class="method post">POST</span> <span class="method put">PUT</span> <span class="method del">DEL</span></td><td><code>admins/cuts/:cutId/lines[/:lineId]</code></td><td>대사 추가/수정/삭제(Cut 루트 경유) — <code>AdminLineService</code></td><td><span class="badge ok">구현됨</span></td></tr>
-          <tr><td><span class="method put">PUT</span></td><td><code>directors/cuts/:id/direction</code></td><td>연출(anchorY/gap/holdOverride)</td><td><span class="badge plan">예정</span></td></tr>
+          <tr><td><span class="method put">PUT</span></td><td><code>directors/episodes/:id/line-anchors</code></td><td>대사 anchorY 벌크 설정(녹음 전, 변경분만)</td><td><span class="badge plan">예정</span></td></tr>
+          <tr><td><span class="method put">PUT</span></td><td><code>directors/cuts/:id/direction</code></td><td>연출(Cut gap/holdOverride)</td><td><span class="badge plan">예정</span></td></tr>
           <tr><td>—</td><td><code>directors/cuts/:cutId/sound-effects · cut-effects · lines/:id/anchor</code></td><td>효과음·시각효과·앵커 배치</td><td><span class="badge plan">예정</span></td></tr>
           <tr><td><span class="method get">GET</span></td><td><code>directors/…</code>(컷+요소 일괄)</td><td>컷 구성 조회(미리보기·렌더)</td><td><span class="badge plan">예정</span></td></tr>
         </tbody>

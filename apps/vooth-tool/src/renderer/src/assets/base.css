@@ -31,6 +31,72 @@
   --color-text: var(--ev-c-text-1);
 }
 
+/* ──────────────────────────────────────────────────────────────────────
+ * Vooth Tool — Final Cut Pro 스타일 다크 프로 테마 토큰.
+ * 전 화면(셸/리스트/에디터/앵커/렌더/로그인 등)이 이 팔레트를 공유한다.
+ * 어두운 슬레이트 표면 + 밝은 텍스트 + 블루 액센트, 조밀한 컨트롤.
+ * ────────────────────────────────────────────────────────────────────── */
+:root {
+  --vt-bg: #16181d; /* 앱 배경(거의 블랙 슬레이트) */
+  --vt-surface: #1d2027; /* 카드·패널 */
+  --vt-surface-2: #23262e; /* 헤더·인풋 등 살짝 띄운 면 */
+  --vt-surface-3: #2b2f39; /* hover/컨트롤 */
+  --vt-surface-4: #343a46; /* active 컨트롤 */
+  --vt-timeline: #0e1014; /* 타임라인 도크(가장 어두움) */
+
+  --vt-border: #2e333d; /* 미세 보더 */
+  --vt-border-strong: #3a4150;
+
+  --vt-text: #e7e9ee; /* 주 텍스트 */
+  --vt-text-muted: #9aa3b2; /* 보조 텍스트 */
+  --vt-text-dim: #6b7280; /* 3차 텍스트 */
+
+  --vt-accent: #4f8cff; /* 선택·주요 액센트(FCP 블루) */
+  --vt-accent-strong: #2f6fe0;
+  --vt-accent-soft: rgba(79, 140, 255, 0.16);
+
+  --vt-danger: #f87171;
+  --vt-danger-soft: rgba(248, 113, 113, 0.14);
+  --vt-warn: #fbbf24;
+
+  --vt-radius: 8px;
+  --vt-radius-lg: 12px;
+  --vt-shadow: 0 10px 30px -12px rgba(0, 0, 0, 0.6);
+}
+
+/* 라이트(화이트) 모드 — 동일 토큰의 밝은 값 세트. html[data-theme='light'] 로 전환. */
+:root[data-theme='light'] {
+  --vt-bg: #f4f5f7;
+  --vt-surface: #ffffff;
+  --vt-surface-2: #f1f3f6;
+  --vt-surface-3: #e8ebef;
+  --vt-surface-4: #dce0e6;
+  /* 타임라인은 두 테마 모두 어두운 NLE 룩 유지(라이트에서도 자연스럽게). */
+  --vt-timeline: #11141a;
+
+  --vt-border: #e3e6ea;
+  --vt-border-strong: #cdd3db;
+
+  --vt-text: #1a1d23;
+  --vt-text-muted: #586073;
+  --vt-text-dim: #8a93a3;
+
+  --vt-accent: #3b7bff;
+  --vt-accent-strong: #2f6fe0;
+  --vt-accent-soft: rgba(59, 123, 255, 0.14);
+
+  --vt-danger: #dc2626;
+  --vt-danger-soft: rgba(220, 38, 38, 0.1);
+  --vt-warn: #b45309;
+
+  --vt-shadow: 0 10px 28px -14px rgba(15, 23, 42, 0.28);
+}
+
+body {
+  background: var(--vt-bg);
+  color: var(--vt-text);
+}
+
 *,
 *::before,
 *::after {

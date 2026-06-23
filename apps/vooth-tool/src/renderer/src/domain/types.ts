@@ -86,14 +86,6 @@ export interface Recording {
 
 /* ──────────────────────────── 컷·대사 (Cut / Line) ──────────────────────────── */
 
-/** 정규화 크롭 영역(0~1). packages/shared/crop-box.ts 미러. */
-export interface CropBox {
-  x: number
-  y: number
-  w: number
-  h: number
-}
-
 /** 전환 효과(슬라이드 모드용). 연속 스크롤 MVP 엔 불필요하나 모델 보존. */
 export enum CutTransition {
   NONE = 'none',
@@ -109,6 +101,171 @@ export const CUT_TRANSITION_LABEL: Record<CutTransition, string> = {
   [CutTransition.CUT]: '컷 전환'
 }
 
+/* ──────────────────────────── 앵커 (Anchor — 풀 앵커 타이밍) ────────────────────────────
+ *
+ * docs/domains/playback/index.html §03~04 + docs/domains/cut/index.html §03.
+ * 보이스툰은 절대 시간(startAt)을 저장하지 않고, 모든 timed element 를 다른 요소(또는
+ * CUT_START)에 앵커로 걸어 한 번만 저작한다. 버전(성우)별 음성 길이를 넣어 vooth-tool
+ * 클라이언트가 실제 시간을 resolve 한다. 앵커 그래프는 같은 컷 내부 + DAG(비순환).
+ *
+ * 실제 배선: directors/* 응답에서 각 요소의 anchor 임베드(anchorType/Target/Edge/offset)로 대체.
+ */
+
+/** docs playback §04: anchorType = CUT_START | LINE | SOUND_EFFECT | CUT_EFFECT. */
+export enum AnchorType {
+  CUT_START = 'cut_start',
+  LINE = 'line',
+  SOUND_EFFECT = 'sound_effect',
+  CUT_EFFECT = 'cut_effect'
+}
+
+export const ANCHOR_TYPE_LABEL: Record<AnchorType, string> = {
+  [AnchorType.CUT_START]: '컷 시작',
+  [AnchorType.LINE]: '대사',
+  [AnchorType.SOUND_EFFECT]: '효과음',
+  [AnchorType.CUT_EFFECT]: '시각효과'
+}
+
+/** docs playback §04 / cut §03: anchorEdge = START | END. */
+export enum AnchorEdge {
+  START = 'start',
+  END = 'end'
+}
+
+export const ANCHOR_EDGE_LABEL: Record<AnchorEdge, string> = {
+  [AnchorEdge.START]: '시작',
+  [AnchorEdge.END]: '끝'
+}
+
+/**
+ * docs playback §04 / cut §03 의 anchor(4 필드, timed element 공통 임베드).
+ * null = 기본(순차: 직전 요소 END +0 / 효과는 CUT_START +0).
+ */
+export interface Anchor {
+  type: AnchorType
+  /** 같은 컷 내 형제 요소 id. CUT_START 면 null. (soft ref) */
+  targetId: number | null
+  edge: AnchorEdge
+  /** 앵커 지점 기준 ±ms 오프셋. */
+  offsetMs: number
+}
+
+/* ──────────────────────────── 시각효과 (CutEffect) ──────────────────────────── */
+
+/**
+ * docs playback §04 CutEffect.type / cut §03: CutEffectType(SHAKE/ZOOM/FLASH…).
+ * @vooth/shared 예정 enum 의 미러(MOCK). 실제 배선: directors/* 의 CutEffectType DTO.
+ */
+export enum CutEffectType {
+  SHAKE = 'shake', // 흔들림
+  ZOOM = 'zoom', // 확대/축소
+  FLASH = 'flash', // 번쩍임
+  PAN = 'pan', // 이동
+  FADE = 'fade', // 페이드 인/아웃
+  BLUR = 'blur' // 블러
+}
+
+export const CUT_EFFECT_TYPE_LABEL: Record<CutEffectType, string> = {
+  [CutEffectType.SHAKE]: '흔들림',
+  [CutEffectType.ZOOM]: '줌',
+  [CutEffectType.FLASH]: '플래시',
+  [CutEffectType.PAN]: '팬(이동)',
+  [CutEffectType.FADE]: '페이드',
+  [CutEffectType.BLUR]: '블러'
+}
+
+/** 효과 lane 색(타임라인/배지). docs playback §03 의 fx=보라 계열. */
+export const CUT_EFFECT_COLOR = '#7c3aed'
+export const SOUND_EFFECT_COLOR = '#d97706'
+
+/** 타입별 기본 params(추가 시 시드). docs: params 는 효과별 강도·방향·배율. */
+export function defaultCutEffectParams(type: CutEffectType): CutEffectParams {
+  switch (type) {
+    case CutEffectType.SHAKE:
+      return { intensity: 0.5, direction: 'horizontal' }
+    case CutEffectType.ZOOM:
+      return { scale: 1.2 }
+    case CutEffectType.FLASH:
+      return { intensity: 0.7 }
+    case CutEffectType.PAN:
+      return { direction: 'right' }
+    case CutEffectType.BLUR:
+      return { intensity: 0.4 }
+    case CutEffectType.FADE:
+      return {}
+    default:
+      return {}
+  }
+}
+
+/** 타입별 기본 지속(ms). */
+export function defaultCutEffectDuration(type: CutEffectType): number {
+  switch (type) {
+    case CutEffectType.FLASH:
+      return 250
+    case CutEffectType.SHAKE:
+      return 500
+    case CutEffectType.ZOOM:
+      return 800
+    case CutEffectType.PAN:
+      return 1000
+    case CutEffectType.FADE:
+      return 600
+    case CutEffectType.BLUR:
+      return 500
+    default:
+      return 500
+  }
+}
+
+/**
+ * CutEffect.params — 효과별 파라미터(json). docs: 강도·방향·배율.
+ * MOCK 이라 모든 효과를 아우르는 optional 필드 집합으로 둔다(실제로는 type 별 DTO).
+ */
+export interface CutEffectParams {
+  /** 강도(0~1). SHAKE/FLASH/BLUR. */
+  intensity?: number
+  /** 방향. SHAKE/PAN. */
+  direction?: 'horizontal' | 'vertical' | 'up' | 'down' | 'left' | 'right'
+  /** 배율. ZOOM(>1 확대, <1 축소). */
+  scale?: number
+}
+
+/** docs playback §04 / cut §03 CutEffect — 컷 owned child(시각효과, 공용·앵커). */
+export interface CutEffect {
+  id: number
+  cutId: number
+  type: CutEffectType
+  params: CutEffectParams | null
+  /** 지속(ms, 명시). docs: 컷 전체면 CUT_START 앵커 + duration=hold. */
+  duration: number
+  /** 타임라인 앵커. null = CUT_START +0(기본). */
+  anchor: Anchor | null
+  /** 컷 내 편집/렌더 순서. */
+  order: number
+}
+
+/* ──────────────────────────── 효과음 (SoundEffect) ──────────────────────────── */
+
+/** docs playback §04 / cut §03 SoundEffect — 컷 owned child(효과음, 공용·앵커). */
+export interface SoundEffect {
+  id: number
+  cutId: number
+  /** 효과음 오디오(File). MVP=컷마다 업로드. MOCK 이라 url placeholder. */
+  audioFileId: number
+  audioUrl: string // MOCK placeholder
+  /** 길이(ms, 파생=오디오 길이). */
+  audioDuration: number
+  /** 표시 라벨("두둥!", "솨아아~"). */
+  label: string | null
+  /** 믹싱 음량(0~1, 기본 1.0). */
+  volume: number
+  /** 타임라인 앵커. null = CUT_START +0(기본). */
+  anchor: Anchor | null
+  /** 컷 내 편집 순서. */
+  order: number
+}
+
 /** docs §12.2 / §15. Line — 컷 하위 대사. 연출값(anchorY/gapBeforeMs)을 가진다. */
 export interface Line {
   id: number
@@ -121,11 +278,17 @@ export interface Line {
   gapBeforeMs: number
   /** 발화 지점의 컷 내 세로 위치(0~1, null=균등분배 폴백). docs §15.1 */
   anchorY: number | null
+  /**
+   * 타임라인 앵커(풀 앵커, docs playback §04). null = 직전 요소 END +0(순차 기본).
+   * gapBeforeMs 는 이 앵커의 단순화 표현(직전 라인 END + gapBeforeMs)이며,
+   * 실제 배선 시 anchor 임베드로 일원화한다. MOCK 에선 둘 다 보존한다.
+   */
+  anchor: Anchor | null
   /** (line × creator) 별 채택본. key=creatorId → recordingId. docs §13.3 LineTake */
   selectedTakeByCreator: Record<number, number>
 }
 
-/** docs §12.2 / §15. Cut — 컷. 이미지·cropBox·holdMs·transition. */
+/** docs §12.2 / §15. Cut — 컷. 이미지·holdMs·transition. */
 export interface Cut {
   id: number
   episodeId: number
@@ -133,10 +296,13 @@ export interface Cut {
   imageUrl: string // 원본(mock placeholder)
   imageWidth: number
   imageHeight: number
-  cropBox: CropBox // 표시용 focal 영역
-  holdMs: number // 마지막 대사 뒤 머무는 시간
+  holdMs: number // 마지막 대사 뒤 머무는 시간(docs holdOverride 의 단순화)
   transition: CutTransition
   lines: Line[]
+  /** docs cut §03: 컷 owned child(효과음). 연출(vooth-tool)에서 추가/편집. */
+  soundEffects: SoundEffect[]
+  /** docs cut §03: 컷 owned child(시각효과). 연출(vooth-tool)에서 추가/편집. */
+  cutEffects: CutEffect[]
 }
 
 /* ──────────────────────────── 회차·작품 (Episode / Content) ──────────────────────────── */

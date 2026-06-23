@@ -1,6 +1,4 @@
-import { IsInt, IsNotEmpty, IsOptional, IsString, ValidateNested } from 'class-validator';
-import { Type } from 'class-transformer';
-import { AnchorDto } from '../anchor.dto';
+import { IsInt, IsNotEmpty, IsString } from 'class-validator';
 
 export class AdminLineCreateDto {
   @IsInt()
@@ -12,9 +10,4 @@ export class AdminLineCreateDto {
 
   @IsInt()
   order: number;
-
-  @IsOptional()
-  @ValidateNested()
-  @Type(() => AnchorDto)
-  anchorMetadata?: AnchorDto;
 }

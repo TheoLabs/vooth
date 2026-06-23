@@ -1,7 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { getEpisodeDetail } from '../domain/mockData'
-import type { EpisodeDetail } from '../domain/types'
+import {
+  CUT_EFFECT_COLOR,
+  CUT_EFFECT_TYPE_LABEL,
+  SOUND_EFFECT_COLOR,
+  type EpisodeDetail
+} from '../domain/types'
 import { buildTimeline } from '../domain/timeline'
 import { MockNote } from '../components/MockNote'
 import { formatMs } from '../domain/format'
@@ -31,21 +36,24 @@ export function EpisodePreviewPage(): React.JSX.Element {
 
   // 캔버스 레이아웃: 컷별 렌더 높이(폭 STAGE_W 기준) + 상단 오프셋.
   const layout = useMemo(() => {
-    let top = 0
-    const cuts = orderedCuts.map((cut) => {
-      const h = (STAGE_W * cut.imageHeight) / cut.imageWidth
-      const entry = { cut, top, height: h }
-      top += h
-      return entry
-    })
-    return { cuts, totalHeight: top }
+    const cuts: { cut: (typeof orderedCuts)[number]; top: number; height: number }[] = []
+    let running = 0
+    for (const cut of orderedCuts) {
+      const height = (STAGE_W * cut.imageHeight) / cut.imageWidth
+      cuts.push({ cut, top: running, height })
+      running += height
+    }
+    return { cuts, totalHeight: running }
   }, [orderedCuts])
 
   const viewportH = STAGE_W * VIEWPORT_RATIO
   const maxScroll = Math.max(0, layout.totalHeight - viewportH)
 
-  // 타임라인 → 라인 시작 시각.
-  const timeline = useMemo(() => buildTimeline(orderedCuts), [orderedCuts])
+  // 타임라인 → 라인 시작 시각 + 효과 해석.
+  const timeline = useMemo(
+    () => buildTimeline(orderedCuts, (e) => CUT_EFFECT_TYPE_LABEL[e.type]),
+    [orderedCuts]
+  )
 
   // 라인별 앵커 픽셀 + 시작 시각 키프레임.
   const keyframes = useMemo(() => {
@@ -112,6 +120,19 @@ export function EpisodePreviewPage(): React.JSX.Element {
     return prev.scrollY
   }, [tMs, keyframes])
 
+  // 현재 시각에 활성인 효과(효과음·시각효과). docs §03 resolve 결과 기준.
+  const activeEffects = useMemo(() => {
+    const out: { key: string; kind: 'sound' | 'cut'; label: string }[] = []
+    for (const cutSeg of timeline.cuts) {
+      for (const es of cutSeg.effects) {
+        if (tMs >= es.startMs && tMs < es.startMs + es.durationMs) {
+          out.push({ key: `${es.kind}-${es.effectId}`, kind: es.kind, label: es.label })
+        }
+      }
+    }
+    return out
+  }, [timeline, tMs])
+
   return (
     <div className="tool-page">
       <div>
@@ -158,6 +179,19 @@ export function EpisodePreviewPage(): React.JSX.Element {
               })}
             </div>
             <div className="pv-center-line" />
+            {activeEffects.length > 0 && (
+              <div className="pv-fx-overlay">
+                {activeEffects.map((fx) => (
+                  <span
+                    key={fx.key}
+                    className="pv-fx-badge"
+                    style={{ background: fx.kind === 'sound' ? SOUND_EFFECT_COLOR : CUT_EFFECT_COLOR }}
+                  >
+                    {fx.kind === 'sound' ? '🔊' : '✦'} {fx.label}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
@@ -216,6 +250,31 @@ export function EpisodePreviewPage(): React.JSX.Element {
                 <span className="tool-meta__k">앵커 키프레임</span>
                 <span className="tool-meta__v">{keyframes.length}</span>
               </div>
+              <div className="tool-meta__item">
+                <span className="tool-meta__k">효과(SFX·FX)</span>
+                <span className="tool-meta__v">
+                  {orderedCuts.reduce((n, c) => n + c.soundEffects.length + c.cutEffects.length, 0)}
+                </span>
+              </div>
+            </div>
+
+            <div className="pv-fx-now">
+              <span className="tool-field__label">현재 활성 효과</span>
+              {activeEffects.length === 0 ? (
+                <span style={{ fontSize: 12, color: '#cbd5e1' }}>없음</span>
+              ) : (
+                <div className="pv-fx-now__list">
+                  {activeEffects.map((fx) => (
+                    <span
+                      key={fx.key}
+                      className="pv-fx-badge"
+                      style={{ background: fx.kind === 'sound' ? SOUND_EFFECT_COLOR : CUT_EFFECT_COLOR }}
+                    >
+                      {fx.kind === 'sound' ? '🔊' : '✦'} {fx.label}
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
             <p style={{ marginTop: 14, fontSize: 12, color: '#94a3b8' }}>
               스크롤 키프레임은 각 대사 시작 시각에 anchorY 픽셀을 뷰포트 중앙에 맞춰 smoothstep 보간합니다

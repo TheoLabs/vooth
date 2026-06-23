@@ -1,6 +1,4 @@
-import { CropBoxDto } from '@libs/utils';
-import { Type } from 'class-transformer';
-import { IsInt, ValidateNested } from 'class-validator';
+import { IsInt } from 'class-validator';
 
 export class AdminCutCreateDto {
   @IsInt()
@@ -14,8 +12,4 @@ export class AdminCutCreateDto {
 
   @IsInt()
   imageHeight: number;
-
-  @ValidateNested()
-  @Type(() => CropBoxDto)
-  imageCropBox: CropBoxDto;
 }

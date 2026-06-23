@@ -320,10 +320,8 @@
         <thead><tr><th>필드</th><th>타입</th><th>null</th><th>설명</th></tr></thead>
         <tbody>
           <tr><td><code>episodeId</code></td><td>number FK</td><td>✗</td><td>소속 회차</td></tr>
-          <tr><td><code>imageFileId</code></td><td>number</td><td>✗</td><td>컷 원본 이미지(File). <b>commit-on-attach</b></td></tr>
-          <tr><td><code>imageCropBox</code></td><td>CropBox json</td><td>✓</td><td>표시 영역(정규화 0~1). 전체면 null. <code>@vooth/shared</code></td></tr>
-          <tr><td><code>imageWidth</code> / <code>imageHeight</code></td><td>number(px)</td><td>✓</td><td>원본 크기(서버 메타·<b>파생</b>). 스크롤 높이·비율 계산</td></tr>
-          <tr><td><code>anchorY</code></td><td>number(0~1)</td><td>✓</td><td>연출: 스크롤 정착 지점(컷 높이 기준 정규화)</td></tr>
+          <tr><td><code>imageFileId</code></td><td>number</td><td>✗</td><td>컷 패널 이미지(File). <b>풀프레임</b> 표시(크롭 없음). <b>commit-on-attach</b></td></tr>
+          <tr><td><code>imageWidth</code> / <code>imageHeight</code></td><td>number(px)</td><td>✗</td><td>원본 크기(클라 제공). 스크롤 높이·비율 계산 + 라인 anchorY 픽셀 환산</td></tr>
           <tr><td><code>gap</code></td><td>number(px)</td><td>✓</td><td>연출: 다음 컷과의 간격</td></tr>
           <tr><td><code>holdOverride</code></td><td>number(ms)</td><td>✓</td><td>버전별 hold(파생)에 <b>+여운</b>. null=연장 없음</td></tr>
           <tr><td><code>order</code></td><td>number</td><td>✗</td><td>회차 내 정렬</td></tr>
@@ -340,7 +338,8 @@
           <tr><td><code>characterId</code></td><td>number FK</td><td>✗</td><td>말하는 캐릭터(참조). 음성 길이는 선택된 Casting에서</td></tr>
           <tr><td><code>text</code></td><td>text</td><td>✗</td><td>대사 텍스트(등록=back-office)</td></tr>
           <tr><td><code>order</code></td><td>number</td><td>✗</td><td>컷 내 대사 순서(편집·기본 앵커 시드)</td></tr>
-          <tr><td>anchor(4)</td><td>임베드</td><td>—</td><td>위 앵커 필드. 음성 없어도 저작 가능</td></tr>
+          <tr><td><code>anchorY</code></td><td>number(0~1)</td><td>✓</td><td>연출: <b>발화 세로 위치</b>(컷 이미지 내 0~1, null=균등). 스크롤 동기화 기준. 녹음 전 설정</td></tr>
+          <tr><td>anchor(4)</td><td>임베드</td><td>—</td><td>타임라인 앵커 필드. 음성 없어도 저작 가능</td></tr>
         </tbody>
       </table>
     </div>

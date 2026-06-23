@@ -1,6 +1,5 @@
 import { DddAggregate } from '@libs/ddd';
 import { BadRequestException } from '@nestjs/common';
-import { Anchor, type CropBox } from '@vooth/shared';
 import { Column, Entity, Index, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
 import { Line } from './line.entity';
 
@@ -10,8 +9,6 @@ type Ctor = {
   imageFileId: number;
   imageWidth: number;
   imageHeight: number;
-  imageCropBox: CropBox;
-  anchorY?: number;
   gap?: number;
   holdOverride?: number;
 };
@@ -37,12 +34,6 @@ export class Cut extends DddAggregate {
   @Column()
   imageHeight: number;
 
-  @Column({ type: 'json' })
-  imageCropBox: CropBox;
-
-  @Column({ type: 'float', nullable: true })
-  anchorY: number | null;
-
   @Column({ type: 'int', nullable: true })
   gap: number | null;
 
@@ -61,8 +52,6 @@ export class Cut extends DddAggregate {
       this.imageFileId = args.imageFileId;
       this.imageWidth = args.imageWidth;
       this.imageHeight = args.imageHeight;
-      this.imageCropBox = args.imageCropBox;
-      this.anchorY = args.anchorY ?? null;
       this.gap = args.gap ?? null;
       this.holdOverride = args.holdOverride ?? null;
       this.lines = [];
@@ -70,22 +59,10 @@ export class Cut extends DddAggregate {
   }
 
   static of(args: Ctor) {
-    if (args.anchorY && (args.anchorY < 0 || args.anchorY > 1)) {
-      throw new BadRequestException('앵커의 위치값은 0~1 사이의 값이여야합니다.', {
-        cause: '앵커의 위치값은 0~1 사이의 값이여야합니다.',
-      });
-    }
-
     return new Cut(args);
   }
 
-  update(args: {
-    order?: number;
-    imageFileId?: number;
-    imageWidth?: number;
-    imageHeight?: number;
-    imageCropBox?: CropBox;
-  }) {
+  update(args: { order?: number; imageFileId?: number; imageWidth?: number; imageHeight?: number }) {
     const changed = this.stripUnchanged(args);
 
     if (!changed) {
@@ -95,17 +72,7 @@ export class Cut extends DddAggregate {
     Object.assign(this, changed);
   }
 
-  addLine({
-    characterId,
-    script,
-    order,
-    anchorMetadata,
-  }: {
-    characterId: number;
-    script: string;
-    order: number;
-    anchorMetadata?: Anchor;
-  }) {
+  addLine({ characterId, script, order }: { characterId: number; script: string; order: number }) {
     if (this.lines.some((line) => line.order === order)) {
       throw new BadRequestException('해당 컷에 동일한 순서의 대사가 이미 존재합니다.', {
         cause: '해당 컷에 동일한 순서의 대사가 이미 존재합니다.',
@@ -116,7 +83,6 @@ export class Cut extends DddAggregate {
       characterId,
       script,
       order,
-      anchorMetadata,
     });
 
     this.lines.push(newLine);

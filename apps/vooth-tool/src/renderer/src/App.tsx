@@ -6,6 +6,9 @@ import { LoginPage } from './features/auth/LoginPage'
 import { HomePage } from './pages/HomePage'
 import { EpisodeListPage } from './pages/EpisodeListPage'
 import { EpisodeEditorPage } from './pages/EpisodeEditorPage'
+import { AnchorContentListPage } from './pages/AnchorContentListPage'
+import { AnchorContentDetailPage } from './pages/AnchorContentDetailPage'
+import { EpisodeAnchorPage } from './pages/EpisodeAnchorPage'
 import { EpisodeAdoptPage } from './pages/EpisodeAdoptPage'
 import { EpisodePreviewPage } from './pages/EpisodePreviewPage'
 import { RenderPage } from './pages/RenderPage'
@@ -18,6 +21,9 @@ function App(): React.JSX.Element {
         <Route element={<ApprovalGate />}>
           <Route element={<AppLayout />}>
             <Route index element={<HomePage />} />
+            <Route path="anchors" element={<AnchorContentListPage />} />
+            <Route path="anchors/contents/:contentId" element={<AnchorContentDetailPage />} />
+            <Route path="anchors/:episodeId" element={<EpisodeAnchorPage />} />
             <Route path="episodes" element={<EpisodeListPage />} />
             <Route path="episodes/:episodeId" element={<EpisodeEditorPage />} />
             <Route path="episodes/:episodeId/adopt" element={<EpisodeAdoptPage />} />

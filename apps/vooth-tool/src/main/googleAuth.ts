@@ -25,7 +25,7 @@ const SUCCESS_HTML = `<!doctype html>
 <html lang="ko">
   <head>
     <meta charset="utf-8" />
-    <title>Vooth Maker</title>
+    <title>Vooth Tool</title>
     <style>
       body {
         font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
@@ -48,7 +48,7 @@ const SUCCESS_HTML = `<!doctype html>
   <body>
     <div class="card">
       <h1>로그인이 완료되었습니다.</h1>
-      <p>이 창을 닫고 Vooth Maker 로 돌아가세요.</p>
+      <p>이 창을 닫고 Vooth Tool 로 돌아가세요.</p>
     </div>
   </body>
 </html>`

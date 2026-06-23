@@ -1,7 +1,6 @@
 import { DddService } from '@libs/ddd';
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { Transactional } from '@libs/decorators';
-import { Anchor } from '@vooth/shared';
 import { CutRepository } from '../infrastructure/cut.repository';
 import { EpisodeRepository } from '@modules/episode/infrastructure/episode.repository';
 import { CharacterRepository } from '@modules/character/infrastructure/character.repository';
@@ -22,13 +21,11 @@ export class AdminLineService extends DddService {
     characterId,
     script,
     order,
-    anchorMetadata,
   }: {
     cutId: number;
     characterId: number;
     script: string;
     order: number;
-    anchorMetadata?: Anchor;
   }) {
     const [cut] = await this.cutRepository.find({ id: cutId }, { relations: { lines: true } });
     if (!cut) {
@@ -55,7 +52,7 @@ export class AdminLineService extends DddService {
       });
     }
 
-    cut.addLine({ characterId, order, script, anchorMetadata });
+    cut.addLine({ characterId, order, script });
     await this.cutRepository.save([cut]);
   }
 

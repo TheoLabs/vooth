@@ -1,18 +1,20 @@
-import type { Anchor, CropBox } from '@vooth/shared';
+import type { Anchor } from '@vooth/shared';
 import { apiClient } from '../lib/apiClient';
 import type { PaginatedResponse } from './pagination';
 
-/** 컷에 속한 대사(라인). anchorMetadata 는 연출(vooth-tool) 값. */
+/** 컷에 속한 대사(라인). anchorY/anchorMetadata 는 연출(vooth-tool) 값. */
 export interface AdminLine {
   id: number;
   cutId: number;
   characterId: number;
   script: string;
   order: number;
+  /** 대사(라인)의 컷 이미지 내 발화 세로 위치(0~1, null=균등). 연출(vooth-tool) 값. */
+  anchorY: number | null;
   anchorMetadata: Anchor | null;
 }
 
-/** 컷 응답(AdminCutResponseDto). anchorY/gap/holdOverride 는 연출(vooth-tool) 값. */
+/** 컷 응답(AdminCutResponseDto). gap/holdOverride 는 연출(vooth-tool) 값. (anchorY 는 라인으로 이전됨) */
 export interface AdminCut {
   id: number;
   episodeId: number;
@@ -21,8 +23,6 @@ export interface AdminCut {
   imageUrl: string;
   imageWidth: number;
   imageHeight: number;
-  imageCropBox: CropBox;
-  anchorY: number | null;
   gap: number | null;
   holdOverride: number | null;
   /** 조인된 대사 목록 */
@@ -42,7 +42,6 @@ export interface CreateCutInput {
   imageFileId: number;
   imageWidth: number;
   imageHeight: number;
-  imageCropBox: CropBox;
 }
 
 /** 컷 생성. POST /admins/episodes/:episodeId/cuts */
@@ -55,7 +54,6 @@ export interface UpdateCutInput {
   imageFileId?: number;
   imageWidth?: number;
   imageHeight?: number;
-  imageCropBox?: CropBox;
 }
 
 /** 컷 수정(부분). PUT /admins/episodes/:episodeId/cuts/:id */

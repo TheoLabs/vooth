@@ -3,6 +3,7 @@ import { BadRequestException } from '@nestjs/common';
 import { CalendarDate, type CropBox, EpisodeStatus } from '@vooth/shared';
 import { AfterInsert, Column, Entity, Index, PrimaryGeneratedColumn } from 'typeorm';
 import { EpisodeCreatedEvent, EpisodeRemovedEvent } from './events';
+import { Content } from '@modules/content/domain/content.entity';
 
 type Ctor = {
   contentId: number;
@@ -46,6 +47,9 @@ export class Episode extends DddAggregate {
   private afterInsert() {
     this.publishEvent(new EpisodeCreatedEvent({ episodeId: this.id, contentId: this.contentId }));
   }
+
+  // NOTE: 조인 결과를 담는 비영속 필드
+  content?: Content;
 
   private constructor(args: Ctor) {
     super();

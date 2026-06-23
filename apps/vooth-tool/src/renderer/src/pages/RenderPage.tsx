@@ -260,7 +260,7 @@ export function RenderPage(): React.JSX.Element {
             {jobs.length === 0 && (
               <tr>
                 <td colSpan={7} style={{ textAlign: 'center', color: '#94a3b8', padding: 40 }}>
-                  아직 렌더 잡이 없습니다. 옵션을 선택하고 "렌더 시작"을 눌러주세요.
+                  아직 렌더 잡이 없습니다. 옵션을 선택하고 “렌더 시작”을 눌러주세요.
                 </td>
               </tr>
             )}

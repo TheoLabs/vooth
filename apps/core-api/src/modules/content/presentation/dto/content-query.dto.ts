@@ -3,7 +3,7 @@ import { PaginationDto } from '@libs/utils';
 import { ContentStatus } from '@vooth/shared';
 import { IsEnum, IsIn, IsInt, IsOptional, IsString } from 'class-validator';
 
-class BaseContentQueryDto extends PaginationDto {
+abstract class BaseContentQueryDto extends PaginationDto {
   @IsIn(['title'])
   @IsString()
   @IsOptional()
@@ -12,16 +12,18 @@ class BaseContentQueryDto extends PaginationDto {
   @IsString()
   @IsOptional()
   searchValue?: string;
-}
 
-export class AdminContentQueryDto extends BaseContentQueryDto {
   @ToArray()
   @IsEnum(ContentStatus, { each: true })
   @IsOptional()
   statuses?: ContentStatus[];
+}
 
+export class AdminContentQueryDto extends BaseContentQueryDto {
   @ToArray('number')
   @IsInt({ each: true })
   @IsOptional()
   tagIds?: number[];
 }
+
+export class DirectorContentQueryDto extends BaseContentQueryDto {}

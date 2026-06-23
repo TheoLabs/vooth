@@ -1,0 +1,331 @@
+import { useMemo, useRef, useState } from 'react'
+import { useNavigate, useParams } from 'react-router-dom'
+import { getEpisodeDetail } from '../domain/mockData'
+import { EPISODE_STATUS_LABEL, EpisodeStatus, type Cut, type EpisodeDetail } from '../domain/types'
+import { Badge } from '../components/Badge'
+import { MockNote } from '../components/MockNote'
+import { EPISODE_STATUS_BADGE } from '../domain/format'
+import './tool.css'
+import './editor.css'
+import './anchor.css'
+
+/**
+ * 대사 앵커(anchorY) 설정 — 독립 화면. (연출 에디터에서 분리됨)
+ * 컷 이미지를 크게 띄우고, 선택한 대사의 발화 세로 위치(anchorY 0~1)를
+ * 이미지 위 클릭/드래그로 지정한다. 숫자 입력·“균등(null)” 도 지원.
+ * 편집은 로컬 state(mock). 저장 시 directors/* PUT(변경분만) 예정.
+ */
+export function EpisodeAnchorPage(): React.JSX.Element {
+  const { episodeId } = useParams()
+  const navigate = useNavigate()
+  const id = Number(episodeId)
+
+  const initial = useMemo<EpisodeDetail>(() => getEpisodeDetail(id), [id])
+  const [cuts, setCuts] = useState<Cut[]>(() =>
+    initial.cuts.map((c) => ({ ...c, lines: c.lines.map((l) => ({ ...l })) }))
+  )
+  const [dirty, setDirty] = useState(false)
+  // 회차 상태(mock). 앵커 작업 완료 → 녹음 대기(READY)로 전환한다.
+  const [status, setStatus] = useState<EpisodeStatus>(initial.status)
+
+  const promoteToReady = (): void => {
+    const ok = window.confirm(
+      '대사 앵커 작업을 마치고 ‘녹음 대기’ 상태로 전환할까요?\n이후 성우 녹음 단계로 넘어갑니다.'
+    )
+    if (!ok) return
+    setStatus(EpisodeStatus.READY)
+    // mock: 실제로는 directors/* PUT 으로 상태 전이.
+  }
+  const revertToDraft = (): void => setStatus(EpisodeStatus.DRAFT)
+
+  const orderedCuts = useMemo(() => [...cuts].sort((a, b) => a.position - b.position), [cuts])
+  const [cutIdx, setCutIdx] = useState(0)
+  const safeIdx = Math.min(cutIdx, orderedCuts.length - 1)
+  const cut = orderedCuts[safeIdx] ?? null
+
+  const lines = useMemo(
+    () => (cut ? [...cut.lines].sort((a, b) => a.position - b.position) : []),
+    [cut]
+  )
+  const [activeLineId, setActiveLineId] = useState<number | null>(null)
+
+  const charById = useMemo(
+    () => new Map(initial.characters.map((c) => [c.id, c])),
+    [initial.characters]
+  )
+  const charColor = (cid: number): string => charById.get(cid)?.color ?? '#94a3b8'
+  const charName = (cid: number): string => charById.get(cid)?.name ?? '미지정'
+
+  const stageRef = useRef<HTMLDivElement>(null)
+  // 드래그 중인 라인 id(없으면 null). 핸들 mousedown 으로 시작, 스테이지에서 위아래 드래그.
+  const dragLineRef = useRef<number | null>(null)
+
+  const setAnchorY = (lineId: number, anchorY: number | null): void => {
+    if (!cut) return
+    setCuts((prev) =>
+      prev.map((c) =>
+        c.id !== cut.id
+          ? c
+          : { ...c, lines: c.lines.map((l) => (l.id === lineId ? { ...l, anchorY } : l)) }
+      )
+    )
+    setDirty(true)
+  }
+
+  const anchorYFromClientY = (clientY: number): number => {
+    const el = stageRef.current
+    if (!el) return 0
+    const rect = el.getBoundingClientRect()
+    const y = (clientY - rect.top) / rect.height
+    return Math.min(1, Math.max(0, Math.round(y * 100) / 100))
+  }
+
+  // 핸들 클릭 = 선택, 위아래 드래그 = anchorY 수정.
+  const onHandleDown = (e: React.MouseEvent, lineId: number): void => {
+    e.stopPropagation()
+    e.preventDefault()
+    setActiveLineId(lineId)
+    dragLineRef.current = lineId
+  }
+  const onStageMove = (e: React.MouseEvent): void => {
+    const id = dragLineRef.current
+    if (id == null) return
+    setAnchorY(id, anchorYFromClientY(e.clientY))
+  }
+  const endDrag = (): void => {
+    dragLineRef.current = null
+  }
+
+  const gotoCut = (idx: number): void => {
+    setCutIdx(idx)
+    setActiveLineId(null)
+  }
+
+  return (
+    <div className="tool-page anc-page">
+      <div>
+        <button
+          className="ed-back"
+          onClick={() => navigate(`/anchors/contents/${initial.contentId}`)}
+        >
+          ← 작품 상세
+        </button>
+        <div className="tool-page__head">
+          <div>
+            <h2 className="tool-page__title">대사 앵커 설정</h2>
+            <p className="tool-page__desc">
+              {initial.contentTitle} · {initial.episodeNo}화 — 컷 위의 대사 앵커를 클릭해 선택하고
+              드래그해 발화 세로 위치(anchorY)를 지정합니다.
+            </p>
+          </div>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <MockNote />
+            <button
+              className="tool-btn tool-btn--primary"
+              disabled={!dirty}
+              onClick={() => {
+                setDirty(false)
+                window.alert('앵커 저장(mock). 실제로는 변경된 라인만 directors/* PUT 전송.')
+              }}
+            >
+              {dirty ? '앵커 저장' : '저장됨'}
+            </button>
+          </div>
+        </div>
+
+        {/* 상태 바: 앵커 작업 완료 → 녹음 대기 전환 */}
+        <div className="anc-status">
+          <div className="anc-status__now">
+            <span className="anc-status__label">회차 상태</span>
+            <Badge label={EPISODE_STATUS_LABEL[status]} {...EPISODE_STATUS_BADGE[status]} />
+          </div>
+          {status === EpisodeStatus.DRAFT ? (
+            <div className="anc-status__action">
+              <span className="anc-status__hint">앵커 설정을 마쳤다면 녹음 단계로 넘기세요.</span>
+              <button className="tool-btn tool-btn--primary" onClick={promoteToReady}>
+                녹음 대기로 전환 →
+              </button>
+            </div>
+          ) : status === EpisodeStatus.READY ? (
+            <div className="anc-status__action">
+              <span className="anc-status__hint anc-status__hint--ok">
+                ✓ 녹음 대기 상태입니다. 녹음(vooth-maker) 후 연출 단계로 진행됩니다.
+              </span>
+              <button className="tool-btn tool-btn--sm tool-btn--ghost" onClick={revertToDraft}>
+                초안으로 되돌리기
+              </button>
+            </div>
+          ) : (
+            <span className="anc-status__hint">
+              이미 녹음 이후 단계라 앵커 단계에서 상태를 바꿀 수 없습니다.
+            </span>
+          )}
+        </div>
+      </div>
+
+      {cut ? (
+        <div className="anc-wrap">
+          {/* 인터랙티브 스테이지 */}
+          <div className="anc-stage-col">
+            <div className="anc-cutnav">
+              <button
+                className="tool-btn tool-btn--sm"
+                disabled={cutIdx <= 0}
+                onClick={() => gotoCut(cutIdx - 1)}
+              >
+                ← 이전 컷
+              </button>
+              <span className="anc-cutnav__pos">
+                컷 {cut.position}{' '}
+                <span style={{ color: 'var(--vt-text-dim)' }}>/ {orderedCuts.length}</span>
+              </span>
+              <button
+                className="tool-btn tool-btn--sm"
+                disabled={cutIdx >= orderedCuts.length - 1}
+                onClick={() => gotoCut(cutIdx + 1)}
+              >
+                다음 컷 →
+              </button>
+            </div>
+
+            {/* 코버플로우 캐러셀: 모든 컷을 같은 element 로 렌더(전환 유지).
+                옆 컷은 뒤(translateZ-)·기울어져 어둡게, 이동하면 깊이축으로 앞으로 나온다. */}
+            <div className="anc-viewport">
+              {orderedCuts.map((c, i) => {
+                const off = i - safeIdx
+                const isActive = off === 0
+                const visible = Math.abs(off) <= 1
+                const slideStyle: React.CSSProperties = {
+                  // 가로 간격을 카드 반폭(50%)보다 크게 둬서 옆 컷이 가운데 컷 뒤에 덜 가리게 한다.
+                  transform: `translateX(calc(-50% + ${off * 72}%)) translateZ(${
+                    isActive ? 0 : -180
+                  }px) rotateY(${off * -22}deg)`,
+                  opacity: visible ? 1 : 0,
+                  zIndex: 10 - Math.abs(off),
+                  pointerEvents: visible ? undefined : 'none'
+                }
+
+                return (
+                  <div
+                    key={c.id}
+                    ref={isActive ? stageRef : undefined}
+                    className={`anc-slide ${isActive ? 'anc-slide--active' : 'anc-slide--side'}`}
+                    style={slideStyle}
+                    onClick={isActive ? undefined : () => gotoCut(i)}
+                    onMouseMove={isActive ? onStageMove : undefined}
+                    onMouseUp={isActive ? endDrag : undefined}
+                    onMouseLeave={isActive ? endDrag : undefined}
+                    title={isActive ? undefined : `컷 ${c.position}`}
+                  >
+                    <img
+                      src={c.imageUrl}
+                      alt={isActive ? `컷 ${c.position}` : ''}
+                      draggable={false}
+                    />
+                    {!isActive && <span className="anc-peek__no">컷 {c.position}</span>}
+                    {/* 대사 앵커 핸들 — 클릭 선택, 위아래 드래그로 anchorY 수정. */}
+                    {isActive &&
+                      lines.map((l, idx) => {
+                        const isNull = l.anchorY == null
+                        // 균등(null) 라인은 균등 분포 위치에 점선 고스트로 표시 → 드래그하면 명시값.
+                        const y = isNull ? (idx + 1) / (lines.length + 1) : (l.anchorY as number)
+                        const active = l.id === activeLineId
+                        return (
+                          <div
+                            key={l.id}
+                            className={`anc-handle${active ? ' anc-handle--active' : ''}${
+                              isNull ? ' anc-handle--ghost' : ''
+                            }`}
+                            style={{ top: `${y * 100}%`, color: charColor(l.characterId) }}
+                            onMouseDown={(e) => onHandleDown(e, l.id)}
+                            title={`L${idx + 1} ${charName(l.characterId)} · ${
+                              isNull ? '균등(기본)' : (l.anchorY as number).toFixed(2)
+                            }`}
+                          >
+                            <span className="anc-handle__line" />
+                            <span className="anc-handle__label">
+                              L{idx + 1}
+                              {isNull ? ' · 균등' : ''}
+                            </span>
+                            <span className="anc-handle__dot" />
+                          </div>
+                        )
+                      })}
+                  </div>
+                )
+              })}
+            </div>
+            <div className="anc-stage__hint">
+              컷 위의 앵커(L#)를 <strong>클릭</strong>해 선택하고 <strong>위아래로 드래그</strong>해
+              발화 위치를 조절하세요. 점선 = 균등(기본). 양옆 흐린 컷을 누르면 이동합니다.
+            </div>
+          </div>
+
+          {/* 대사 목록 */}
+          <div className="anc-side">
+            <div className="anc-side__title">대사 ({lines.length})</div>
+            <div className="anc-lines">
+              {lines.map((line, i) => {
+                const active = line.id === activeLineId
+                return (
+                  <button
+                    key={line.id}
+                    type="button"
+                    className={`anc-line${active ? ' anc-line--active' : ''}`}
+                    onClick={() => setActiveLineId(line.id)}
+                  >
+                    <div className="anc-line__head">
+                      <span className="anc-line__idx">L{i + 1}</span>
+                      <span className="anc-line__char">
+                        <span
+                          className="ed-line__dot"
+                          style={{ background: charColor(line.characterId) }}
+                        />
+                        {charName(line.characterId)}
+                      </span>
+                      <span
+                        className={`anc-line__val${line.anchorY == null ? ' anc-line__val--none' : ''}`}
+                      >
+                        {line.anchorY == null ? '균등' : line.anchorY.toFixed(2)}
+                      </span>
+                    </div>
+                    <div className="anc-line__text">{line.text}</div>
+                    {active && (
+                      <div className="anc-line__edit" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="number"
+                          className="tool-input tool-input--sm"
+                          style={{ width: 90 }}
+                          min={0}
+                          max={1}
+                          step={0.05}
+                          placeholder="균등"
+                          value={line.anchorY ?? ''}
+                          onChange={(e) =>
+                            setAnchorY(
+                              line.id,
+                              e.target.value === '' ? null : Number(e.target.value)
+                            )
+                          }
+                        />
+                        <button
+                          className="tool-btn tool-btn--sm tool-btn--ghost"
+                          onClick={() => setAnchorY(line.id, null)}
+                        >
+                          균등으로
+                        </button>
+                      </div>
+                    )}
+                  </button>
+                )
+              })}
+              {lines.length === 0 && <div className="ed-fx-empty">대사 없음</div>}
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="tool-card ed-empty">등록된 컷이 없습니다. (컷·대사 등록은 back-office)</div>
+      )}
+    </div>
+  )
+}

@@ -5,7 +5,10 @@
  * 실제 배선 시: 이 파일을 directors/* 쿼리(react-query)로 대체한다.
  */
 import {
+  AnchorEdge,
+  AnchorType,
   CharacterType,
+  CutEffectType,
   CutTransition,
   EpisodeStatus,
   RecordingStatus,
@@ -49,6 +52,11 @@ function mockWaveform(seed: number, bars = 48): number[] {
     out.push(0.15 + r * 0.7 * (0.4 + env * 0.6))
   }
   return out
+}
+
+/** 효과음 오디오 placeholder(실제 audioFileId → S3 URL 대용). */
+function mockSfxAudio(label: string): string {
+  return `mock-audio://sfx/${encodeURIComponent(label)}`
 }
 
 /* ──────────────────────────── 작품/캐릭터/캐스트 ──────────────────────────── */
@@ -162,7 +170,6 @@ function buildEpisode1Cuts(): Cut[] {
       imageUrl: mockCutImage('CUT 1', 800, 1100, 0),
       imageWidth: 800,
       imageHeight: 1100,
-      cropBox: { x: 0.05, y: 0.1, w: 0.9, h: 0.5 },
       holdMs: 400,
       transition: CutTransition.NONE,
       lines: [
@@ -175,6 +182,7 @@ function buildEpisode1Cuts(): Cut[] {
           characterId: 4,
           gapBeforeMs: 0,
           anchorY: 0.2,
+          anchor: null,
           selectedTakeByCreator: { 101: 1001 }
         },
         {
@@ -186,7 +194,34 @@ function buildEpisode1Cuts(): Cut[] {
           characterId: 1,
           gapBeforeMs: 250,
           anchorY: 0.55,
+          anchor: null,
           selectedTakeByCreator: { 101: 1003 }
+        }
+      ],
+      soundEffects: [
+        {
+          id: 1101,
+          cutId: 11,
+          audioFileId: 90001,
+          audioUrl: mockSfxAudio('두근'),
+          audioDuration: 600,
+          label: '두근…',
+          volume: 0.8,
+          // 첫 대사 START 에 동기화(앵커 데모).
+          anchor: { type: AnchorType.LINE, targetId: 111, edge: AnchorEdge.START, offsetMs: 0 },
+          order: 1
+        }
+      ],
+      cutEffects: [
+        {
+          id: 1151,
+          cutId: 11,
+          type: CutEffectType.FADE,
+          params: {},
+          duration: 500,
+          // 컷 시작에 페이드 인.
+          anchor: { type: AnchorType.CUT_START, targetId: null, edge: AnchorEdge.START, offsetMs: 0 },
+          order: 1
         }
       ]
     },
@@ -197,7 +232,6 @@ function buildEpisode1Cuts(): Cut[] {
       imageUrl: mockCutImage('CUT 2', 800, 900, 1),
       imageWidth: 800,
       imageHeight: 900,
-      cropBox: { x: 0, y: 0.2, w: 1, h: 0.45 },
       holdMs: 300,
       transition: CutTransition.FADE,
       lines: [
@@ -210,6 +244,7 @@ function buildEpisode1Cuts(): Cut[] {
           characterId: 1,
           gapBeforeMs: 300,
           anchorY: 0.4,
+          anchor: null,
           selectedTakeByCreator: { 101: 1010 }
         },
         {
@@ -222,7 +257,21 @@ function buildEpisode1Cuts(): Cut[] {
           characterId: 2,
           gapBeforeMs: -150,
           anchorY: 0.7,
+          anchor: null,
           selectedTakeByCreator: {} // 미채택
+        }
+      ],
+      soundEffects: [],
+      cutEffects: [
+        {
+          id: 1251,
+          cutId: 12,
+          type: CutEffectType.SHAKE,
+          params: { intensity: 0.6, direction: 'horizontal' },
+          duration: 500,
+          // 둘째 라인 START −100 에 동기화(겹말과 함께 흔들림 데모).
+          anchor: { type: AnchorType.LINE, targetId: 122, edge: AnchorEdge.START, offsetMs: -100 },
+          order: 1
         }
       ]
     },
@@ -233,7 +282,6 @@ function buildEpisode1Cuts(): Cut[] {
       imageUrl: mockCutImage('CUT 3', 800, 1300, 2),
       imageWidth: 800,
       imageHeight: 1300,
-      cropBox: { x: 0.1, y: 0.05, w: 0.8, h: 0.4 },
       holdMs: 600,
       transition: CutTransition.NONE,
       lines: [
@@ -246,7 +294,43 @@ function buildEpisode1Cuts(): Cut[] {
           characterId: 4,
           gapBeforeMs: 500,
           anchorY: null, // 균등 분배 폴백 데모
+          anchor: null,
           selectedTakeByCreator: { 101: 1020 }
+        }
+      ],
+      soundEffects: [
+        {
+          id: 1301,
+          cutId: 13,
+          audioFileId: 90002,
+          audioUrl: mockSfxAudio('솨아아'),
+          audioDuration: 1400,
+          label: '솨아아~ (빗소리)',
+          volume: 0.5,
+          // 컷 시작부터 깔리는 앰비언트.
+          anchor: { type: AnchorType.CUT_START, targetId: null, edge: AnchorEdge.START, offsetMs: 0 },
+          order: 1
+        }
+      ],
+      cutEffects: [
+        {
+          id: 1351,
+          cutId: 13,
+          type: CutEffectType.ZOOM,
+          params: { scale: 1.15 },
+          duration: 900,
+          // 라인 END +200 에 천천히 줌.
+          anchor: { type: AnchorType.LINE, targetId: 131, edge: AnchorEdge.END, offsetMs: 200 },
+          order: 1
+        },
+        {
+          id: 1352,
+          cutId: 13,
+          type: CutEffectType.BLUR,
+          params: { intensity: 0.3 },
+          duration: 600,
+          anchor: { type: AnchorType.CUT_START, targetId: null, edge: AnchorEdge.START, offsetMs: 0 },
+          order: 2
         }
       ]
     }

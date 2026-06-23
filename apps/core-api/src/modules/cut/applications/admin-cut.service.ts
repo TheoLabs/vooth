@@ -3,7 +3,6 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { CutRepository } from '../infrastructure/cut.repository';
 import { Transactional } from '@libs/decorators';
 import { EpisodeRepository } from '@modules/episode/infrastructure/episode.repository';
-import { type CropBox } from '@vooth/shared';
 import { Cut } from '../domain/cut.entity';
 import { AdminCutResponseDto } from '../presentation/dto';
 import { FileService } from '@modules/file/applications/file.service';
@@ -28,14 +27,12 @@ export class AdminCutService extends DddService {
     imageFileId,
     imageWidth,
     imageHeight,
-    imageCropBox,
   }: {
     episodeId: number;
     order: number;
     imageFileId: number;
     imageWidth: number;
     imageHeight: number;
-    imageCropBox: CropBox;
   }) {
     const [episode] = await this.episodeRepository.find({ id: episodeId });
 
@@ -54,7 +51,7 @@ export class AdminCutService extends DddService {
       });
     }
 
-    const cut = Cut.of({ episodeId, order, imageFileId, imageWidth, imageHeight, imageCropBox });
+    const cut = Cut.of({ episodeId, order, imageFileId, imageWidth, imageHeight });
 
     await this.fileService.commit(imageFileId, { mimePrefix: 'image/' });
     await this.cutRepository.save([cut]);
@@ -85,7 +82,6 @@ export class AdminCutService extends DddService {
     imageFileId,
     imageWidth,
     imageHeight,
-    imageCropBox,
   }: {
     id: number;
     episodeId: number;
@@ -93,7 +89,6 @@ export class AdminCutService extends DddService {
     imageFileId?: number;
     imageWidth?: number;
     imageHeight?: number;
-    imageCropBox?: CropBox;
   }) {
     const [episode] = await this.episodeRepository.find({ id: episodeId });
 
@@ -125,7 +120,7 @@ export class AdminCutService extends DddService {
       }
     }
 
-    cut.update({ order, imageFileId, imageWidth, imageHeight, imageCropBox });
+    cut.update({ order, imageFileId, imageWidth, imageHeight });
 
     await this.cutRepository.save([cut]);
   }

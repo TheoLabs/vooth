@@ -37,3 +37,12 @@ abstract class BaseEpisodeResponseDto extends ResponseDto {
 
 @Exclude()
 export class AdminEpisodeResponseDto extends BaseEpisodeResponseDto {}
+
+@Exclude()
+export class DirectorEpisodeListResponseDto extends BaseEpisodeResponseDto {
+  @Expose()
+  cutCount: number;
+
+  @Expose()
+  lineCount: number;
+}

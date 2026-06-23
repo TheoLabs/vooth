@@ -1,0 +1,326 @@
+/* 대사 앵커 설정 화면 전용 스타일(다크 프로 테마 토큰: base.css). */
+
+/* ---- 상태 바(DRAFT → READY 전환) ---- */
+.anc-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 14px;
+  padding: 12px 14px;
+  background: var(--vt-surface-2, var(--vt-surface));
+  border: 1px solid var(--vt-border);
+  border-radius: var(--vt-radius, 10px);
+}
+.anc-status__now {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.anc-status__label {
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--vt-text-muted);
+}
+.anc-status__action {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.anc-status__hint {
+  font-size: 12px;
+  color: var(--vt-text-dim);
+}
+.anc-status__hint--ok {
+  color: var(--vt-accent);
+  font-weight: 600;
+}
+
+/* 앵커 페이지는 콘텐츠 영역 높이를 채워서 카루셀을 세로 가운데에 둔다(하단 빈공간 방지). */
+.anc-page {
+  min-height: 100%;
+}
+.anc-wrap {
+  display: flex;
+  gap: 20px;
+  align-items: stretch;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/* ---- 스테이지(중앙 컷 + 인터랙티브 앵커 핸들) ---- */
+.anc-stage-col {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+}
+.anc-cutnav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+.anc-cutnav__pos {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--vt-text);
+}
+/* 필름스트립 캐러셀 뷰포트: 현재 컷이 가운데, 양옆 컷이 뒤로 들어가 어둡게.
+   컷 이동 시 각 슬라이드가 offset 위치로 transition → 회전하듯 슬라이드. */
+.anc-viewport {
+  position: relative;
+  width: 100%;
+  height: clamp(480px, 78vh, 820px);
+  overflow: hidden;
+  perspective: 1200px;
+}
+/* 슬라이드: left:50% 기준으로 translateX(-50% + offset) + scale 를 인라인 지정. */
+.anc-slide {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  height: 100%;
+  width: auto;
+  padding: 0;
+  margin: 0;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #000;
+  transform-origin: center center;
+  backface-visibility: hidden;
+  will-change: transform, filter;
+  transition:
+    transform 0.46s cubic-bezier(0.22, 0.61, 0.36, 1),
+    opacity 0.46s ease,
+    filter 0.34s ease;
+}
+.anc-slide > img {
+  display: block;
+  height: 100%;
+  width: auto;
+  pointer-events: none;
+}
+/* 가운데(현재) 컷 — 인터랙티브, 앞으로 나와 밝게. */
+.anc-slide--active {
+  border: 1px solid var(--vt-accent);
+  cursor: default;
+  user-select: none;
+  filter: brightness(1);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55);
+}
+/* 양옆 컷 — 뒤로 들어가 어둡게, 클릭하면 이동. */
+.anc-slide--side {
+  border: 1px solid var(--vt-border);
+  cursor: pointer;
+  filter: brightness(0.42);
+}
+.anc-slide--side:hover {
+  filter: brightness(0.66);
+}
+.anc-peek__no {
+  position: absolute;
+  bottom: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 11px;
+  font-weight: 800;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.6);
+  padding: 2px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+@media (prefers-reduced-motion: reduce) {
+  .anc-slide {
+    transition: none;
+  }
+}
+.anc-stage__hint {
+  max-width: 560px;
+  font-size: 12px;
+  color: var(--vt-text-muted);
+  text-align: center;
+}
+.anc-stage__hint strong {
+  color: var(--vt-text);
+}
+
+/* ---- 앵커 핸들(클릭 선택 · 위아래 드래그) ---- */
+.anc-handle {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 0;
+  cursor: grab;
+  z-index: 1;
+}
+.anc-handle:active {
+  cursor: grabbing;
+}
+/* 넓은 히트 영역(얇은 선이라도 잡기 쉽게). */
+.anc-handle::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -8px;
+  height: 16px;
+}
+.anc-handle__line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 2px;
+  background: currentColor;
+  opacity: 0.9;
+}
+.anc-handle__dot {
+  position: absolute;
+  right: 4px;
+  top: -6px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: currentColor;
+  border: 2px solid var(--vt-surface);
+  box-shadow: 0 0 0 1px currentColor;
+}
+.anc-handle__label {
+  position: absolute;
+  left: 4px;
+  top: -17px;
+  font-size: 10px;
+  font-weight: 800;
+  color: currentColor;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+  white-space: nowrap;
+}
+/* 균등(null) 라인: 점선 고스트 — 드래그하면 명시 anchorY 로 바뀐다. */
+.anc-handle--ghost {
+  opacity: 0.55;
+}
+.anc-handle--ghost .anc-handle__line {
+  height: 0;
+  border-top: 2px dashed currentColor;
+  background: transparent;
+}
+.anc-handle--ghost .anc-handle__dot {
+  background: transparent;
+}
+/* 선택된 핸들: 강조(굵은 선 + 큰 점 + 글로우). */
+.anc-handle--active {
+  opacity: 1;
+  z-index: 2;
+}
+.anc-handle--active .anc-handle__line {
+  height: 3px;
+  box-shadow: 0 0 6px currentColor;
+}
+.anc-handle--active .anc-handle__dot {
+  width: 16px;
+  height: 16px;
+  top: -8px;
+}
+
+/* ---- 대사 목록(선택/편집) ---- */
+.anc-side {
+  flex: 0 0 320px;
+  min-width: 0;
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--vt-surface);
+  border: 1px solid var(--vt-border);
+  border-radius: var(--vt-radius-lg);
+  padding: 14px 16px;
+}
+.anc-lines {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  min-height: 0;
+}
+.anc-side__title {
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--vt-text-muted);
+  margin-bottom: 10px;
+}
+.anc-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.anc-line {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  text-align: left;
+  padding: 10px 12px;
+  background: var(--vt-surface-2);
+  border: 1px solid var(--vt-border);
+  border-radius: 8px;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease;
+}
+.anc-line:hover {
+  border-color: var(--vt-border-strong);
+}
+.anc-line--active {
+  border-color: var(--vt-accent);
+  background: var(--vt-accent-soft);
+}
+.anc-line__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.anc-line__idx {
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--vt-text-dim);
+  flex: 0 0 auto;
+}
+.anc-line__char {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--vt-text);
+}
+.anc-line__val {
+  margin-left: auto;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--vt-accent);
+  font-variant-numeric: tabular-nums;
+}
+.anc-line__val--none {
+  color: var(--vt-text-dim);
+  font-weight: 600;
+}
+.anc-line__text {
+  font-size: 13px;
+  color: var(--vt-text-muted);
+}
+.anc-line__edit {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+  cursor: default;
+}

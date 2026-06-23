@@ -1,5 +1,4 @@
 import { ResponseDto } from '@libs/utils';
-import { type CropBox } from '@vooth/shared';
 import { Exclude, Expose, Type } from 'class-transformer';
 import { AnchorDto } from './anchor.dto';
 
@@ -19,6 +18,9 @@ class LineResponseDto {
 
   @Expose()
   order: number;
+
+  @Expose()
+  anchorY: number | null;
 
   @Expose()
   @Type(() => AnchorDto)
@@ -47,12 +49,6 @@ abstract class BaseCutResponseDto extends ResponseDto {
 
   @Expose()
   imageHeight: number;
-
-  @Expose()
-  imageCropBox: CropBox;
-
-  @Expose()
-  anchorY: number | null;
 
   @Expose()
   gap: number | null;

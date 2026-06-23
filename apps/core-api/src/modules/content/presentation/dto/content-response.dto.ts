@@ -50,3 +50,6 @@ export class AdminContentResponseDto extends BaseContentResponseDto {
   @Type(() => TagResponseDto)
   tags: TagResponseDto[];
 }
+
+@Exclude()
+export class DirectorContentResponseDto extends BaseContentResponseDto {}

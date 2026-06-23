@@ -4,25 +4,25 @@ import { type CalendarDate, EpisodeStatus } from '@vooth/shared';
 import { IsBoolean, IsEnum, IsIn, IsOptional, IsString } from 'class-validator';
 
 abstract class BaseEpisodeQueryDto extends PaginationDto {
-  @IsIn(['title'])
-  @IsOptional()
-  searchKey?: string;
-
   @IsString()
   @IsOptional()
   searchValue?: string;
+
+  @ToArray()
+  @IsEnum(EpisodeStatus, { each: true })
+  @IsOptional()
+  statuses?: EpisodeStatus[];
+}
+
+export class AdminEpisodeQueryDto extends BaseEpisodeQueryDto {
+  @IsIn(['title'])
+  @IsOptional()
+  searchKey?: string;
 
   @ToBoolean()
   @IsBoolean()
   @IsOptional()
   isFree?: boolean;
-}
-
-export class AdminEpisodeQueryDto extends BaseEpisodeQueryDto {
-  @ToArray()
-  @IsEnum(EpisodeStatus, { each: true })
-  @IsOptional()
-  statuses?: EpisodeStatus[];
 
   @IsString()
   @IsOptional()
@@ -32,3 +32,5 @@ export class AdminEpisodeQueryDto extends BaseEpisodeQueryDto {
   @IsOptional()
   maxExpectedPublishOn?: CalendarDate;
 }
+
+export class DirectorEpisodeQueryDto extends BaseEpisodeQueryDto {}

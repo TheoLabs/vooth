@@ -1,4 +1,4 @@
-/* 연출 에디터 전용 스타일. */
+/* 연출 에디터 — Final Cut 스타일 NLE 레이아웃 + 다크 프로 테마(토큰: base.css). */
 
 .ed-back {
   display: inline-flex;
@@ -6,7 +6,7 @@
   gap: 6px;
   font-size: 13px;
   font-weight: 600;
-  color: #4f46e5;
+  color: var(--vt-accent);
   background: none;
   border: none;
   cursor: pointer;
@@ -14,47 +14,195 @@
   margin-bottom: 4px;
 }
 
-.ed-tabs {
+/* ────────────────────────── 워크스페이스(풀 높이) ────────────────────────── */
+.ed-workspace {
   display: flex;
-  gap: 4px;
-  border-bottom: 1px solid #e2e8f0;
-}
-.ed-tab {
-  padding: 10px 16px;
-  font-size: 13px;
-  font-weight: 700;
-  color: #64748b;
-  background: none;
-  border: none;
-  border-bottom: 2px solid transparent;
-  cursor: pointer;
-}
-.ed-tab--active {
-  color: #4f46e5;
-  border-bottom-color: #4f46e5;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  background: var(--vt-bg);
+  color: var(--vt-text);
 }
 
-/* ---- cut card ---- */
-.ed-cut {
+/* ---- 상단 바 ---- */
+.ed-topbar {
+  flex: 0 0 auto;
   display: flex;
+  align-items: center;
   gap: 18px;
-  padding: 16px;
+  padding: 12px 20px;
+  background: var(--vt-surface);
+  border-bottom: 1px solid var(--vt-border);
 }
-.ed-cut__media {
-  flex: 0 0 200px;
+.ed-topbar .ed-back {
+  margin-bottom: 0;
 }
-.ed-cut__body {
-  flex: 1;
+.ed-topbar__title {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.ed-topbar__name {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--vt-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ed-topbar__sub {
+  color: var(--vt-text-muted);
+  font-weight: 600;
+}
+.ed-topbar__meta {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.ed-topbar__count {
+  font-size: 12px;
+  color: var(--vt-text-muted);
+}
+.ed-topbar__actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-left: auto;
+}
+
+/* ---- 뷰어 | 인스펙터 ---- */
+.ed-main {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+}
+
+.ed-viewer {
+  flex: 1 1 auto;
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 12px;
+  padding: 20px;
+  overflow: auto;
+  background: var(--vt-bg);
 }
-.ed-cut__head {
+.ed-viewer__head {
   display: flex;
   align-items: center;
   gap: 10px;
+  color: var(--vt-text);
 }
+.ed-viewer__dim {
+  color: var(--vt-text-dim);
+  font-size: 12px;
+}
+.ed-viewer__media {
+  align-self: center;
+  width: 100%;
+  max-width: 420px;
+}
+
+.ed-inspector {
+  flex: 0 0 420px;
+  min-width: 0;
+  overflow-y: auto;
+  padding: 18px;
+  background: var(--vt-surface);
+  border-left: 1px solid var(--vt-border);
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.ed-inspector__section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.ed-inspector__title {
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--vt-text-muted);
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--vt-border);
+}
+.ed-inspector__hint {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--vt-text-dim);
+}
+.ed-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ed-empty {
+  margin: auto;
+  padding: 40px;
+  text-align: center;
+  color: var(--vt-text-dim);
+  font-size: 13px;
+}
+
+/* ---- 하단 고정 타임라인 도크(드래그 리사이즈) ---- */
+.ed-dock {
+  position: relative;
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--vt-timeline);
+  border-top: 1px solid var(--vt-border);
+  padding: 0 14px 10px;
+}
+/* 상단 가장자리 드래그 핸들 */
+.ed-dock__handle {
+  flex: 0 0 auto;
+  position: relative;
+  height: 12px;
+  margin: 0 -14px 4px;
+  cursor: ns-resize;
+  touch-action: none;
+}
+.ed-dock__handle::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 44px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--vt-border-strong, var(--vt-border));
+  transition: background 0.15s ease;
+}
+.ed-dock__handle:hover::before {
+  background: var(--vt-accent);
+}
+.ed-dock__label {
+  flex: 0 0 auto;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--vt-text-muted);
+  margin-bottom: 6px;
+}
+.ed-dock__scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  overflow-y: auto;
+}
+
+/* ---- cut number chip ---- */
 .ed-cut__no {
   display: inline-flex;
   align-items: center;
@@ -64,7 +212,7 @@
   font-size: 12px;
   font-weight: 800;
   color: #fff;
-  background: #4f46e5;
+  background: var(--vt-accent);
   border-radius: 7px;
 }
 .ed-cut__controls {
@@ -73,36 +221,19 @@
   flex-wrap: wrap;
 }
 
-/* ---- cropbox / anchor visualizer ---- */
+/* ---- 컷 이미지 스테이지 / anchor visualizer ---- */
 .ed-crop {
   position: relative;
-  width: 200px;
-  border-radius: 8px;
+  width: 100%;
+  border-radius: 10px;
   overflow: hidden;
-  border: 1px solid #e2e8f0;
-  background: #f1f5f9;
+  border: 1px solid var(--vt-border-strong);
+  background: #000;
 }
 .ed-crop__img {
   display: block;
   width: 100%;
   height: auto;
-}
-.ed-crop__box {
-  position: absolute;
-  border: 2px solid #f59e0b;
-  box-shadow: 0 0 0 9999px rgba(15, 23, 42, 0.45);
-  pointer-events: none;
-}
-.ed-crop__box-label {
-  position: absolute;
-  top: -2px;
-  left: -2px;
-  font-size: 9px;
-  font-weight: 700;
-  color: #fff;
-  background: #f59e0b;
-  padding: 1px 4px;
-  border-radius: 0 0 4px 0;
 }
 .ed-anchor {
   position: absolute;
@@ -111,6 +242,10 @@
   height: 2px;
   background: #ef4444;
   pointer-events: none;
+}
+.ed-anchor--active {
+  height: 3px;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.4);
 }
 .ed-anchor__dot {
   position: absolute;
@@ -122,6 +257,11 @@
   background: #ef4444;
   border: 2px solid #fff;
 }
+.ed-anchor--active .ed-anchor__dot {
+  top: -7px;
+  width: 14px;
+  height: 14px;
+}
 .ed-anchor__label {
   position: absolute;
   left: 4px;
@@ -130,23 +270,6 @@
   font-weight: 700;
   color: #ef4444;
 }
-.ed-crop__legend {
-  display: flex;
-  gap: 12px;
-  margin-top: 8px;
-  font-size: 10px;
-  color: #64748b;
-}
-.ed-crop__legend span {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-}
-.ed-crop__swatch {
-  width: 10px;
-  height: 10px;
-  border-radius: 2px;
-}
 
 /* ---- lines ---- */
 .ed-line {
@@ -154,21 +277,22 @@
   align-items: flex-start;
   gap: 12px;
   padding: 10px 12px;
-  background: #f8fafc;
-  border: 1px solid #eef2f7;
+  background: var(--vt-surface-2);
+  border: 1px solid var(--vt-border);
   border-radius: 8px;
 }
 .ed-line--overlap {
-  border-color: #fca5a5;
-  background: #fef2f2;
+  border-color: rgba(248, 113, 113, 0.5);
+  background: var(--vt-danger-soft);
 }
 .ed-line__char {
-  flex: 0 0 80px;
+  flex: 0 0 76px;
   display: flex;
   align-items: center;
   gap: 6px;
   font-size: 12px;
   font-weight: 700;
+  color: var(--vt-text);
 }
 .ed-line__dot {
   width: 10px;
@@ -179,7 +303,7 @@
 .ed-line__text {
   flex: 1;
   font-size: 13px;
-  color: #334155;
+  color: var(--vt-text-muted);
 }
 .ed-line__controls {
   display: flex;
@@ -188,49 +312,224 @@
   flex: 0 0 auto;
 }
 
-/* ---- timeline strip ---- */
+/* ---- timeline strip (3 레인: 대사 / 효과음 / 시각효과) ---- */
 .ed-timeline {
-  display: flex;
-  align-items: stretch;
-  height: 64px;
   border-radius: 8px;
   overflow-x: auto;
-  background: #0f172a;
+  background: var(--vt-timeline);
   padding: 8px;
-  gap: 0;
+  border: 1px solid var(--vt-border);
 }
-.ed-tl-seg {
+.ed-tl-track {
   position: relative;
-  flex: 0 0 auto;
+}
+.ed-tl-cutband {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-left: 1px dashed rgba(148, 163, 184, 0.4);
+  border-right: 1px dashed rgba(148, 163, 184, 0.4);
+  pointer-events: none;
+}
+.ed-tl-track--selectable .ed-tl-cutband {
+  pointer-events: auto;
+  cursor: pointer;
+}
+/* 선택 가능 모드에선 블록을 통과시켜 컷 밴드가 클릭을 받게 한다. */
+.ed-tl-track--selectable .ed-tl-block {
+  pointer-events: none;
+}
+.ed-tl-cutband:hover {
+  background: rgba(79, 140, 255, 0.08);
+}
+.ed-tl-cutband--selected {
+  background: var(--vt-accent-soft);
+  border-left: 2px solid var(--vt-accent);
+  border-right: 2px solid var(--vt-accent);
+}
+.ed-tl-block {
+  position: absolute;
   display: flex;
-  flex-direction: column;
-  justify-content: flex-end;
+  align-items: center;
   border-radius: 4px;
-  padding: 4px 6px;
+  padding: 0 6px;
   color: #fff;
   font-size: 10px;
   font-weight: 700;
   overflow: hidden;
   white-space: nowrap;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18);
 }
-.ed-tl-seg--gap {
-  background: #334155;
+.ed-tl-block--overlap {
+  box-shadow: inset 0 0 0 2px #b91c1c;
+  background-image: repeating-linear-gradient(
+    45deg,
+    rgba(185, 28, 28, 0.35),
+    rgba(185, 28, 28, 0.35) 4px,
+    transparent 4px,
+    transparent 8px
+  );
 }
-.ed-tl-seg--overlap {
-  background: repeating-linear-gradient(45deg, #b91c1c, #b91c1c 4px, #ef4444 4px, #ef4444 8px);
+.ed-tl-block--effect {
+  font-weight: 600;
 }
-.ed-tl-seg--hold {
-  background: #64748b;
+/* 직접 편집 가능한 블록은 클릭/드래그를 받도록 통과 규칙을 덮어쓴다. */
+.ed-tl-track--selectable .ed-tl-block--drag-x,
+.ed-tl-track--selectable .ed-tl-block--effect {
+  pointer-events: auto;
 }
-.ed-tl-cut {
-  display: flex;
-  align-items: stretch;
-  border-right: 2px solid #0f172a;
+.ed-tl-block--drag-x {
+  cursor: ew-resize;
+}
+.ed-tl-block--drag-x:hover {
+  filter: brightness(1.12);
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.55);
+}
+/* 효과 블록 오른쪽 끝 길이 조절 핸들 */
+.ed-tl-resize {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 9px;
+  cursor: ew-resize;
+  pointer-events: auto;
+  background: linear-gradient(
+    to right,
+    transparent,
+    rgba(255, 255, 255, 0.35)
+  );
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+.ed-tl-block--effect:hover .ed-tl-resize {
+  opacity: 1;
+}
+.ed-tl-block--hold {
+  background: rgba(100, 116, 139, 0.25) !important;
+  box-shadow: none;
+  color: transparent;
+  border-left: 1px dashed #64748b;
 }
 .ed-tl-legend {
   display: flex;
   gap: 14px;
+  flex-wrap: wrap;
+  align-items: center;
   font-size: 11px;
-  color: #64748b;
+  color: var(--vt-text-muted);
   margin-top: 8px;
+}
+.ed-tl-swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  margin-right: 4px;
+  vertical-align: middle;
+}
+
+/* ---- small input/select variants ---- */
+.tool-input--sm,
+.tool-select--sm {
+  padding: 5px 8px;
+  font-size: 12px;
+}
+
+/* ---- effect editor ---- */
+.ed-fx-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 1px 7px;
+  border: 1px solid;
+  border-radius: 999px;
+  background: var(--vt-surface);
+}
+.ed-fx {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.ed-fx-group__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.ed-fx-group__title {
+  font-size: 13px;
+  font-weight: 800;
+}
+.ed-fx-empty {
+  font-size: 12px;
+  color: var(--vt-text-dim);
+  padding: 4px 0;
+}
+.ed-fx-item {
+  border: 1px solid var(--vt-border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  background: var(--vt-surface-2);
+}
+.ed-fx-item--sound {
+  border-left: 3px solid #d97706;
+}
+.ed-fx-item--cut {
+  border-left: 3px solid #7c3aed;
+}
+.ed-fx-item__row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.ed-fx-item__params {
+  margin-top: 10px;
+  flex-wrap: wrap;
+  align-items: flex-end;
+}
+.ed-fx-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  font-size: 10px;
+  font-weight: 800;
+  color: #fff;
+  padding: 3px 0;
+  border-radius: 5px;
+  flex: 0 0 auto;
+}
+.ed-fx-label {
+  flex: 1;
+  min-width: 0;
+}
+.ed-fx-order {
+  display: flex;
+  gap: 4px;
+  flex: 0 0 auto;
+}
+.ed-fx-anchor {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  padding: 6px 8px;
+  background: var(--vt-accent-soft);
+  border: 1px dashed var(--vt-border-strong);
+  border-radius: 6px;
+}
+.ed-fx-resolved {
+  margin-top: 8px;
+  font-size: 11px;
+  color: var(--vt-text-muted);
+  font-weight: 600;
+}
+.ed-fx-noparam {
+  font-size: 11px;
+  color: var(--vt-text-dim);
+  align-self: center;
 }

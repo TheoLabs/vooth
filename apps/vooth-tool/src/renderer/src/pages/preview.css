@@ -10,8 +10,8 @@
   border-radius: 14px;
   overflow: hidden;
   background: #000;
-  border: 1px solid #1e293b;
-  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.2);
+  border: 1px solid var(--vt-border-strong);
+  box-shadow: var(--vt-shadow);
 }
 .pv-viewport {
   position: relative;
@@ -68,4 +68,38 @@
 }
 .pv-scrub {
   width: 100%;
+}
+
+/* ---- active effect overlay (stage) ---- */
+.pv-fx-overlay {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  pointer-events: none;
+}
+.pv-fx-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+  border-radius: 999px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+.pv-fx-now {
+  margin-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.pv-fx-now__list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
 }

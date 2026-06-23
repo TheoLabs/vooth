@@ -1,4 +1,12 @@
-import { EpisodeStatus, RecordingStatus, RenderStatus } from './types'
+import {
+  ANCHOR_EDGE_LABEL,
+  ANCHOR_TYPE_LABEL,
+  AnchorType,
+  EpisodeStatus,
+  RecordingStatus,
+  RenderStatus,
+  type Anchor
+} from './types'
 
 /** UTC ISO → 로컬 타임존 표시(YYYY.MM.DD HH:mm). docs/CLAUDE 타임스탬프 룰. */
 export function formatLocalDateTime(iso: string): string {
@@ -16,6 +24,28 @@ export function formatMs(ms: number): string {
 export function formatGap(ms: number): string {
   if (ms === 0) return '0ms'
   return ms < 0 ? `겹침 ${Math.abs(ms)}ms` : `+${ms}ms`
+}
+
+/** offsetMs 부호 표시("+200" / "−100" / "0"). */
+export function formatOffset(ms: number): string {
+  if (ms === 0) return '+0'
+  return ms < 0 ? `−${Math.abs(ms)}` : `+${ms}`
+}
+
+/**
+ * 앵커를 사람이 읽는 문구로. null = 기본(순차/CUT_START).
+ * 대상 id → 라벨 매핑은 호출부에서 주입(없으면 #id).
+ */
+export function formatAnchor(anchor: Anchor | null, targetLabel?: (id: number) => string): string {
+  if (!anchor) return '기본(순차)'
+  if (anchor.type === AnchorType.CUT_START) {
+    return `컷 시작 ${formatOffset(anchor.offsetMs)}ms`
+  }
+  const tgt =
+    anchor.targetId == null
+      ? ANCHOR_TYPE_LABEL[anchor.type]
+      : (targetLabel?.(anchor.targetId) ?? `#${anchor.targetId}`)
+  return `${tgt}.${ANCHOR_EDGE_LABEL[anchor.edge]} ${formatOffset(anchor.offsetMs)}ms`
 }
 
 /* ──────────────────────────── 상태 배지 색상 ──────────────────────────── */

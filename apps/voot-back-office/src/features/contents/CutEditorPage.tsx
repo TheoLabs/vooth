@@ -5,7 +5,6 @@ import {
   Button,
   Empty,
   Input,
-  Modal,
   Popconfirm,
   Select,
   Space,
@@ -21,7 +20,7 @@ import {
   PlusOutlined,
   UpOutlined,
 } from '@ant-design/icons';
-import { EpisodeStatus, type CropBox } from '@vooth/shared';
+import { EpisodeStatus } from '@vooth/shared';
 import { useContent } from './useContents';
 import { useEpisode } from './useEpisodes';
 import {
@@ -35,15 +34,12 @@ import {
 } from './useCuts';
 import { useCharacters } from './useCharacters';
 import { EpisodeStatusBadge } from './EpisodeStatusBadge';
-import { CutCropper } from './CutCropper';
 import { avatarColor } from './characterDisplay';
 import { useQueryClient } from '@tanstack/react-query';
 import { uploadImage } from '../../api/file.api';
 import { updateCut as updateCutApi, updateLine as updateLineApi } from '../../api/cut.api';
 import type { AdminCut, AdminLine } from '../../api/cut.api';
 import { CUTS_KEY } from './useCuts';
-
-const FULL_CROP: CropBox = { x: 0, y: 0, w: 1, h: 1 };
 
 /** 파일에서 이미지 원본 픽셀 크기를 읽는다. */
 function readImageSize(file: File): Promise<{ width: number; height: number }> {
@@ -100,10 +96,6 @@ export function CutEditorPage() {
 
   const fileRef = useRef<HTMLInputElement>(null);
   const [adding, setAdding] = useState(false);
-
-  // 컷 추가: 이미지 선택 → 크롭(초점 영역) 지정 → 저장
-  const [pending, setPending] = useState<{ file: File; url: string } | null>(null);
-  const [cropBox, setCropBox] = useState<CropBox>(FULL_CROP);
 
   // 대사(라인): 목록은 cut.lines(서버 조인)에서 읽고, 입력 드래프트만 컷별 로컬 관리
   const [draftByCut, setDraftByCut] = useState<Record<number, LineDraftInput>>({});
@@ -184,35 +176,23 @@ export function CutEditorPage() {
     }
   };
 
-  const pickCutImage = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // 컷 추가: 이미지 선택 → 원본 그대로(풀프레임) 업로드 → 저장
+  const pickCutImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     e.target.value = '';
     if (!file) return;
-    setCropBox(FULL_CROP);
-    setPending({ file, url: URL.createObjectURL(file) });
-  };
-
-  const cancelCrop = () => {
-    if (pending) URL.revokeObjectURL(pending.url);
-    setPending(null);
-  };
-
-  const confirmCrop = async () => {
-    if (!pending) return;
     setAdding(true);
     try {
-      const { width, height } = await readImageSize(pending.file);
-      const imageFileId = await uploadImage(pending.file, 'episodes/cut');
+      const { width, height } = await readImageSize(file);
+      const imageFileId = await uploadImage(file, 'episodes/cut');
       const nextOrder = cuts.reduce((m, c) => Math.max(m, c.order), 0) + 1;
       await createCut.mutateAsync({
         order: nextOrder,
         imageFileId,
         imageWidth: width,
         imageHeight: height,
-        imageCropBox: cropBox,
       });
       message.success('컷을 추가했습니다.');
-      cancelCrop();
     } catch (err) {
       message.error(err instanceof Error ? err.message : '컷 추가에 실패했습니다.');
     } finally {
@@ -243,24 +223,6 @@ export function CutEditorPage() {
     } finally {
       await queryClient.invalidateQueries({ queryKey: [CUTS_KEY, 'list', eId] });
       setReordering(false);
-    }
-  };
-
-  // 크롭(초점 영역) 수정
-  const [editingCut, setEditingCut] = useState<AdminCut | null>(null);
-  const [editCrop, setEditCrop] = useState<CropBox>(FULL_CROP);
-  const openCropEdit = (cut: AdminCut) => {
-    setEditCrop(cut.imageCropBox ?? FULL_CROP);
-    setEditingCut(cut);
-  };
-  const confirmCropEdit = async () => {
-    if (!editingCut) return;
-    try {
-      await updateCut.mutateAsync({ cutId: editingCut.id, input: { imageCropBox: editCrop } });
-      message.success('크롭을 수정했습니다.');
-      setEditingCut(null);
-    } catch (err) {
-      message.error(err instanceof Error ? err.message : '크롭 수정에 실패했습니다.');
     }
   };
 
@@ -368,7 +330,6 @@ export function CutEditorPage() {
               characterOptions={characterOptions}
               characterColor={characterColor}
               onMove={(dir) => moveCut(index, dir)}
-              onEditCrop={() => openCropEdit(cut)}
               onRemove={() => removeCut(cut.id)}
               onDraftChange={(patch) => setDraft(cut.id, patch)}
               onSubmitLine={() => submitLine(cut)}
@@ -380,6 +341,7 @@ export function CutEditorPage() {
           type="dashed"
           icon={<PlusOutlined />}
           disabled={!isDraft}
+          loading={adding}
           onClick={() => fileRef.current?.click()}
           style={{ height: 48, flex: 'none' }}
         >
@@ -387,68 +349,6 @@ export function CutEditorPage() {
         </Button>
         <input ref={fileRef} type="file" accept="image/*" hidden onChange={pickCutImage} />
       </div>
-
-      {/* 컷 이미지 크롭(초점 영역) 지정 후 저장 */}
-      <Modal
-        title="컷 초점 영역 지정"
-        open={pending != null}
-        onCancel={cancelCrop}
-        maskClosable={false}
-        okText="컷 추가"
-        cancelText="취소"
-        confirmLoading={adding}
-        onOk={confirmCrop}
-        width={520}
-      >
-        {pending && (
-          <>
-            <Typography.Paragraph type="secondary" style={{ fontSize: 12, marginTop: 4 }}>
-              드래그로 이동, 모서리로 크기 조절. 지정한 영역이 컷의 초점(cropBox)으로 저장됩니다.
-            </Typography.Paragraph>
-            <CutCropper src={pending.url} value={cropBox} onChange={setCropBox} />
-            <Space style={{ marginTop: 10 }}>
-              <Button size="small" onClick={() => setCropBox(FULL_CROP)}>
-                전체로 초기화
-              </Button>
-              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                x {Math.round(cropBox.x * 100)}% · y {Math.round(cropBox.y * 100)}% · w{' '}
-                {Math.round(cropBox.w * 100)}% · h {Math.round(cropBox.h * 100)}%
-              </Typography.Text>
-            </Space>
-          </>
-        )}
-      </Modal>
-
-      {/* 기존 컷의 크롭(초점 영역) 수정 */}
-      <Modal
-        title={editingCut ? `컷 ${editingCut.order} 크롭 수정` : '크롭 수정'}
-        open={editingCut != null}
-        onCancel={() => setEditingCut(null)}
-        maskClosable={false}
-        okText="저장"
-        cancelText="취소"
-        confirmLoading={updateCut.isPending}
-        onOk={confirmCropEdit}
-        width={520}
-      >
-        {editingCut && (
-          <>
-            <Typography.Paragraph type="secondary" style={{ fontSize: 12, marginTop: 4 }}>
-              드래그로 이동, 모서리로 크기 조절.
-            </Typography.Paragraph>
-            <CutCropper src={editingCut.imageUrl} value={editCrop} onChange={setEditCrop} />
-            <Space style={{ marginTop: 10 }}>
-              <Button size="small" onClick={() => setEditCrop(FULL_CROP)}>
-                전체로 초기화
-              </Button>
-              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                x {Math.round(editCrop.x * 100)}% · y {Math.round(editCrop.y * 100)}% · w{' '}
-                {Math.round(editCrop.w * 100)}% · h {Math.round(editCrop.h * 100)}%
-              </Typography.Text>
-            </Space>
-          </>
-        )}
-      </Modal>
     </div>
   );
 }
@@ -469,13 +369,12 @@ interface CutCardProps {
   onMoveLine: (index: number, dir: -1 | 1) => void;
   /** 초안 회차에서만 컷 수정/삭제 가능 */
   editable: boolean;
-  /** 순서/크롭 수정 진행 중 */
+  /** 순서 변경 진행 중 */
   busy: boolean;
   deleting: boolean;
   characterOptions: { value: number; label: string }[];
   characterColor: (id?: number) => string;
   onMove: (dir: -1 | 1) => void;
-  onEditCrop: () => void;
   onRemove: () => void;
   onDraftChange: (patch: Partial<LineDraftInput>) => void;
   onSubmitLine: () => void;
@@ -500,7 +399,6 @@ function CutCard({
   characterOptions,
   characterColor,
   onMove,
-  onEditCrop,
   onRemove,
   onDraftChange,
   onSubmitLine,
@@ -596,9 +494,6 @@ function CutCard({
               disabled={isLast || busy}
               onClick={() => onMove(1)}
             />
-            <Button size="small" onClick={onEditCrop} disabled={busy}>
-              크롭 수정
-            </Button>
             <Popconfirm
               title="이 컷을 삭제할까요?"
               okText="삭제"

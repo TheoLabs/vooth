@@ -1,6 +1,4 @@
-import { IsInt, IsOptional, ValidateNested } from 'class-validator';
-import { Type } from 'class-transformer';
-import { CropBoxDto } from '@libs/utils';
+import { IsInt, IsOptional } from 'class-validator';
 
 export class AdminCutUpdateDto {
   @IsInt()
@@ -18,9 +16,4 @@ export class AdminCutUpdateDto {
   @IsInt()
   @IsOptional()
   imageHeight?: number;
-
-  @ValidateNested()
-  @Type(() => CropBoxDto)
-  @IsOptional()
-  imageCropBox?: CropBoxDto;
 }
