@@ -75,21 +75,27 @@
 /* 필름스트립 캐러셀 뷰포트: 현재 컷이 가운데, 양옆 컷이 뒤로 들어가 어둡게.
    컷 이동 시 각 슬라이드가 offset 위치로 transition → 회전하듯 슬라이드. */
 .anc-viewport {
+  /* --anc-w: 모든 컷이 공유하는 고정 가로폭. 가로·세로(높이) 모두 고정 → 컷을 바꿔도 흔들림 없음. */
+  --anc-w: clamp(320px, 30vw, 520px);
   position: relative;
   width: 100%;
   height: clamp(480px, 78vh, 820px);
   overflow: hidden;
   perspective: 1200px;
 }
-/* 슬라이드: left:50% 기준으로 translateX(-50% + offset) + scale 를 인라인 지정. */
+/* 슬라이드: left:50% 기준으로 translateX(-50% + offset) + scale 를 인라인 지정.
+   가로폭(--anc-w)·높이(뷰포트 높이) 모두 고정. 내부 캔버스가 더 길면 active 슬라이드에서 스크롤. */
 .anc-slide {
   position: absolute;
   top: 0;
   left: 50%;
+  width: var(--anc-w);
   height: 100%;
-  width: auto;
   padding: 0;
   margin: 0;
+  /* 캔버스를 세로 중앙에 두되, 캔버스가 더 길면 margin:auto 가 0 으로 접혀 위쪽까지 스크롤된다. */
+  display: flex;
+  flex-direction: column;
   border-radius: 10px;
   overflow: hidden;
   background: #000;
@@ -101,19 +107,31 @@
     opacity 0.46s ease,
     filter 0.34s ease;
 }
-.anc-slide > img {
+/* 캔버스: 이미지 원본 비율 그대로의 영역(가로=슬라이드폭, 높이=원본비율).
+   앵커 핸들(top:%)의 기준이자, 슬라이드 높이를 넘으면 스크롤되는 콘텐츠. */
+.anc-canvas {
+  position: relative;
+  width: 100%;
+  flex: 0 0 auto;
+  margin: auto 0;
+}
+.anc-canvas > img {
   display: block;
-  height: 100%;
-  width: auto;
+  width: 100%;
+  height: auto;
   pointer-events: none;
 }
-/* 가운데(현재) 컷 — 인터랙티브, 앞으로 나와 밝게. */
+/* 가운데(현재) 컷 — 인터랙티브, 앞으로 나와 밝게.
+   세로가 긴 컷은 여기서 스크롤(가로 스크롤은 막음). */
 .anc-slide--active {
   border: 1px solid var(--vt-accent);
   cursor: default;
   user-select: none;
   filter: brightness(1);
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55);
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
 }
 /* 양옆 컷 — 뒤로 들어가 어둡게, 클릭하면 이동. */
 .anc-slide--side {

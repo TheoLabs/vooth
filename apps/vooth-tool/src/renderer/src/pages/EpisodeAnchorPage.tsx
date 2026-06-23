@@ -6,6 +6,7 @@ import { MockNote } from '../components/MockNote'
 import { EPISODE_STATUS_BADGE } from '../domain/format'
 import { useDirectorEpisode } from '../features/episode/useDirectorEpisodes'
 import { useDirectorCuts } from '../features/cut/useDirectorCuts'
+import { useSetLineAnchorY } from '../features/cut/useSetLineAnchorY'
 import { useDirectorCharacters } from '../features/character/useDirectorCharacters'
 import type { DirectorCut } from '../api/cut.api'
 import './tool.css'
@@ -36,6 +37,8 @@ interface AnchorCut {
   id: number
   position: number
   imageUrl: string
+  imageWidth: number
+  imageHeight: number
   lines: AnchorLine[]
 }
 
@@ -45,6 +48,8 @@ function mapCuts(items: DirectorCut[]): AnchorCut[] {
     id: cut.id,
     position: cut.order,
     imageUrl: cut.imageUrl,
+    imageWidth: cut.imageWidth,
+    imageHeight: cut.imageHeight,
     lines: cut.lines.map((l) => ({
       id: l.id,
       characterId: l.characterId,
@@ -59,7 +64,7 @@ function mapCuts(items: DirectorCut[]): AnchorCut[] {
  * 대사 앵커(anchorY) 설정 — 독립 화면. (연출 에디터에서 분리됨)
  * 회차 메타·상태 + 컷/대사는 실 API. 캐릭터 이름/색은 디렉터 조회가 없어 생성 대체.
  * 컷 이미지를 크게 띄우고, 대사 앵커를 클릭·드래그해 발화 세로 위치(0~1)를 지정한다.
- * 편집은 로컬 state. 저장 시 directors/* PUT(변경분만) 예정(아직 mock).
+ * 편집은 로컬 state. 저장 시 POST /directors/episodes/:id/lines 로 명시 anchorY 라인을 일괄 전송한다.
  */
 export function EpisodeAnchorPage(): React.JSX.Element {
   const { contentId, episodeId } = useParams()
@@ -165,6 +170,25 @@ export function EpisodeAnchorPage(): React.JSX.Element {
     setActiveLineId(null)
   }
 
+  // 저장: 명시 anchorY(균등=null 제외) 라인만 모아 일괄 전송. (API 가 number 만 받음)
+  const setAnchorMutation = useSetLineAnchorY(id)
+  const saveAnchors = (): void => {
+    const anchorYItems = cuts.flatMap((c) =>
+      c.lines
+        .filter((l) => l.anchorY != null)
+        .map((l) => ({ cutId: c.id, lineId: l.id, anchorY: l.anchorY as number }))
+    )
+    setAnchorMutation.mutate(anchorYItems, {
+      onSuccess: () => {
+        setDirty(false)
+        window.alert('대사 앵커를 저장했습니다.')
+      },
+      onError: (err) => {
+        window.alert(`저장에 실패했습니다.\n${err.message}`)
+      }
+    })
+  }
+
   return (
     <div className="tool-page anc-page">
       <div>
@@ -183,13 +207,10 @@ export function EpisodeAnchorPage(): React.JSX.Element {
             <MockNote />
             <button
               className="tool-btn tool-btn--primary"
-              disabled={!dirty}
-              onClick={() => {
-                setDirty(false)
-                window.alert('앵커 저장(mock). 실제로는 변경된 라인만 directors/* PUT 전송.')
-              }}
+              disabled={!dirty || setAnchorMutation.isPending}
+              onClick={saveAnchors}
             >
-              {dirty ? '앵커 저장' : '저장됨'}
+              {setAnchorMutation.isPending ? '저장 중…' : dirty ? '앵커 저장' : '저장됨'}
             </button>
           </div>
         </div>
@@ -250,7 +271,9 @@ export function EpisodeAnchorPage(): React.JSX.Element {
             </div>
 
             {/* 코버플로우 캐러셀: 모든 컷을 같은 element 로 렌더(전환 유지).
-                옆 컷은 뒤(translateZ-)·기울어져 어둡게, 이동하면 깊이축으로 앞으로 나온다. */}
+                옆 컷은 뒤(translateZ-)·기울어져 어둡게, 이동하면 깊이축으로 앞으로 나온다.
+                가로폭(--anc-w)·뷰포트 높이 모두 고정 → 컷을 바꿔도 레이아웃이 흔들리지 않는다.
+                원본 가로가 같은 컷은 항상 같은 가로폭으로 보이고, 세로가 길면 컷 안에서 스크롤. */}
             <div className="anc-viewport">
               {orderedCuts.map((c, i) => {
                 const off = i - safeIdx
@@ -269,7 +292,6 @@ export function EpisodeAnchorPage(): React.JSX.Element {
                 return (
                   <div
                     key={c.id}
-                    ref={isActive ? stageRef : undefined}
                     className={`anc-slide ${isActive ? 'anc-slide--active' : 'anc-slide--side'}`}
                     style={slideStyle}
                     onClick={isActive ? undefined : () => gotoCut(i)}
@@ -278,40 +300,45 @@ export function EpisodeAnchorPage(): React.JSX.Element {
                     onMouseLeave={isActive ? endDrag : undefined}
                     title={isActive ? undefined : `컷 ${c.position}`}
                   >
-                    <img
-                      src={c.imageUrl}
-                      alt={isActive ? `컷 ${c.position}` : ''}
-                      draggable={false}
-                    />
+                    {/* 캔버스 = 이미지 원본 비율 영역. 슬라이드(고정 높이)보다 길면 활성 슬라이드
+                        내부에서 세로 스크롤된다. 앵커 핸들은 캔버스(=이미지 전체 높이) 기준이라
+                        스크롤해도 anchorY(0~1) 계산이 정확하다. */}
+                    <div className="anc-canvas" ref={isActive ? stageRef : undefined}>
+                      <img
+                        src={c.imageUrl}
+                        alt={isActive ? `컷 ${c.position}` : ''}
+                        draggable={false}
+                      />
+                      {/* 대사 앵커 핸들 — 클릭 선택, 위아래 드래그로 anchorY 수정. */}
+                      {isActive &&
+                        lines.map((l, idx) => {
+                          const isNull = l.anchorY == null
+                          // 균등(null) 라인은 균등 분포 위치에 점선 고스트로 표시 → 드래그하면 명시값.
+                          const y = isNull ? (idx + 1) / (lines.length + 1) : (l.anchorY as number)
+                          const active = l.id === activeLineId
+                          return (
+                            <div
+                              key={l.id}
+                              className={`anc-handle${active ? ' anc-handle--active' : ''}${
+                                isNull ? ' anc-handle--ghost' : ''
+                              }`}
+                              style={{ top: `${y * 100}%`, color: charColor(l.characterId) }}
+                              onMouseDown={(e) => onHandleDown(e, l.id)}
+                              title={`L${idx + 1} ${charName(l.characterId)} · ${
+                                isNull ? '균등(기본)' : (l.anchorY as number).toFixed(2)
+                              }`}
+                            >
+                              <span className="anc-handle__line" />
+                              <span className="anc-handle__label">
+                                L{idx + 1}
+                                {isNull ? ' · 균등' : ''}
+                              </span>
+                              <span className="anc-handle__dot" />
+                            </div>
+                          )
+                        })}
+                    </div>
                     {!isActive && <span className="anc-peek__no">컷 {c.position}</span>}
-                    {/* 대사 앵커 핸들 — 클릭 선택, 위아래 드래그로 anchorY 수정. */}
-                    {isActive &&
-                      lines.map((l, idx) => {
-                        const isNull = l.anchorY == null
-                        // 균등(null) 라인은 균등 분포 위치에 점선 고스트로 표시 → 드래그하면 명시값.
-                        const y = isNull ? (idx + 1) / (lines.length + 1) : (l.anchorY as number)
-                        const active = l.id === activeLineId
-                        return (
-                          <div
-                            key={l.id}
-                            className={`anc-handle${active ? ' anc-handle--active' : ''}${
-                              isNull ? ' anc-handle--ghost' : ''
-                            }`}
-                            style={{ top: `${y * 100}%`, color: charColor(l.characterId) }}
-                            onMouseDown={(e) => onHandleDown(e, l.id)}
-                            title={`L${idx + 1} ${charName(l.characterId)} · ${
-                              isNull ? '균등(기본)' : (l.anchorY as number).toFixed(2)
-                            }`}
-                          >
-                            <span className="anc-handle__line" />
-                            <span className="anc-handle__label">
-                              L{idx + 1}
-                              {isNull ? ' · 균등' : ''}
-                            </span>
-                            <span className="anc-handle__dot" />
-                          </div>
-                        )
-                      })}
                   </div>
                 )
               })}

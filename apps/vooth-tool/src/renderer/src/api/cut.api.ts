@@ -30,3 +30,21 @@ export interface DirectorCut {
 export function fetchDirectorCuts(episodeId: number): Promise<Paginated<DirectorCut>> {
   return apiRequest<Paginated<DirectorCut>>(`/directors/episodes/${episodeId}/cuts`)
 }
+
+/** POST /directors/episodes/:episodeId/lines 요청 아이템. anchorY 는 명시 숫자(0~1)만(균등=null 은 제외). */
+export interface LineAnchorYItem {
+  cutId: number
+  lineId: number
+  anchorY: number
+}
+
+/** POST /directors/episodes/:episodeId/lines — 대사 발화 위치(anchorY)를 일괄 저장. */
+export function saveLineAnchorY(
+  episodeId: number,
+  anchorYItems: LineAnchorYItem[]
+): Promise<unknown> {
+  return apiRequest<unknown>(`/directors/episodes/${episodeId}/lines`, {
+    method: 'POST',
+    body: JSON.stringify({ anchorYItems })
+  })
+}

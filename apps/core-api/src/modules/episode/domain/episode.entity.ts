@@ -1,6 +1,6 @@
 import { DddAggregate } from '@libs/ddd';
 import { BadRequestException } from '@nestjs/common';
-import { CalendarDate, type CropBox, EpisodeStatus } from '@vooth/shared';
+import { CalendarDate, canTransitionEpisode, type CropBox, EpisodeStatus } from '@vooth/shared';
 import { AfterInsert, Column, Entity, Index, PrimaryGeneratedColumn } from 'typeorm';
 import { EpisodeCreatedEvent, EpisodeRemovedEvent } from './events';
 import { Content } from '@modules/content/domain/content.entity';
@@ -122,5 +122,16 @@ export class Episode extends DddAggregate {
     }
 
     this.publishEvent(new EpisodeRemovedEvent({ episodeId: this.id, contentId: this.contentId }));
+  }
+
+  transitionTo(nextStatus: EpisodeStatus) {
+    if (!canTransitionEpisode(this.status, nextStatus)) {
+      throw new BadRequestException(
+        `잘못된 상태 전이입니다. (${this.status} -> ${nextStatus})`,
+        `잘못된 상태 전이입니다. (${this.status} -> ${nextStatus})`
+      );
+    }
+
+    this.status = nextStatus;
   }
 }

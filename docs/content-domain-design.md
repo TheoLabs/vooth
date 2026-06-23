@@ -12,9 +12,9 @@
 ## 1. 바운디드 컨텍스트
 | BC | 책임 | 주 사용처 |
 |----|------|-----------|
-| **Content** | 작품·회차·컷·대사·캐스팅 등록/편집/게시 | voot-back-office (CONTENT_MANAGER) |
+| **Content** | 작품·회차·컷·대사·캐스팅 등록/편집/게시 | vooth-back-office (CONTENT_MANAGER) |
 | **Recording** | 성우 녹음 + 검수(최종 take/상태) | vooth-maker |
-| Identity | 계정·역할·권한 | voot-back-office |
+| Identity | 계정·역할·권한 | vooth-back-office |
 
 > Recording 은 오디오 산출물이 생기고 추후 **인코딩**이 붙을 수 있어, 멀티서비스 분리 로드맵(인코딩 별도 서버)과
 > 연결된다. 지금은 core-api 안의 **별도 모듈/애그리게이트**로 두고, 나중에 분리 가능하게 설계한다.
@@ -189,7 +189,7 @@ Recording.approve(txn1) → RecordingApproved → 핸들러 → Episode.selectFi
 - 핸들러는 **AsyncLocalStorage 컨텍스트** 안에서 실행(컨슈머가 `Context.run` 대신 `asyncLocalStorage.run(new Map())` 으로 열어줌 — `@Transactional` 의존).
 - DLQ 소비/알림(재처리·슬랙) = 다음 단계. (선택: 부트스트랩에서 admin `createTopics` 로 환경 무관 보장)
 
-### 11.7 프론트 룰 (CLAUDE.md › voot-back-office 컨벤션 반영)
+### 11.7 프론트 룰 (CLAUDE.md › vooth-back-office 컨벤션 반영)
 - **부분 수정 룰**: PUT/PATCH 는 **변경된 필드만**(원본 비교, 배열은 순서무관 집합 비교, 변경 없으면 미전송).
 - **타임스탬프 룰**: `createdAt/updatedAt` = UTC(ISO) → 화면은 **로컬 변환** 표시(`new Date(iso)` + 로컬 getter; `toISOString().slice` 금지).
 
@@ -435,7 +435,7 @@ Render (AR)
 | 작업 | 앱 | 행위자 | 내용 |
 |---|---|---|---|
 | **녹음** | vooth-maker | 성우 | 컷/대사별 take 녹음·제출. ScrollPreview는 **읽기전용**(내 take가 어떻게 얹히나) |
-| **연출** | voot-back-office | 연출자/관리자 | 채택(LineTake) + anchorY/gap/hold + 전역 렌더 설정 + **편집형 ScrollPreview** + 렌더 요청 |
+| **연출** | vooth-back-office | 연출자/관리자 | 채택(LineTake) + anchorY/gap/hold + 전역 렌더 설정 + **편집형 ScrollPreview** + 렌더 요청 |
 
 ### 15.7 저장 vs 유도 경계
 | 항목 | 처리 |

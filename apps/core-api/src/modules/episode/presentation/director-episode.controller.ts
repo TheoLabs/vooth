@@ -1,5 +1,5 @@
 import { DirectorGuard } from '@common/guards';
-import { Controller, Get, Param, ParseIntPipe, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, ParseIntPipe, Put, Query, UseGuards } from '@nestjs/common';
 import { DirectorEpisodeService } from '../applications/director-episode.service';
 import { DirectorEpisodeQueryDto } from './dto';
 
@@ -33,5 +33,19 @@ export class DirectorEpisodeController {
 
     // 4. Send response
     return { data };
+  }
+
+  @Put(':episodeId/status/ready')
+  async ready(
+    @Param('contentId', ParseIntPipe) contentId: number,
+    @Param('episodeId', ParseIntPipe) episodeId: number
+  ) {
+    // 1. Destructure body, params, query
+    // 2. Get context
+    // 3. Get result
+    await this.directorEpisodeService.ready({ contentId, episodeId });
+
+    // 4. Send response
+    return { data: {} };
   }
 }

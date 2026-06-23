@@ -5,6 +5,7 @@ import { EpisodeStatus } from '@vooth/shared';
 import { PaginationOptions } from '@libs/utils';
 import { CutRepository } from '@modules/cut/infrastructure/cut.repository';
 import { DirectorEpisodeListResponseDto } from '../presentation/dto';
+import { Transactional } from '@libs/decorators';
 
 @Injectable()
 export class DirectorEpisodeService extends DddService {
@@ -60,5 +61,20 @@ export class DirectorEpisodeService extends DddService {
     }
 
     return episode;
+  }
+
+  @Transactional()
+  async ready({ contentId, episodeId }: { contentId: number; episodeId: number }) {
+    const [episode] = await this.episodeRepository.find({ id: episodeId, contentId });
+
+    if (!episode) {
+      throw new BadRequestException('해당 에피소드를 찾을 수 없습니다.', {
+        cause: '해당 에피소드를 찾을 수 없습니다.',
+      });
+    }
+
+    episode.transitionTo(EpisodeStatus.READY);
+
+    await this.episodeRepository.save([episode]);
   }
 }

@@ -7,7 +7,7 @@ pnpm + Turborepo 모노레포. `apps/` 에 4개 애플리케이션, 공유 코�
 | `apps/core-api` | NestJS 11 | 백엔드 API |
 | `apps/vooth-maker` | React 19 + TS + Vite + Electron | 성우 **녹음** 데스크톱 앱 |
 | `apps/vooth-tool` | React 19 + TS + Vite + Electron | **연출·제작** 데스크톱 앱(anchorY/gap/hold 연출, 채택, 연속 스크롤 미리보기, 렌더) |
-| `apps/voot-back-office` | React 19 + TS + Vite | 사내 백오피스 웹(콘텐츠·컷/대사 **등록**·관리). 연출 UI는 두지 않음 |
+| `apps/vooth-back-office` | React 19 + TS + Vite | 사내 백오피스 웹(콘텐츠·컷/대사 **등록**·관리). 연출 UI는 두지 않음 |
 
 > 화면 경계: back-office=등록/관리, vooth-tool=연출/제작, vooth-maker=녹음. 데이터 모델(anchorY/gap/hold/cropBox)은 core-api에 둔다. 상세는 `docs/content-domain-design.md` §15.
 
@@ -17,7 +17,7 @@ pnpm + Turborepo 모노레포. `apps/` 에 4개 애플리케이션, 공유 코�
 
 | 앱 | 네임스페이스 | 인증 가드 | 계정 |
 |----|------|------|------|
-| `voot-back-office` | `admins/*` | `AdminGuard` | ADMIN |
+| `vooth-back-office` | `admins/*` | `AdminGuard` | ADMIN |
 | `vooth-maker` | `creators/*` | `CreatorGuard` | CREATOR |
 | `vooth-tool` | `directors/*` | `DirectorGuard` | ADMIN(연출자/검수자 = 내부 관리자) |
 
@@ -31,7 +31,7 @@ pnpm + Turborepo 모노레포. `apps/` 에 4개 애플리케이션, 공유 코�
   - 이 디렉토리의 코드를 작성/수정하기 전에는 **반드시 사용자에게 먼저 허락을 받는다.**
   - 질문 답변, 코드 설명, 리뷰, 분석은 허락 없이 해도 되지만, **파일 편집은 명시적 승인 없이 하지 않는다.**
 
-- **`apps/vooth-maker`, `apps/vooth-tool`, `apps/voot-back-office` (프론트엔드) — 자율 진행.**
+- **`apps/vooth-maker`, `apps/vooth-tool`, `apps/vooth-back-office` (프론트엔드) — 자율 진행.**
   - 구현 방향과 세부 사항은 Claude가 스스로 판단해서 진행한다.
   - 매번 허락을 받을 필요 없이 작업하되, 큰 구조 변경이나 의존성 추가는 결과를 명확히 보고한다.
 
@@ -42,7 +42,7 @@ pnpm + Turborepo 모노레포. `apps/` 에 4개 애플리케이션, 공유 코�
 - **목록 조회용 Query DTO는 항상 `PaginationDto`(`@libs/utils`)를 상속받는다.** 페이지네이션(page/limit/sort/order)을 일관되게 제공하기 위함. (예: `AccountQueryDto`, `RoleQueryDto` → `extends PaginationDto`)
 - 페이지네이션 목록 응답은 `{ items, total }` 형태로 반환한다.
 
-## voot-back-office 컨벤션
+## vooth-back-office 컨벤션
 
 - **레이아웃 룰: main content(테이블 영역)에는 바깥 스크롤을 만들지 않는다.** 화면은 항상 뷰포트에 꽉 차고, 스크롤은 **테이블 내부 body** 에만 생긴다.
   - `AppLayout`의 Content 는 `.bo-content`(높이 고정 + `overflow: hidden`).
@@ -62,7 +62,7 @@ pnpm + Turborepo 모노레포. `apps/` 에 4개 애플리케이션, 공유 코�
 
 ## 작업 방식 규칙
 
-- **프론트 앱(`apps/vooth-maker`, `apps/vooth-tool`, `apps/voot-back-office`)은 항상 서로 다른 에이전트로 작업한다.**
+- **프론트 앱(`apps/vooth-maker`, `apps/vooth-tool`, `apps/vooth-back-office`)은 항상 서로 다른 에이전트로 작업한다.**
   - 여러 앱과 관련된 작업이 함께 들어오면, 각 앱마다 별도의 서브에이전트를 띄워 **병렬로** 진행한다 (한 에이전트가 둘 이상을 같이 건드리지 않는다).
   - 각 에이전트는 자기 앱 디렉토리 밖(다른 프론트 앱, core-api)을 수정하지 않는다.
   - 한쪽 앱만 작업하는 경우에는 해당 앱 에이전트 하나만 띄우면 된다.
