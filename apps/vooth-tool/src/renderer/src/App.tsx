@@ -23,7 +23,10 @@ function App(): React.JSX.Element {
             <Route index element={<HomePage />} />
             <Route path="anchors" element={<AnchorContentListPage />} />
             <Route path="anchors/contents/:contentId" element={<AnchorContentDetailPage />} />
-            <Route path="anchors/:episodeId" element={<EpisodeAnchorPage />} />
+            <Route
+              path="anchors/contents/:contentId/episodes/:episodeId"
+              element={<EpisodeAnchorPage />}
+            />
             <Route path="episodes" element={<EpisodeListPage />} />
             <Route path="episodes/:episodeId" element={<EpisodeEditorPage />} />
             <Route path="episodes/:episodeId/adopt" element={<EpisodeAdoptPage />} />

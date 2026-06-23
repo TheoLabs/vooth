@@ -1,5 +1,6 @@
 import { keepPreviousData, useQuery, type UseQueryResult } from '@tanstack/react-query'
 import {
+  fetchDirectorEpisode,
   fetchDirectorEpisodes,
   type DirectorEpisode,
   type DirectorEpisodeListParams,
@@ -17,6 +18,19 @@ export function useDirectorEpisodes(
     queryFn: () => fetchDirectorEpisodes(contentId, params),
     enabled: Number.isFinite(contentId),
     placeholderData: keepPreviousData,
+    retry: false
+  })
+}
+
+/** GET /directors/contents/:contentId/episodes/:episodeId 회차 상세(메타) 훅. */
+export function useDirectorEpisode(
+  contentId: number,
+  episodeId: number
+): UseQueryResult<DirectorEpisode, ApiError> {
+  return useQuery<DirectorEpisode, ApiError>({
+    queryKey: ['director-episode', contentId, episodeId],
+    queryFn: () => fetchDirectorEpisode(contentId, episodeId),
+    enabled: Number.isFinite(contentId) && Number.isFinite(episodeId),
     retry: false
   })
 }

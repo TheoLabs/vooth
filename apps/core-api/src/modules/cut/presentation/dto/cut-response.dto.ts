@@ -63,3 +63,10 @@ export class AdminCutResponseDto extends BaseCutResponseDto {
   @Type(() => LineResponseDto)
   lines: LineResponseDto[];
 }
+
+@Exclude()
+export class DirectorCutListResponseDto extends BaseCutResponseDto {
+  @Expose()
+  @Type(() => LineResponseDto)
+  lines: LineResponseDto[];
+}

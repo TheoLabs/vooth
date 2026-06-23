@@ -1,42 +1,99 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { getEpisodeDetail } from '../domain/mockData'
-import { EPISODE_STATUS_LABEL, EpisodeStatus, type Cut, type EpisodeDetail } from '../domain/types'
+import { EPISODE_STATUS_LABEL, EpisodeStatus } from '../domain/types'
 import { Badge } from '../components/Badge'
 import { MockNote } from '../components/MockNote'
 import { EPISODE_STATUS_BADGE } from '../domain/format'
+import { useDirectorEpisode } from '../features/episode/useDirectorEpisodes'
+import { useDirectorCuts } from '../features/cut/useDirectorCuts'
+import { useDirectorCharacters } from '../features/character/useDirectorCharacters'
+import type { DirectorCut } from '../api/cut.api'
 import './tool.css'
 import './editor.css'
 import './anchor.css'
 
+/** 캐릭터 색 팔레트(디렉터 표면에 캐릭터 color 가 없어 characterId 순서로 부여). */
+const CHAR_PALETTE = [
+  '#6366f1',
+  '#ec4899',
+  '#22c55e',
+  '#f59e0b',
+  '#06b6d4',
+  '#a855f7',
+  '#ef4444',
+  '#14b8a6'
+]
+
+/** 앵커 편집용 컷/대사(연결·연출 필드는 제외한 슬림 모델). */
+interface AnchorLine {
+  id: number
+  characterId: number
+  text: string
+  position: number
+  anchorY: number | null
+}
+interface AnchorCut {
+  id: number
+  position: number
+  imageUrl: string
+  lines: AnchorLine[]
+}
+
+/** 컷 목록 응답 → 앵커 편집 모델. (cut.order→position, line.script→text, line.order→position) */
+function mapCuts(items: DirectorCut[]): AnchorCut[] {
+  return items.map((cut) => ({
+    id: cut.id,
+    position: cut.order,
+    imageUrl: cut.imageUrl,
+    lines: cut.lines.map((l) => ({
+      id: l.id,
+      characterId: l.characterId,
+      text: l.script,
+      position: l.order,
+      anchorY: l.anchorY
+    }))
+  }))
+}
+
 /**
  * 대사 앵커(anchorY) 설정 — 독립 화면. (연출 에디터에서 분리됨)
- * 컷 이미지를 크게 띄우고, 선택한 대사의 발화 세로 위치(anchorY 0~1)를
- * 이미지 위 클릭/드래그로 지정한다. 숫자 입력·“균등(null)” 도 지원.
- * 편집은 로컬 state(mock). 저장 시 directors/* PUT(변경분만) 예정.
+ * 회차 메타·상태 + 컷/대사는 실 API. 캐릭터 이름/색은 디렉터 조회가 없어 생성 대체.
+ * 컷 이미지를 크게 띄우고, 대사 앵커를 클릭·드래그해 발화 세로 위치(0~1)를 지정한다.
+ * 편집은 로컬 state. 저장 시 directors/* PUT(변경분만) 예정(아직 mock).
  */
 export function EpisodeAnchorPage(): React.JSX.Element {
-  const { episodeId } = useParams()
+  const { contentId, episodeId } = useParams()
   const navigate = useNavigate()
+  const cid = Number(contentId)
   const id = Number(episodeId)
 
-  const initial = useMemo<EpisodeDetail>(() => getEpisodeDetail(id), [id])
-  const [cuts, setCuts] = useState<Cut[]>(() =>
-    initial.cuts.map((c) => ({ ...c, lines: c.lines.map((l) => ({ ...l })) }))
-  )
+  // 회차 메타·상태(상세 조회) + 컷/대사(컷 목록 조회)를 실 API 로 가져온다.
+  const { data: episode } = useDirectorEpisode(cid, id)
+  const { data: cutData, isLoading: cutsLoading } = useDirectorCuts(id)
+
+  // 컷/대사를 앵커 편집용 로컬 state 로 hydrate(회차별 최초 1회).
+  const [cuts, setCuts] = useState<AnchorCut[]>([])
+  const hydratedIdRef = useRef<number | null>(null)
+  useEffect(() => {
+    if (!cutData || hydratedIdRef.current === id) return
+    hydratedIdRef.current = id
+    setCuts(mapCuts(cutData.items))
+  }, [cutData, id])
+
   const [dirty, setDirty] = useState(false)
-  // 회차 상태(mock). 앵커 작업 완료 → 녹음 대기(READY)로 전환한다.
-  const [status, setStatus] = useState<EpisodeStatus>(initial.status)
+  // 회차 상태: 실 API 값을 기본으로, 로컬 전환은 override(저장은 아직 mock).
+  const [statusOverride, setStatusOverride] = useState<EpisodeStatus | null>(null)
+  const status = statusOverride ?? episode?.status ?? EpisodeStatus.DRAFT
 
   const promoteToReady = (): void => {
     const ok = window.confirm(
       '대사 앵커 작업을 마치고 ‘녹음 대기’ 상태로 전환할까요?\n이후 성우 녹음 단계로 넘어갑니다.'
     )
     if (!ok) return
-    setStatus(EpisodeStatus.READY)
+    setStatusOverride(EpisodeStatus.READY)
     // mock: 실제로는 directors/* PUT 으로 상태 전이.
   }
-  const revertToDraft = (): void => setStatus(EpisodeStatus.DRAFT)
+  const revertToDraft = (): void => setStatusOverride(EpisodeStatus.DRAFT)
 
   const orderedCuts = useMemo(() => [...cuts].sort((a, b) => a.position - b.position), [cuts])
   const [cutIdx, setCutIdx] = useState(0)
@@ -49,12 +106,19 @@ export function EpisodeAnchorPage(): React.JSX.Element {
   )
   const [activeLineId, setActiveLineId] = useState<number | null>(null)
 
-  const charById = useMemo(
-    () => new Map(initial.characters.map((c) => [c.id, c])),
-    [initial.characters]
-  )
-  const charColor = (cid: number): string => charById.get(cid)?.color ?? '#94a3b8'
-  const charName = (cid: number): string => charById.get(cid)?.name ?? '미지정'
+  // 캐릭터 이름은 실 API. color 는 디렉터 표면에 없어 순서대로 팔레트를 부여.
+  const { data: charData } = useDirectorCharacters(cid)
+  const charById = useMemo(() => {
+    const m = new Map<number, { name: string; color: string }>()
+    ;[...(charData?.items ?? [])]
+      .sort((a, b) => (a.order ?? a.id) - (b.order ?? b.id))
+      .forEach((c, i) => {
+        m.set(c.id, { name: c.name, color: CHAR_PALETTE[i % CHAR_PALETTE.length] })
+      })
+    return m
+  }, [charData])
+  const charColor = (charId: number): string => charById.get(charId)?.color ?? '#94a3b8'
+  const charName = (charId: number): string => charById.get(charId)?.name ?? `캐릭터 ${charId}`
 
   const stageRef = useRef<HTMLDivElement>(null)
   // 드래그 중인 라인 id(없으면 null). 핸들 mousedown 으로 시작, 스테이지에서 위아래 드래그.
@@ -104,18 +168,15 @@ export function EpisodeAnchorPage(): React.JSX.Element {
   return (
     <div className="tool-page anc-page">
       <div>
-        <button
-          className="ed-back"
-          onClick={() => navigate(`/anchors/contents/${initial.contentId}`)}
-        >
+        <button className="ed-back" onClick={() => navigate(`/anchors/contents/${cid}`)}>
           ← 작품 상세
         </button>
         <div className="tool-page__head">
           <div>
             <h2 className="tool-page__title">대사 앵커 설정</h2>
             <p className="tool-page__desc">
-              {initial.contentTitle} · {initial.episodeNo}화 — 컷 위의 대사 앵커를 클릭해 선택하고
-              드래그해 발화 세로 위치(anchorY)를 지정합니다.
+              {episode ? `${episode.chapter}화 · ${episode.title}` : '회차'} — 컷 위의 대사 앵커를
+              클릭해 선택하고 드래그해 발화 세로 위치(anchorY)를 지정합니다.
             </p>
           </div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -324,7 +385,9 @@ export function EpisodeAnchorPage(): React.JSX.Element {
           </div>
         </div>
       ) : (
-        <div className="tool-card ed-empty">등록된 컷이 없습니다. (컷·대사 등록은 back-office)</div>
+        <div className="tool-card ed-empty">
+          {cutsLoading ? '컷을 불러오는 중…' : '등록된 컷이 없습니다. (컷·대사 등록은 back-office)'}
+        </div>
       )}
     </div>
   )

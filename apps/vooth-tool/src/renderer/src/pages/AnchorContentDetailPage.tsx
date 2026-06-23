@@ -9,16 +9,24 @@ import { CONTENT_STATUS_LABEL, type DirectorContent } from '../api/content.api'
 import './tool.css'
 import './content.css'
 
-/** 앵커 단계(녹음 전) 회차 상태. 그 외(녹음 이후)는 연출 단계로 본다. */
-const ANCHOR_STATUSES = new Set<string>([EpisodeStatus.DRAFT, EpisodeStatus.READY])
+/** 앵커 작업 대상은 Draft 회차. 그 외(녹음 이후)는 연출 단계로 본다. */
+const ANCHOR_STATUSES = [EpisodeStatus.DRAFT]
+const DIRECT_STATUSES = Object.values(EpisodeStatus).filter((s) => s !== EpisodeStatus.DRAFT)
 
 type Tab = 'all' | 'anchor' | 'direct'
+
+/** 탭별로 서버에 보낼 status 필터(전체는 미필터). */
+const TAB_STATUSES: Record<Tab, EpisodeStatus[] | undefined> = {
+  all: undefined,
+  anchor: ANCHOR_STATUSES,
+  direct: DIRECT_STATUSES
+}
 
 /**
  * 컨텐츠 — 2단계: 작품 상세 + 하단 회차 탭(앵커 / 연출).
  * 상단: GET /directors/contents/:id 작품 메타(썸네일 중앙).
- * 하단: 회차를 단계별로 탭 분기 — 앵커 탭(draft/ready)→앵커 화면, 연출 탭(녹음 이후)→연출 에디터.
- * (directors/episodes 에 contentId 필터가 아직 없어 클라에서 contentId 로 거른다.)
+ * 하단: 회차를 단계별로 탭 분기 — 앵커 탭(Draft)→앵커 화면, 연출 탭(녹음 이후)→연출 에디터.
+ * 회차는 /directors/contents/:id/episodes 에서 서버가 콘텐츠 + (탭별) status 로 필터한다.
  */
 export function AnchorContentDetailPage(): React.JSX.Element {
   const { contentId } = useParams()
@@ -31,25 +39,32 @@ export function AnchorContentDetailPage(): React.JSX.Element {
   const { data: fetched } = useDirectorContent(id)
   const content = fetched ?? passed ?? null
 
-  // 회차는 작품 하위 엔드포인트(/directors/contents/:id/episodes)에서 서버가 콘텐츠로 필터.
-  const { data: episodeData, isLoading, isError, error } = useDirectorEpisodes(id, { limit: 200 })
   const [tab, setTab] = useState<Tab>('all')
   const [search, setSearch] = useState('')
+
+  // 회차는 작품 하위 엔드포인트에서 서버가 콘텐츠 + (탭별) status 로 필터. 앵커 탭 = Draft.
+  const {
+    data: episodeData,
+    isLoading,
+    isError,
+    error
+  } = useDirectorEpisodes(id, {
+    statuses: TAB_STATUSES[tab],
+    limit: 200
+  })
 
   // 회차 검색은 클라에서 거른다(items 가 배열이 아닌 비정상 응답이어도 크래시하지 않도록 가드).
   const items = Array.isArray(episodeData?.items) ? episodeData.items : []
   const q = search.trim().toLowerCase()
-  const allEpisodes = items.filter((e) => {
-    if (!q) return true
-    return e.title.toLowerCase().includes(q) || String(e.chapter).includes(q)
-  })
-  const anchorEpisodes = allEpisodes.filter((e) => ANCHOR_STATUSES.has(e.status))
-  const directEpisodes = allEpisodes.filter((e) => !ANCHOR_STATUSES.has(e.status))
-  const rows = tab === 'anchor' ? anchorEpisodes : tab === 'direct' ? directEpisodes : allEpisodes
+  const rows = q
+    ? items.filter((e) => e.title.toLowerCase().includes(q) || String(e.chapter).includes(q))
+    : items
 
-  // 회차 상태에 맞는 에디터로 이동(앵커 단계→앵커 화면, 그 외→연출 에디터).
+  // 회차 상태에 맞는 에디터로 이동(Draft→앵커 화면, 그 외→연출 에디터).
   const routeFor = (status: string, episodeId: number): string =>
-    ANCHOR_STATUSES.has(status) ? `/anchors/${episodeId}` : `/episodes/${episodeId}`
+    status === EpisodeStatus.DRAFT
+      ? `/anchors/contents/${id}/episodes/${episodeId}`
+      : `/episodes/${episodeId}`
 
   return (
     <div className="tool-page">
@@ -90,19 +105,19 @@ export function AnchorContentDetailPage(): React.JSX.Element {
               className={`ct-tab${tab === 'all' ? ' ct-tab--active' : ''}`}
               onClick={() => setTab('all')}
             >
-              전체<span className="ct-tab__count">{allEpisodes.length}</span>
+              전체
             </button>
             <button
               className={`ct-tab${tab === 'anchor' ? ' ct-tab--active' : ''}`}
               onClick={() => setTab('anchor')}
             >
-              앵커<span className="ct-tab__count">{anchorEpisodes.length}</span>
+              앵커
             </button>
             <button
               className={`ct-tab${tab === 'direct' ? ' ct-tab--active' : ''}`}
               onClick={() => setTab('direct')}
             >
-              연출<span className="ct-tab__count">{directEpisodes.length}</span>
+              연출
             </button>
           </div>
           <input

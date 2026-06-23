@@ -1,5 +1,5 @@
 import { DddService } from '@libs/ddd';
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { EpisodeRepository } from '../infrastructure/episode.repository';
 import { EpisodeStatus } from '@vooth/shared';
 import { PaginationOptions } from '@libs/utils';
@@ -50,5 +50,15 @@ export class DirectorEpisodeService extends DddService {
     };
   }
 
-  async retrieve() {}
+  async retrieve({ id, contentId }: { id: number; contentId: number }) {
+    const [episode] = await this.episodeRepository.find({ id, contentId });
+
+    if (!episode) {
+      throw new BadRequestException('해당 에피소드를 찾을 수 없습니다.', {
+        cause: '해당 에피소드를 찾을 수 없습니다.',
+      });
+    }
+
+    return episode;
+  }
 }

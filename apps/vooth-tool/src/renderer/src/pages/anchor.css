@@ -180,7 +180,9 @@
   top: 0;
   height: 2px;
   background: currentColor;
-  opacity: 0.9;
+  opacity: 1;
+  /* 밝은 컷 이미지 위에서도 선이 묻히지 않도록 대비용 외곽 그림자 */
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.55);
 }
 .anc-handle__dot {
   position: absolute;
@@ -205,15 +207,20 @@
 }
 /* 균등(null) 라인: 점선 고스트 — 드래그하면 명시 anchorY 로 바뀐다. */
 .anc-handle--ghost {
-  opacity: 0.55;
+  opacity: 0.92;
 }
 .anc-handle--ghost .anc-handle__line {
   height: 0;
-  border-top: 2px dashed currentColor;
+  /* 더 굵고 또렷한 점선 + 이미지 위 대비용 외곽 그림자 */
+  border-top: 3px dashed currentColor;
   background: transparent;
+  filter: drop-shadow(0 0 1.5px rgba(0, 0, 0, 0.9));
 }
 .anc-handle--ghost .anc-handle__dot {
   background: transparent;
+  box-shadow:
+    0 0 0 2px currentColor,
+    0 0 3px rgba(0, 0, 0, 0.85);
 }
 /* 선택된 핸들: 강조(굵은 선 + 큰 점 + 글로우). */
 .anc-handle--active {

@@ -50,3 +50,11 @@ export function fetchDirectorEpisodes(
     `/directors/contents/${contentId}/episodes${q ? `?${q}` : ''}`
   )
 }
+
+/** GET /directors/contents/:contentId/episodes/:episodeId — 회차 상세(메타). */
+export function fetchDirectorEpisode(
+  contentId: number,
+  episodeId: number
+): Promise<DirectorEpisode> {
+  return apiRequest<DirectorEpisode>(`/directors/contents/${contentId}/episodes/${episodeId}`)
+}
