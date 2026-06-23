@@ -93,11 +93,13 @@ export class Cut extends DddAggregate {
     characterId,
     script,
     order,
+    anchorY,
   }: {
     lineId: number;
     characterId?: number;
     script?: string;
     order?: number;
+    anchorY?: number;
   }) {
     const targetLine = this.lines.find((line) => line.id === lineId);
 
@@ -119,6 +121,7 @@ export class Cut extends DddAggregate {
       characterId,
       script,
       order,
+      anchorY,
     });
   }
 

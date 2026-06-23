@@ -27,7 +27,7 @@ export class AdminLineService extends DddService {
     script: string;
     order: number;
   }) {
-    const [cut] = await this.cutRepository.find({ id: cutId }, { relations: { lines: true } });
+    const [cut] = await this.cutRepository.find({ ids: [cutId] }, { relations: { lines: true } });
     if (!cut) {
       throw new BadRequestException('해당하는 컷이 없습니다.', {
         cause: '해당하는 컷이 없습니다.',
@@ -70,7 +70,7 @@ export class AdminLineService extends DddService {
     script?: string;
     order?: number;
   }) {
-    const [cut] = await this.cutRepository.find({ id: cutId }, { relations: { lines: true } });
+    const [cut] = await this.cutRepository.find({ ids: [cutId] }, { relations: { lines: true } });
     if (!cut) {
       throw new BadRequestException('해당하는 컷이 없습니다.', {
         cause: '해당하는 컷이 없습니다.',
@@ -104,7 +104,7 @@ export class AdminLineService extends DddService {
 
   @Transactional()
   async remove({ cutId, lineId }: { cutId: number; lineId: number }) {
-    const [cut] = await this.cutRepository.find({ id: cutId }, { relations: { lines: true } });
+    const [cut] = await this.cutRepository.find({ ids: [cutId] }, { relations: { lines: true } });
     if (!cut) {
       throw new BadRequestException('해당하는 컷이 없습니다.', {
         cause: '해당하는 컷이 없습니다.',

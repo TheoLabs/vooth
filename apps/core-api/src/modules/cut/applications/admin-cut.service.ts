@@ -100,7 +100,7 @@ export class AdminCutService extends DddService {
 
     episode.validateChildEditable();
 
-    const [cut] = await this.cutRepository.find({ id, episodeId });
+    const [cut] = await this.cutRepository.find({ ids: [id], episodeId });
     if (!cut) {
       throw new BadRequestException('해당하는 컷이 없습니다.', {
         cause: '해당하는 컷이 없습니다.',
@@ -127,7 +127,7 @@ export class AdminCutService extends DddService {
 
   @Transactional()
   async remove({ id, episodeId }: { id: number; episodeId: number }) {
-    const [cut] = await this.cutRepository.find({ id, episodeId });
+    const [cut] = await this.cutRepository.find({ ids: [id], episodeId });
 
     if (!cut) {
       throw new BadRequestException('해당하는 컷이 없습니다.', {

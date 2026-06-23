@@ -9,11 +9,13 @@ import { FileModule } from '@modules/file/file.module';
 import { CharacterModule } from '@modules/character/character.module';
 import { DirectorCutController } from './presentation/director-cut.controller';
 import { DirectorCutService } from './applications/director-cut.service';
+import { DirectorLineController } from './presentation/director-line.controller';
+import { DirectorLineService } from './applications/director-line.service';
 
 @Module({
   imports: [FileModule, EpisodeModule, CharacterModule],
-  controllers: [AdminCutController, AdminLineController, DirectorCutController],
-  providers: [CutRepository, AdminCutService, AdminLineService, DirectorCutService],
-  exports: [CutRepository, AdminCutService, AdminLineService, DirectorCutService],
+  controllers: [AdminCutController, AdminLineController, DirectorCutController, DirectorLineController],
+  providers: [CutRepository, AdminCutService, AdminLineService, DirectorCutService, DirectorLineService],
+  exports: [CutRepository, AdminCutService, AdminLineService, DirectorCutService, DirectorLineService],
 })
 export class CutModule {}
