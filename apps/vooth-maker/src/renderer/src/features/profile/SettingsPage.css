@@ -1,4 +1,6 @@
 .settings {
+  margin: 0 auto;
+  padding: 28px;
   display: flex;
   flex-direction: column;
   gap: 20px;
@@ -15,15 +17,15 @@
   margin: 0;
   font-size: 22px;
   font-weight: 800;
-  color: #0f172a;
+  color: var(--text);
 }
 
 /* ---- card ---- */
 .settings-card {
   display: flex;
   flex-direction: column;
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 14px;
   overflow: hidden;
 }
@@ -36,14 +38,14 @@
 }
 
 .settings-section + .settings-section {
-  border-top: 1px solid #f1f5f9;
+  border-top: 1px solid var(--surface-2);
 }
 
 .settings-section__title {
   margin: 0;
   font-size: 14px;
   font-weight: 700;
-  color: #334155;
+  color: var(--text-2);
 }
 
 /* ---- avatar ---- */
@@ -88,23 +90,25 @@
 .field-label {
   font-size: 13px;
   font-weight: 600;
-  color: #475569;
+  color: var(--text-2);
 }
 
 .field-input {
   width: 100%;
   padding: 10px 12px;
   font-size: 14px;
-  color: #0f172a;
-  background: #ffffff;
-  border: 1px solid #cbd5e1;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
   border-radius: 9px;
   outline: none;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
 }
 
 .field-input:focus {
-  border-color: #6366f1;
+  border-color: var(--accent);
   box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
 }
 
@@ -117,9 +121,9 @@
 .field-readonly {
   padding: 10px 12px;
   font-size: 14px;
-  color: #64748b;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
+  color: var(--text-muted);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
   border-radius: 9px;
 }
 
@@ -133,17 +137,17 @@
 .field-hint {
   margin: 0;
   font-size: 12px;
-  color: #94a3b8;
+  color: var(--text-dim);
 }
 
 .field-count {
   font-size: 12px;
-  color: #94a3b8;
+  color: var(--text-dim);
 }
 
 .field-error {
   font-size: 12px;
-  color: #dc2626;
+  color: var(--danger);
 }
 
 /* ---- footer ---- */
@@ -153,20 +157,20 @@
   justify-content: flex-end;
   gap: 14px;
   padding: 16px 24px;
-  background: #f8fafc;
-  border-top: 1px solid #f1f5f9;
+  background: var(--surface-2);
+  border-top: 1px solid var(--surface-2);
 }
 
 .save-ok {
   font-size: 13px;
   font-weight: 600;
-  color: #15803d;
+  color: var(--ok);
 }
 
 .save-err {
   font-size: 13px;
   font-weight: 600;
-  color: #dc2626;
+  color: var(--danger);
 }
 
 /* ---- buttons ---- */
@@ -174,37 +178,39 @@
   padding: 9px 16px;
   font-size: 13px;
   font-weight: 600;
-  color: #475569;
-  background: #f1f5f9;
-  border: 1px solid #e2e8f0;
+  color: var(--text-2);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
   border-radius: 8px;
   cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
 }
 
 .btn:hover:not(:disabled) {
-  background: #e2e8f0;
+  background: var(--border);
 }
 
 .btn--ghost {
   background: transparent;
   border-color: transparent;
-  color: #94a3b8;
+  color: var(--text-dim);
 }
 
 .btn--ghost:hover:not(:disabled) {
-  color: #dc2626;
+  color: var(--danger);
   background: transparent;
 }
 
 .btn--primary {
   color: #ffffff;
-  background: #4f46e5;
-  border-color: #4f46e5;
+  background: var(--accent);
+  border-color: var(--accent);
 }
 
 .btn--primary:hover:not(:disabled) {
-  background: #4338ca;
+  background: var(--accent-hover);
 }
 
 .btn:disabled {

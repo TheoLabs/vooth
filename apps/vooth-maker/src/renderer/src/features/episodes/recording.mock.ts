@@ -62,6 +62,8 @@ export interface MockLine {
   position: number
   characterId: number
   text: string
+  /** 발화 세로 위치(0~1, 컷 이미지 기준). 컷 위 앵커 표시용. */
+  anchorY?: number | null
   /** 내(로그인 성우) take 목록. 비어있으면 미녹음. */
   takes: RecordingTake[]
 }
@@ -71,6 +73,11 @@ export interface MockCut {
   position: number
   /** 컷 이미지 — mock 은 placeholder 색만 둔다(실제 imageUrl 대체 지점) */
   placeholderColor: string
+  /** 실 컷 이미지 URL(있으면 placeholderColor 대신 표시) */
+  imageUrl?: string
+  /** 원본 이미지 픽셀 크기 — 앵커(anchorY) 정렬용 캔버스 비율. */
+  imageWidth?: number
+  imageHeight?: number
   lines: MockLine[]
 }
 

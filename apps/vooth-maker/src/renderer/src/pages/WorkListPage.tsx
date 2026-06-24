@@ -92,7 +92,7 @@ export function WorkListPage(): React.JSX.Element {
       {!isLoading && !isError && items.length > 0 && (
         <>
           {view === 'grid' ? (
-            <div className="wl-grid" style={{ gridTemplateColumns: 'repeat(10, minmax(0, 1fr))' }}>
+            <div className="wl-grid" style={{ gridTemplateColumns: 'repeat(4, minmax(0, 1fr))' }}>
               {items.map((c) => (
                 <button
                   key={c.id}

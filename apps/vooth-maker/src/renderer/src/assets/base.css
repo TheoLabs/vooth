@@ -31,6 +31,58 @@
   --color-text: var(--ev-c-text-1);
 }
 
+/* ===== vooth-maker 테마 토큰 (라이트 기본 / 다크 오버라이드) ===== */
+:root {
+  --bg: #f1f5f9;
+  --surface: #ffffff;
+  --surface-2: #f8fafc;
+  --border: #e2e8f0;
+  --border-strong: #cbd5e1;
+  --text: #0f172a;
+  --text-2: #334155;
+  --text-muted: #64748b;
+  --text-dim: #94a3b8;
+  --accent: #4f46e5;
+  --accent-hover: #4338ca;
+  --accent-soft: #eef2ff;
+  --accent-soft-border: #e0e7ff;
+  --danger: #dc2626;
+  --danger-text: #b91c1c;
+  --danger-soft-bg: #fef2f2;
+  --danger-soft-border: #fecaca;
+  --ok: #15803d;
+  --warn-bg: #fef3c7;
+  --warn-border: #fde68a;
+  --warn-text: #b45309;
+  --radius: 12px;
+  --shadow: 0 6px 18px rgba(15, 23, 42, 0.06);
+}
+
+:root[data-theme='dark'] {
+  --bg: #0b1018;
+  --surface: #151d2b;
+  --surface-2: #1c2738;
+  --border: #2a3650;
+  --border-strong: #3a496a;
+  --text: #e6edf7;
+  --text-2: #cdd8e8;
+  --text-muted: #9fb0c7;
+  --text-dim: #6b7c95;
+  --accent: #818cf8;
+  --accent-hover: #6366f1;
+  --accent-soft: rgba(129, 140, 248, 0.16);
+  --accent-soft-border: rgba(129, 140, 248, 0.34);
+  --danger: #f87171;
+  --danger-text: #fca5a5;
+  --danger-soft-bg: rgba(248, 113, 113, 0.12);
+  --danger-soft-border: rgba(248, 113, 113, 0.32);
+  --ok: #4ade80;
+  --warn-bg: rgba(251, 191, 36, 0.14);
+  --warn-border: rgba(251, 191, 36, 0.35);
+  --warn-text: #fbbf24;
+  --shadow: 0 8px 22px rgba(0, 0, 0, 0.45);
+}
+
 *,
 *::before,
 *::after {

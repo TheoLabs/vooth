@@ -1,68 +1,26 @@
-import { useMemo } from 'react'
+import { useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { CONTENT_STATUS_LABEL, type CreatorContent } from '../api/content.api'
 import { useCreatorContent } from '../features/content/useCreatorContents'
+import { useCreatorEpisodes } from '../features/episodes/useCreatorEpisodes'
+import { useDebouncedValue } from '../hooks/useDebouncedValue'
 import './ContentDetailPage.css'
 
 const PH_COLORS = ['#6366f1', '#ec4899', '#0ea5e9', '#22c55e', '#f59e0b', '#a855f7', '#14b8a6']
 
-type EpStatus = 'READY' | 'RECORDING' | 'REVIEWING' | 'PUBLISHED'
-const EP_STATUS_LABEL: Record<EpStatus, string> = {
-  READY: '녹음 대기',
-  RECORDING: '녹음 중',
-  REVIEWING: '검수 중',
-  PUBLISHED: '발행 완료'
-}
-const EP_STATUSES: EpStatus[] = ['READY', 'RECORDING', 'REVIEWING', 'PUBLISHED']
-
-interface MockEpisode {
-  id: number
-  chapter: number
-  title: string
-  status: EpStatus
-  totalCuts: number
-  recordedCuts: number
-}
-
-const EP_TITLES = [
-  '첫 만남',
-  '엇갈린 약속',
-  '비밀의 화원',
-  '두 번째 삶',
-  '황궁의 밤',
-  '폭풍 전야',
-  '재회',
-  '균열',
-  '마지막 선택',
-  '새벽의 결심'
-]
-
-/** content 의 회차 목록(mock). creators 회차 엔드포인트 생기면 교체. */
-function mockEpisodes(contentId: number, count: number): MockEpisode[] {
-  return Array.from({ length: count }, (_, i) => {
-    const chapter = count - i // 최신 회차 먼저
-    const status = EP_STATUSES[(contentId + i) % EP_STATUSES.length]
-    const totalCuts = 30 + ((contentId * 7 + i * 13) % 30)
-    const recordedCuts =
-      status === 'READY'
-        ? 0
-        : status === 'PUBLISHED' || status === 'REVIEWING'
-          ? totalCuts
-          : Math.floor((totalCuts * ((contentId + i) % 10)) / 10)
-    return {
-      id: contentId * 1000 + chapter,
-      chapter,
-      title: EP_TITLES[(contentId + chapter) % EP_TITLES.length],
-      status,
-      totalCuts,
-      recordedCuts
-    }
-  })
+/** 녹음 진행률 — 응답에 아직 없어 회차 상태 기준 mock 으로 생성(추후 실데이터로 교체). */
+function mockProgress(ep: { id: number; status: string }): { recorded: number; total: number } {
+  const total = 30 + (ep.id % 30)
+  let recorded: number
+  if (ep.status === 'draft' || ep.status === 'ready') recorded = 0
+  else if (ep.status === 'recording') recorded = Math.floor((total * (ep.id % 9)) / 10)
+  else recorded = total // reviewing/approved/scheduled/published/archived
+  return { recorded, total }
 }
 
 /**
  * 내 콘텐츠 — 작품 상세 + 회차 목록. (vooth-tool 패턴)
- * 상단: 작품 메타(목록 카드에서 router state 로 전달). 하단: 회차 목록(mock).
+ * 상단: GET /creators/contents/:id 작품 메타. 하단: GET .../episodes 회차 목록.
  * 회차를 고르면 녹음 화면(/works/:episodeId)으로 이동.
  */
 export function ContentDetailPage(): React.JSX.Element {
@@ -71,11 +29,23 @@ export function ContentDetailPage(): React.JSX.Element {
   const location = useLocation()
   const id = Number(contentId)
 
-  // 작품 메타는 실 API(상세 조회). 목록에서 넘긴 router state 를 로딩 중 즉시 표시용으로 사용.
+  // 작품 메타: 실 API(상세). 목록에서 넘긴 router state 를 로딩 중 즉시 표시용으로 사용.
   const passed = (location.state as { content?: CreatorContent } | null)?.content ?? null
   const { data: fetched } = useCreatorContent(id)
   const content = fetched ?? passed
-  const episodes = useMemo(() => mockEpisodes(id, content?.episodeCount ?? 8), [id, content])
+
+  const [search, setSearch] = useState('')
+  const debouncedSearch = useDebouncedValue(search.trim(), 300)
+  const {
+    data: episodeData,
+    isLoading,
+    isError,
+    error
+  } = useCreatorEpisodes(id, debouncedSearch || undefined)
+  // items 가 배열이 아닌 비정상 응답이어도 크래시하지 않도록 가드 + 최신 회차 먼저.
+  const episodes = (Array.isArray(episodeData?.items) ? episodeData.items : [])
+    .slice()
+    .sort((a, b) => b.chapter - a.chapter)
 
   return (
     <div className="cd">
@@ -126,8 +96,14 @@ export function ContentDetailPage(): React.JSX.Element {
       <div className="cd__section">
         <div className="cd__section-head">
           <h3 className="cd__section-title">회차</h3>
-          <span className="cd__mock-tag">MOCK</span>
           <span className="cd__section-count">총 {episodes.length}화</span>
+          <input
+            className="cd__search"
+            type="text"
+            placeholder="회차 제목 검색"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
         </div>
 
         <table className="cd-table">
@@ -137,37 +113,77 @@ export function ContentDetailPage(): React.JSX.Element {
               <th>제목</th>
               <th>내 진행</th>
               <th>상태</th>
+              <th aria-label="녹음" />
             </tr>
           </thead>
           <tbody>
-            {episodes.map((ep) => {
-              const pct = ep.totalCuts ? Math.round((ep.recordedCuts / ep.totalCuts) * 100) : 0
-              return (
-                <tr
-                  key={ep.id}
-                  className="cd-table__row"
-                  onClick={() => navigate(`/works/${ep.id}`)}
-                >
-                  <td className="cd-table__chapter">{ep.chapter}화</td>
-                  <td className="cd-table__title">{ep.title}</td>
-                  <td>
-                    <div className="cd-progress">
-                      <div className="cd-progress__track">
-                        <div className="cd-progress__bar" style={{ width: `${pct}%` }} />
+            {isLoading && (
+              <tr>
+                <td colSpan={5} className="cd-table__state">
+                  불러오는 중…
+                </td>
+              </tr>
+            )}
+            {isError && !isLoading && (
+              <tr>
+                <td colSpan={5} className="cd-table__state cd-table__state--error">
+                  회차를 불러오지 못했습니다. {error?.message}
+                </td>
+              </tr>
+            )}
+            {!isLoading &&
+              !isError &&
+              episodes.map((ep) => {
+                const { recorded, total } = mockProgress(ep)
+                const pct = total ? Math.round((recorded / total) * 100) : 0
+                const canRecord = ep.status === 'ready'
+                return (
+                  <tr key={ep.id} className="cd-table__row">
+                    <td className="cd-table__chapter">{ep.chapter}화</td>
+                    <td className="cd-table__title">{ep.title}</td>
+                    <td>
+                      <div className="cd-progress">
+                        <div className="cd-progress__track">
+                          <div className="cd-progress__bar" style={{ width: `${pct}%` }} />
+                        </div>
+                        <span className="cd-progress__count">
+                          {recorded}/{total}
+                        </span>
                       </div>
-                      <span className="cd-progress__count">
-                        {ep.recordedCuts}/{ep.totalCuts}
+                    </td>
+                    <td>
+                      <span className={`cd-status cd-status--${ep.status}`}>
+                        {CONTENT_STATUS_LABEL[ep.status] ?? ep.status}
                       </span>
-                    </div>
-                  </td>
-                  <td>
-                    <span className={`cd-status cd-status--${ep.status.toLowerCase()}`}>
-                      {EP_STATUS_LABEL[ep.status]}
-                    </span>
-                  </td>
-                </tr>
-              )
-            })}
+                    </td>
+                    <td className="cd-table__action">
+                      <button
+                        type="button"
+                        className="cd-rec-btn"
+                        disabled={!canRecord}
+                        title={canRecord ? undefined : '녹음 대기 상태에서만 녹음할 수 있습니다.'}
+                        onClick={() =>
+                          navigate(`/works/${ep.id}`, {
+                            state: {
+                              episode: { chapter: ep.chapter, title: ep.title, status: ep.status },
+                              contentTitle: content?.title
+                            }
+                          })
+                        }
+                      >
+                        ● 녹음하기
+                      </button>
+                    </td>
+                  </tr>
+                )
+              })}
+            {!isLoading && !isError && episodes.length === 0 && (
+              <tr>
+                <td colSpan={5} className="cd-table__state">
+                  등록된 회차가 없습니다.
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>

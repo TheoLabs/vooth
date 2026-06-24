@@ -1,4 +1,6 @@
 .rv {
+  margin: 0 auto;
+  padding: 28px;
   display: flex;
   flex-direction: column;
   gap: 18px;
@@ -15,16 +17,16 @@
   margin: 0;
   font-size: 22px;
   font-weight: 800;
-  color: #0f172a;
+  color: var(--text);
 }
 
 .rv__mock-tag {
   font-size: 10px;
   font-weight: 800;
   letter-spacing: 0.04em;
-  color: #b45309;
-  background: #fef3c7;
-  border: 1px solid #fde68a;
+  color: var(--warn-text);
+  background: var(--warn-bg);
+  border: 1px solid var(--warn-border);
   padding: 2px 7px;
   border-radius: 999px;
 }
@@ -33,7 +35,7 @@
   margin-left: auto;
   font-size: 13px;
   font-weight: 600;
-  color: #64748b;
+  color: var(--text-muted);
 }
 
 .rv__filters {
@@ -46,22 +48,22 @@
   padding: 6px 14px;
   font-size: 13px;
   font-weight: 600;
-  color: #475569;
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
+  color: var(--text-2);
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 999px;
   cursor: pointer;
   transition: all 0.12s ease;
 }
 
 .rv__chip:hover {
-  border-color: #cbd5e1;
+  border-color: var(--border-strong);
 }
 
 .rv__chip--active {
   color: #ffffff;
-  background: #4f46e5;
-  border-color: #4f46e5;
+  background: var(--accent);
+  border-color: var(--accent);
 }
 
 .rv__list {
@@ -78,8 +80,8 @@
   flex-direction: column;
   gap: 10px;
   padding: 18px 20px;
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 14px;
 }
 
@@ -100,34 +102,34 @@
 .rv-card__work {
   font-size: 12px;
   font-weight: 600;
-  color: #94a3b8;
+  color: var(--text-dim);
 }
 
 .rv-card__ep {
   font-size: 16px;
   font-weight: 700;
-  color: #0f172a;
+  color: var(--text);
 }
 
 .rv-card__role {
   font-size: 13px;
-  color: #64748b;
+  color: var(--text-muted);
 }
 
 .rv-card__meta {
   display: flex;
   gap: 16px;
   font-size: 12px;
-  color: #64748b;
+  color: var(--text-muted);
 }
 
 .rv-card__reject {
   margin: 0;
   padding: 10px 12px;
   font-size: 13px;
-  color: #b91c1c;
-  background: #fef2f2;
-  border: 1px solid #fecaca;
+  color: var(--danger-text);
+  background: var(--danger-soft-bg);
+  border: 1px solid var(--danger-soft-border);
   border-radius: 9px;
 }
 
@@ -145,9 +147,9 @@
   padding: 8px 16px;
   font-size: 13px;
   font-weight: 600;
-  color: #475569;
-  background: #f1f5f9;
-  border: 1px solid #e2e8f0;
+  color: var(--text-2);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
   border-radius: 8px;
   cursor: pointer;
   transition: background 0.15s ease;
@@ -155,11 +157,11 @@
 
 .rv-btn--primary {
   color: #ffffff;
-  background: #4f46e5;
-  border-color: #4f46e5;
+  background: var(--accent);
+  border-color: var(--accent);
 }
 .rv-btn--primary:hover {
-  background: #4338ca;
+  background: var(--accent-hover);
 }
 
 /* ---- review status badge ---- */
@@ -177,11 +179,11 @@
   background: #f3e8ff;
 }
 .rv-badge--approved {
-  color: #15803d;
+  color: var(--ok);
   background: #dcfce7;
 }
 .rv-badge--rejected {
-  color: #b91c1c;
+  color: var(--danger-text);
   background: #fee2e2;
 }
 
@@ -189,8 +191,20 @@
   padding: 48px;
   text-align: center;
   font-size: 14px;
-  color: #94a3b8;
-  background: #ffffff;
-  border: 1px dashed #e2e8f0;
+  color: var(--text-dim);
+  background: var(--surface);
+  border: 1px dashed var(--border);
   border-radius: 14px;
+}
+
+/* 검수 상태 배지 — 다크 모드 대비 */
+:root[data-theme='dark'] .rv-badge--reviewing {
+  color: #d8b4fe;
+  background: rgba(168, 85, 247, 0.2);
+}
+:root[data-theme='dark'] .rv-badge--approved {
+  background: rgba(34, 197, 94, 0.18);
+}
+:root[data-theme='dark'] .rv-badge--rejected {
+  background: rgba(239, 68, 68, 0.18);
 }

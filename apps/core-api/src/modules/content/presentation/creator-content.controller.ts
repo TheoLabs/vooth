@@ -3,6 +3,7 @@ import { Controller, Get, Param, ParseIntPipe, Query, UseGuards } from '@nestjs/
 import { CreatorContentService } from '../applications/creator-content.service';
 import { Context, ContextKey } from '@common/context';
 import { Creator } from '@modules/creator/domain/creator.entity';
+import { CreatorContentQueryDto } from './dto';
 
 @Controller('creators/contents')
 @UseGuards(CreatorGuard)
@@ -13,7 +14,7 @@ export class CreatorContentController {
   ) {}
 
   @Get()
-  async list(@Query() query: any) {
+  async list(@Query() query: CreatorContentQueryDto) {
     // 1. Destructure body, params, query
     const { searchKey, searchValue, ...options } = query;
 

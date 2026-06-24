@@ -11,11 +11,33 @@ import { DirectorCutController } from './presentation/director-cut.controller';
 import { DirectorCutService } from './applications/director-cut.service';
 import { DirectorLineController } from './presentation/director-line.controller';
 import { DirectorLineService } from './applications/director-line.service';
+import { CreatorCutController } from './presentation/creator-cut.controller';
+import { CreatorCutService } from './applications/creator-cut.service';
 
 @Module({
   imports: [FileModule, EpisodeModule, CharacterModule],
-  controllers: [AdminCutController, AdminLineController, DirectorCutController, DirectorLineController],
-  providers: [CutRepository, AdminCutService, AdminLineService, DirectorCutService, DirectorLineService],
-  exports: [CutRepository, AdminCutService, AdminLineService, DirectorCutService, DirectorLineService],
+  controllers: [
+    AdminCutController,
+    AdminLineController,
+    DirectorCutController,
+    DirectorLineController,
+    CreatorCutController,
+  ],
+  providers: [
+    CutRepository,
+    AdminCutService,
+    AdminLineService,
+    DirectorCutService,
+    DirectorLineService,
+    CreatorCutService,
+  ],
+  exports: [
+    CutRepository,
+    AdminCutService,
+    AdminLineService,
+    DirectorCutService,
+    DirectorLineService,
+    CreatorCutService,
+  ],
 })
 export class CutModule {}

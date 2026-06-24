@@ -34,3 +34,10 @@ export class AdminEpisodeQueryDto extends BaseEpisodeQueryDto {
 }
 
 export class DirectorEpisodeQueryDto extends BaseEpisodeQueryDto {}
+
+export class CreatorEpisodeQueryDto extends BaseEpisodeQueryDto {
+  @IsIn(['title'])
+  @IsString()
+  @IsOptional()
+  searchKey?: string;
+}
