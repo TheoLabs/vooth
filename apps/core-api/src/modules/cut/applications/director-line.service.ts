@@ -31,7 +31,7 @@ export class DirectorLineService extends DddService {
     episode.validateChildEditable();
 
     const cuts = await this.cutRepository.find(
-      { ids: anchorYItems.map((item) => item.cutId) },
+      { ids: anchorYItems.map((item) => item.cutId), episodeId },
       { relations: { lines: true } }
     );
     const cutsMap = keyBy(cuts, 'id');

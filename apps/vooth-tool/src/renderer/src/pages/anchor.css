@@ -65,12 +65,30 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 12px;
+  gap: 28px;
 }
 .anc-cutnav__pos {
   font-size: 13px;
   font-weight: 700;
   color: var(--vt-text);
+}
+/* 컷 번호 직접 입력(바로 이동) */
+.anc-cutnav__input {
+  width: 48px;
+  margin: 0 2px;
+  padding: 4px 6px;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: center;
+  color: var(--vt-text);
+  background: var(--vt-surface-2, var(--vt-surface));
+  border: 1px solid var(--vt-border);
+  border-radius: 7px;
+  font-variant-numeric: tabular-nums;
+}
+.anc-cutnav__input:focus {
+  outline: none;
+  border-color: var(--vt-accent);
 }
 /* 필름스트립 캐러셀 뷰포트: 현재 컷이 가운데, 양옆 컷이 뒤로 들어가 어둡게.
    컷 이동 시 각 슬라이드가 offset 위치로 transition → 회전하듯 슬라이드. */

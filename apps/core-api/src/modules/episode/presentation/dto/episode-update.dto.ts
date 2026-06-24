@@ -1,6 +1,16 @@
-import { CalendarDate, CALENDAR_DATE_REGEX } from '@vooth/shared';
+import { CalendarDate, CALENDAR_DATE_REGEX, EpisodeStatus } from '@vooth/shared';
 import { Type } from 'class-transformer';
-import { IsBoolean, IsInt, IsNotEmpty, IsOptional, IsString, Matches, ValidateNested } from 'class-validator';
+import {
+  IsBoolean,
+  IsEnum,
+  IsIn,
+  IsInt,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  Matches,
+  ValidateNested,
+} from 'class-validator';
 import { CropBoxDto } from '@libs/utils';
 
 export class AdminEpisodeUpdateDto {
@@ -26,4 +36,10 @@ export class AdminEpisodeUpdateDto {
   @IsString()
   @IsOptional()
   expectedPublishOn?: CalendarDate | null;
+}
+
+export class DirectorEpisodeStatusChangeDto {
+  @IsIn([EpisodeStatus.DRAFT, EpisodeStatus.READY])
+  @IsEnum(EpisodeStatus)
+  status: EpisodeStatus;
 }

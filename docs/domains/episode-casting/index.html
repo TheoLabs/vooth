@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>EpisodeCasting 도메인 — Vooth core-api</title>
+<link rel="stylesheet" href="../assets/style.css" />
+</head>
+<body>
+<header class="topnav"><div class="inner" id="site-nav"></div></header>
+
+<div class="wrap">
+  <div class="hero">
+    <div class="eyebrow">Composition · 구성·재생</div>
+    <h1>EpisodeCasting · 회차×캐스팅</h1>
+    <p class="lead">
+      <b>(회차 × 성우 버전)의 검수·발행 단위.</b> <code>Episode × Casting</code>의 조인이며, 멀티버전 발행·중간 하차/이어받기·필모 정밀도·회차 상태 롤업이 모두 이 단위로 정리된다.
+      음성(<a href="../recording/index.html">Recording</a>)의 회차 묶음이자, 시청자에게 노출되는 <b>버전 선택지</b>의 출처.
+    </p>
+    <div class="meta">
+      <span class="badge plan">설계 (검토용)</span>
+      <span class="badge ns">directors/* · public</span>
+      <span class="badge ctx">Episode × Casting</span>
+      <span class="badge ctx">검수·발행 단위</span>
+      <span class="badge ctx">lazy 생성</span>
+    </div>
+  </div>
+
+  <div class="note warn">
+    <span class="label">구현 상태 = 설계(검토 대기).</span> EpisodeCasting은 아직 core-api 모듈로 존재하지 않는다. 현재 발행은 <a href="../casting/index.html">Casting</a><code>.isPublished</code> 수동 토글(MVP)로 대체 중이며,
+    이 도메인은 그 발행/검수를 <b>회차 단위로 정밀화</b>하는 후속 단계다. 부모는 <a href="../episode/index.html">Episode</a>·<a href="../casting/index.html">Casting</a>, 음성은 <a href="../recording/index.html">Recording</a>, 재생은 <a href="../playback/index.html">Playback</a>.
+  </div>
+
+  <section class="section">
+    <h2><span class="num">01</span> 책임과 특성</h2>
+    <ul class="clean">
+      <li><b>검수·발행 단위</b> — "이 회차에서 이 캐스팅(버전)을 검수하고 발행한다". Recording(테이크)·Casting(버전 정체성)과 달리, <b>발행 여부가 정해지는 곳</b>.</li>
+      <li><b>멀티버전 발행</b> — 한 회차에 <b>발행된 EpisodeCasting이 여럿</b>(버전마다 1개). 시청자는 캐릭터별로 그중 선택. "승자 1명 채택" 아님.</li>
+      <li><b>중간 하차/이어받기</b> — 캐릭터 1명에 1~5화는 캐스팅 A의 EpisodeCasting, 6화+는 캐스팅 B의 EpisodeCasting. <b>회차 단위로 버전이 바뀐다</b>(하차 정책 = 이어받기).</li>
+      <li><b>상위 롤업의 입력</b> — <code>Episode.status</code>·<code>Casting.status</code>는 사실 이 EpisodeCasting들의 롤업이다. 필모("이 성우 1~5화 담당")도 <b>PUBLISHED EpisodeCasting 집합</b>으로 정밀하게 나온다.</li>
+    </ul>
+  </section>
+
+  <section class="section">
+    <h2><span class="num">02</span> 애그리게이트 — <code>EpisodeCasting</code></h2>
+    <p class="desc">파일(예정): <code>src/modules/episode-casting/domain/episode-casting.entity.ts</code> · 별도 AR · 공통 베이스 <code>DddAggregate</code>(<code>id</code>, audit, 이벤트)는 생략.</p>
+    <div class="t-scroll">
+      <table>
+        <thead><tr><th>필드</th><th>타입</th><th>null</th><th>설명</th></tr></thead>
+        <tbody>
+          <tr><td><code>episodeId</code></td><td>number</td><td>✗</td><td>대상 회차. <b>논리 FK</b> + INDEX</td></tr>
+          <tr><td><code>castingId</code></td><td>number</td><td>✗</td><td>버전(Character×Creator). <b>논리 FK</b> + INDEX. 캐릭터는 <code>casting.characterId</code>로 파생</td></tr>
+          <tr><td><code>status</code></td><td>enum</td><td>✗</td><td><code>EpisodeCastingStatus</code>(§03)</td></tr>
+          <tr><td><code>publishedAt</code></td><td>datetime</td><td>✓</td><td>발행 시각(필모 정렬·스케줄·구매 기준)</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note">
+      <span class="label">불변식.</span> <code>@Unique(episodeId, castingId)</code> — 회차×캐스팅당 1행. 정합: <code>casting.characterId</code>가 <b>그 회차에 등장</b>(라인 ≥1)해야 행이 생긴다. 멀티버전이라 <b>회차당 <code>PUBLISHED</code> 여러 개 허용</b>(버전별).
+    </div>
+  </section>
+
+  <section class="section">
+    <h2><span class="num">03</span> 상태 — <code>EpisodeCastingStatus</code></h2>
+    <pre class="mono" style="background:var(--code-bg,#0f172a0a);padding:12px 14px;border-radius:8px;overflow:auto;font-size:13px;">RECORDING → REVIEWING → APPROVED → PUBLISHED
+                ↑__________|   (REJECTED = 반려·재녹음)</pre>
+    <ul class="clean">
+      <li><code>RECORDING</code> — 이 회차 이 버전 녹음 진행(라인별 채택 진행 중).</li>
+      <li><code>REVIEWING</code> — 대상 라인 모두 채택 완료 → 검수 요청.</li>
+      <li><code>APPROVED</code> / <code>REJECTED</code> — 검수 통과 / 반려(재녹음).</li>
+      <li><code>PUBLISHED</code> — 발행(시청자 노출). <code>publishedAt</code> 기록.</li>
+      <li><b>하차는 Casting 레벨</b> — 중간 하차 시 미래 회차엔 그 캐스팅의 EpisodeCasting을 <b>안 만들면</b> 됨. 이미 PUBLISHED된 과거 회차는 그대로 유지(필모 보존).</li>
+    </ul>
+  </section>
+
+  <section class="section">
+    <h2><span class="num">04</span> 층위 · 롤업</h2>
+    <div class="t-scroll"><table>
+      <thead><tr><th>층</th><th>단위</th><th>역할</th></tr></thead>
+      <tbody>
+        <tr><td><a href="../recording/index.html">Recording</a></td><td>Line × Casting</td><td>라인별 채택 음성(테이크)</td></tr>
+        <tr><td><b>EpisodeCasting</b></td><td>Episode × Casting</td><td><b>회차 버전의 검수·발행</b> (그 회차 그 캐스팅의 라인 묶음)</td></tr>
+        <tr><td><a href="../casting/index.html">Casting</a><code>.status</code></td><td>Character × Creator</td><td>READY/PUBLISHED/WITHDRAWN — ≥1 EpisodeCasting PUBLISHED면 PUBLISHED 롤업</td></tr>
+        <tr><td><a href="../episode/index.html">Episode</a><code>.status</code></td><td>회차</td><td>EpisodeCasting들의 롤업</td></tr>
+      </tbody>
+    </table></div>
+    <div class="note">
+      <span class="label">필모 정밀도 &amp; READY 누설 방지.</span> "이 성우 1~5화 담당" = 그 캐스팅의 <code>PUBLISHED</code> EpisodeCasting 집합. 새 성우가 녹음 중(<code>RECORDING</code>)이어도 <code>PUBLISHED</code> 전엔 <b>공개 필모/시청자에 안 뜬다</b> — 발행 게이트가 여기에 있기 때문.
+    </div>
+  </section>
+
+  <section class="section">
+    <h2><span class="num">05</span> 생성 시점 · 이벤트 <span class="badge ok" style="vertical-align:middle">결정: lazy</span></h2>
+    <ul class="clean">
+      <li><b>생성 = lazy(첫 녹음)</b> — <code>(episodeId, castingId)</code>의 <b>첫 Recording 제출</b> 시 <code>RecordingCreatedEvent</code>(episodeId·castingId 포함) → EpisodeCasting 없으면 <code>RECORDING</code>으로 <b>upsert</b>. <code>@Unique(episodeId, castingId)</code>라 멱등.
+        <span class="dim">(대안 ①: 회차 READY 시 등장 캐스팅 일괄 프로비저닝 — 늦은 배정/이어받기를 위해 back-fill 트리거가 추가로 필요해 채택 안 함.)</span></li>
+      <li><b>왜 lazy인가</b> — 트리거 1개(RecordingCreated)로 단순하고, <b>이어받기·중간 하차·늦은 캐스팅 배정을 특별처리 없이 흡수</b>. 안 나오는 캐릭터/안 녹음한 버전은 행이 안 생김(phantom 없음).</li>
+      <li><b>예정(분모)은 파생</b> — "이 회차에 녹음해야 할 버전 집합"(진행률·검수 보드 분모)은 EpisodeCasting이 아니라 <code>Casting(등장 캐릭터)</code>에서 계산. 검수 보드의 "미시작" 표시는 <b>예정 LEFT JOIN EpisodeCasting</b>(실적)으로 머지한다.</li>
+      <li><b>이벤트</b> — <code>EpisodeCastingPublishedEvent</code> → (a) <a href="../casting/index.html">Casting</a>.status 롤업(→PUBLISHED), (b) 필모 프로젝션 갱신, (c) <a href="../episode/index.html">Episode</a>.status 롤업, (d) 구매 가능 버전 갱신(추후). 회차 삭제 시 <code>EpisodeRemovedEvent</code> → EpisodeCasting EDA 정리(episodeId 멱등).</li>
+    </ul>
+  </section>
+
+  <section class="section">
+    <h2><span class="num">06</span> API 표면 <span class="badge plan" style="vertical-align:middle">예정</span></h2>
+    <div class="t-scroll">
+      <table>
+        <thead><tr><th>Method</th><th>Path</th><th>설명</th><th>주체</th></tr></thead>
+        <tbody>
+          <tr><td><span class="method get">GET</span></td><td><code>directors/episodes/:episodeId/castings</code></td><td>검수 보드 — 버전별 진행(예정 LEFT JOIN 실적, 미시작 포함)</td><td>연출/검수자</td></tr>
+          <tr><td><span class="method put">PUT</span></td><td><code>directors/episode-castings/:id/status</code></td><td>검수 전이(approve/reject) · 발행(publish)</td><td>연출/검수자</td></tr>
+          <tr><td><span class="method get">GET</span></td><td><code>creators/episodes/:episodeId/casting</code></td><td>내 버전의 이 회차 진행 상태(읽기)</td><td>성우</td></tr>
+          <tr><td>—</td><td><code>public</code>(시청자)</td><td>회차의 <code>PUBLISHED</code> EpisodeCasting = 버전 선택지</td><td>시청자</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note"><span class="label">네임스페이스.</span> 검수·발행=<code>directors/*</code>(DirectorGuard=ADMIN). 진행 조회=<code>creators/*</code>. 발행본은 시청자 서비스(같은 서비스 vs 분리 미정)가 소비.</div>
+  </section>
+
+  <section class="section">
+    <h2><span class="num">07</span> 관계 · 경계</h2>
+    <ul class="clean">
+      <li><b>→ Episode</b>: <code>episodeId</code> 논리 FK. 1:N(회차 → 등장 캐스팅들).</li>
+      <li><b>→ Casting</b>: <code>castingId</code> 논리 FK. 1:N(캐스팅 → 참여 회차들). 발행 롤업으로 <code>Casting.status</code> 결정.</li>
+      <li><b>groups <a href="../recording/index.html">Recording</a></b>: 같은 <code>episodeId + castingId</code>의 채택 음성 묶음이 검수 대상.</li>
+      <li><b>← Purchase</b>(추후): 구매가 (회차 × 캐스팅) 버전을 참조 — "이 회차를 어느 성우로 살지".</li>
+    </ul>
+  </section>
+</div>
+
+<footer class="page">
+  Source: 설계 합의(미구현, 검토용) · 회차 <a href="../episode/index.html">Episode</a> · 버전 <a href="../casting/index.html">Casting</a> · 음성 <a href="../recording/index.html">Recording</a> · 재생 <a href="../playback/index.html">Playback</a>
+</footer>
+<script src="../assets/nav.js"></script>
+</body>
+</html>

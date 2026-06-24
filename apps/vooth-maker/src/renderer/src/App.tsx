@@ -3,6 +3,7 @@ import { LoginPage } from './features/auth/LoginPage'
 import { AppLayout } from './layouts/AppLayout'
 import { HomePage } from './pages/HomePage'
 import { WorkListPage } from './pages/WorkListPage'
+import { ContentDetailPage } from './pages/ContentDetailPage'
 import { RecordingPage } from './pages/RecordingPage'
 import { ReviewsPage } from './pages/ReviewsPage'
 import { SettingsPage } from './features/profile/SettingsPage'
@@ -18,6 +19,7 @@ function App(): React.JSX.Element {
           <Route element={<AppLayout />}>
             <Route index element={<HomePage />} />
             <Route path="works" element={<WorkListPage />} />
+            <Route path="works/contents/:contentId" element={<ContentDetailPage />} />
             <Route path="works/:episodeId" element={<RecordingPage />} />
             <Route path="reviews" element={<ReviewsPage />} />
             <Route path="settings" element={<SettingsPage />} />

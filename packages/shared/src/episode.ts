@@ -15,7 +15,7 @@ export enum EpisodeStatus {
 
 /**
  * 허용 상태 전이(화이트리스트).
- * - DRAFT→READY : 관리자 수동(편집 완료).
+ * - DRAFT→READY : 관리자 수동(편집 완료). READY→DRAFT : 녹음 전 재편집으로 되돌리기(수동).
  * - READY→RECORDING : 성우 1명이라도 녹음 진입(자동).
  * - RECORDING→REVIEWING : 검수 요청/롤업.
  * - REVIEWING↔RECORDING : 검수 회귀(재녹음).
@@ -25,7 +25,7 @@ export enum EpisodeStatus {
  */
 export const EPISODE_STATUS_TRANSITIONS: Record<EpisodeStatus, EpisodeStatus[]> = {
   [EpisodeStatus.DRAFT]: [EpisodeStatus.READY],
-  [EpisodeStatus.READY]: [EpisodeStatus.RECORDING],
+  [EpisodeStatus.READY]: [EpisodeStatus.RECORDING, EpisodeStatus.DRAFT],
   [EpisodeStatus.RECORDING]: [EpisodeStatus.REVIEWING],
   [EpisodeStatus.REVIEWING]: [EpisodeStatus.RECORDING, EpisodeStatus.APPROVED],
   [EpisodeStatus.APPROVED]: [EpisodeStatus.REVIEWING, EpisodeStatus.SCHEDULED],

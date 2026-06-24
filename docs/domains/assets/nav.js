@@ -24,6 +24,7 @@
         ['Episode', 'episode'],
         ['Cut', 'cut'],
         ['Recording', 'recording'],
+        ['EpisodeCasting', 'episode-casting'],
         ['Playback', 'playback'],
       ],
     },

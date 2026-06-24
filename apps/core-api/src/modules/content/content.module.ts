@@ -7,11 +7,14 @@ import { TagModule } from '@modules/tag/tag.module';
 import { EpisodeModule } from '@modules/episode/episode.module';
 import { DirectorContentController } from './presentation/director-content.controller';
 import { DirectorContentService } from './applications/director-content.service';
+import { CreatorContentController } from './presentation/creator-content.controller';
+import { CreatorContentService } from './applications/creator-content.service';
+import { CastingRepository } from '@modules/casting/infrastructure/casting.repository';
 
 @Module({
   imports: [FileModule, TagModule, EpisodeModule],
-  controllers: [AdminContentController, DirectorContentController],
-  providers: [ContentRepository, AdminContentService, DirectorContentService],
-  exports: [ContentRepository, AdminContentService, DirectorContentService],
+  controllers: [AdminContentController, DirectorContentController, CreatorContentController],
+  providers: [ContentRepository, AdminContentService, DirectorContentService, CreatorContentService, CastingRepository],
+  exports: [ContentRepository, AdminContentService, DirectorContentService, CreatorContentService],
 })
 export class ContentModule {}

@@ -152,7 +152,7 @@
       <li><b>Cut 생성/수정/삭제</b>(admins) — <b>episode DRAFT일 때만</b>(구조 편집 게이팅). 생성/이미지교체 시 <code>commit('image/')</code>, order 중복 거부.</li>
       <li><b>Line 생성/수정/삭제</b>(admins, <code>AdminLineService</code>) — Cut 루트 경유 + <b>episode DRAFT 게이팅</b> + character 존재 검증. 삭제는 <code>orphanedRowAction:'delete'</code>로 실제 DELETE.</li>
       <li><b>Episode 삭제 시 EDA 정리</b>(구현) — Episode가 하드 삭제되며 <code>EpisodeRemovedEvent</code> 발행 → Cut의 <code>@EventHandler</code>가 그 회차의 컷을 일괄 삭제(컷→라인은 물리 FK cascade). cross-aggregate(Episode↔Cut 논리 FK)라 DB cascade 대신 이벤트로 정리. 멱등(episodeId 기준).</li>
-      <li><b>대사 anchorY 설정</b>(Line 발화 세로 위치) — <code>directors</code>, <b>녹음 전</b>(DRAFT). 회차 단위 벌크 PUT. <strong>설계</strong>.</li>
+      <li><b>대사 anchorY 설정</b>(Line 발화 세로 위치) — <code>directors</code>, <b>녹음 전</b>(DRAFT 게이트). 회차 단위 벌크(<code>DirectorLineService.setAnchorY</code>, Cut 루트 경유). <span class="badge ok">구현됨</span></li>
       <li><b>연출 편집</b>(타임라인 anchor·Cut gap/holdOverride, SoundEffect/CutEffect) — <code>directors</code>, 녹음 이후. <strong>설계</strong>.</li>
       <li><b>Recording 가드</b> — Line 삭제 시 그 라인의 녹음(별도 AR)이 고아가 되므로, Recording 생기면 <b>녹음 있으면 차단</b> 추가 예정. (현재는 Episode를 DRAFT일 때만 삭제 → 녹음 없어 안전)</li>
     </ul>
@@ -167,7 +167,7 @@
         <tbody>
           <tr><td><span class="method post">POST</span> <span class="method get">GET</span> <span class="method put">PUT</span> <span class="method del">DEL</span></td><td><code>admins/episodes/:episodeId/cuts[/:id]</code></td><td>컷 CRUD(목록 order순 전체, imageUrl enrich) — <code>AdminCutService</code></td><td><span class="badge ok">구현됨</span></td></tr>
           <tr><td><span class="method post">POST</span> <span class="method put">PUT</span> <span class="method del">DEL</span></td><td><code>admins/cuts/:cutId/lines[/:lineId]</code></td><td>대사 추가/수정/삭제(Cut 루트 경유) — <code>AdminLineService</code></td><td><span class="badge ok">구현됨</span></td></tr>
-          <tr><td><span class="method put">PUT</span></td><td><code>directors/episodes/:id/line-anchors</code></td><td>대사 anchorY 벌크 설정(녹음 전, 변경분만)</td><td><span class="badge plan">예정</span></td></tr>
+          <tr><td><span class="method post">POST</span></td><td><code>directors/episodes/:episodeId/lines</code></td><td>대사 anchorY 벌크 설정(녹음 전 DRAFT, <code>anchorYItems[]</code>)</td><td><span class="badge ok">구현됨</span></td></tr>
           <tr><td><span class="method put">PUT</span></td><td><code>directors/cuts/:id/direction</code></td><td>연출(Cut gap/holdOverride)</td><td><span class="badge plan">예정</span></td></tr>
           <tr><td>—</td><td><code>directors/cuts/:cutId/sound-effects · cut-effects · lines/:id/anchor</code></td><td>효과음·시각효과·앵커 배치</td><td><span class="badge plan">예정</span></td></tr>
           <tr><td><span class="method get">GET</span></td><td><code>directors/…</code>(컷+요소 일괄)</td><td>컷 구성 조회(미리보기·렌더)</td><td><span class="badge plan">예정</span></td></tr>

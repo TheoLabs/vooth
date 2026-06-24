@@ -1,11 +1,20 @@
-import { keepPreviousData, useQuery, type UseQueryResult } from '@tanstack/react-query'
 import {
+  keepPreviousData,
+  useMutation,
+  useQuery,
+  useQueryClient,
+  type UseMutationResult,
+  type UseQueryResult
+} from '@tanstack/react-query'
+import {
+  changeEpisodeStatus,
   fetchDirectorEpisode,
   fetchDirectorEpisodes,
   type DirectorEpisode,
   type DirectorEpisodeListParams,
   type Paginated
 } from '../../api/episode.api'
+import { type EpisodeStatus } from '../../domain/types'
 import { ApiError } from '../../lib/apiClient'
 
 /** GET /directors/contents/:contentId/episodes 목록 조회 훅. */
@@ -32,5 +41,20 @@ export function useDirectorEpisode(
     queryFn: () => fetchDirectorEpisode(contentId, episodeId),
     enabled: Number.isFinite(contentId) && Number.isFinite(episodeId),
     retry: false
+  })
+}
+
+/** PUT 회차 상태 전이(DRAFT↔READY) 뮤테이션. 성공 시 상세·목록 무효화. */
+export function useChangeEpisodeStatus(
+  contentId: number,
+  episodeId: number
+): UseMutationResult<unknown, ApiError, EpisodeStatus> {
+  const queryClient = useQueryClient()
+  return useMutation<unknown, ApiError, EpisodeStatus>({
+    mutationFn: (status) => changeEpisodeStatus(contentId, episodeId, status),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['director-episode', contentId, episodeId] })
+      queryClient.invalidateQueries({ queryKey: ['director-episodes', contentId] })
+    }
   })
 }

@@ -1,7 +1,7 @@
 import { DirectorGuard } from '@common/guards';
-import { Controller, Get, Param, ParseIntPipe, Put, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseIntPipe, Put, Query, UseGuards } from '@nestjs/common';
 import { DirectorEpisodeService } from '../applications/director-episode.service';
-import { DirectorEpisodeQueryDto } from './dto';
+import { DirectorEpisodeQueryDto, DirectorEpisodeStatusChangeDto } from './dto';
 
 @Controller('directors/contents/:contentId/episodes')
 @UseGuards(DirectorGuard)
@@ -35,15 +35,16 @@ export class DirectorEpisodeController {
     return { data };
   }
 
-  @Put(':episodeId/status/ready')
+  @Put(':episodeId/status')
   async ready(
     @Param('contentId', ParseIntPipe) contentId: number,
-    @Param('episodeId', ParseIntPipe) episodeId: number
+    @Param('episodeId', ParseIntPipe) episodeId: number,
+    @Body() body: DirectorEpisodeStatusChangeDto
   ) {
     // 1. Destructure body, params, query
     // 2. Get context
     // 3. Get result
-    await this.directorEpisodeService.ready({ contentId, episodeId });
+    await this.directorEpisodeService.changeStatus({ contentId, episodeId, ...body });
 
     // 4. Send response
     return { data: {} };

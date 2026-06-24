@@ -33,7 +33,7 @@ export class AdminCharacterService extends DddService {
     avatarFileId?: number;
     type: CharacterType;
   }) {
-    const [content] = await this.contentRepository.find({ id: contentId });
+    const [content] = await this.contentRepository.find({ ids: [contentId] });
 
     if (!content) {
       throw new BadRequestException('등록되지 않은 콘텐츠입니다.', { cause: '등록되지 않은 콘텐츠입니다.' });
@@ -108,7 +108,7 @@ export class AdminCharacterService extends DddService {
     avatarFileId?: number | null;
     type?: CharacterType;
   }) {
-    const [content] = await this.contentRepository.find({ id: contentId });
+    const [content] = await this.contentRepository.find({ ids: [contentId] });
 
     if (!content) {
       throw new BadRequestException('등록되지 않은 콘텐츠입니다.', { cause: '등록되지 않은 콘텐츠입니다.' });

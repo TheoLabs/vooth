@@ -2,7 +2,7 @@ import { DddService } from '@libs/ddd';
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { ContentRepository } from '../infrastructure/content.repository';
 import { Transactional } from '@libs/decorators';
-import { ContentStatus, CropBox } from '@vooth/shared';
+import { ContentStatus, CropBox, EpisodeStatus } from '@vooth/shared';
 import { PaginationOptions } from '@libs/utils';
 import { FileService } from '@modules/file/applications/file.service';
 import { Content } from '../domain/content.entity';
@@ -97,7 +97,7 @@ export class AdminContentService extends DddService {
   }
 
   async retrieve({ id }: { id: number }) {
-    const [content] = await this.contentRepository.find({ id }, { relations: { tags: true } });
+    const [content] = await this.contentRepository.find({ ids: [id] }, { relations: { tags: true } });
 
     if (!content) {
       throw new NotFoundException('존재하지 않는 컨텐츠입니다.');
@@ -127,7 +127,7 @@ export class AdminContentService extends DddService {
     thumbnailCropBox?: CropBox;
     tagIds?: number[];
   }) {
-    const [content] = await this.contentRepository.find({ id }, { relations: { tags: true } });
+    const [content] = await this.contentRepository.find({ ids: [id] }, { relations: { tags: true } });
 
     if (!content) {
       throw new BadRequestException('존재하지 않는 컨텐츠입니다.');
@@ -169,7 +169,7 @@ export class AdminContentService extends DddService {
 
   @Transactional()
   async remove({ id }: { id: number }) {
-    const [content] = await this.contentRepository.find({ id }, { relations: { tags: true } });
+    const [content] = await this.contentRepository.find({ ids: [id] }, { relations: { tags: true } });
 
     if (!content) {
       throw new BadRequestException('존재하지 않는 컨텐츠입니다.');
@@ -182,10 +182,23 @@ export class AdminContentService extends DddService {
 
   @Transactional()
   async transitionStatus({ id, nextStatus }: { id: number; nextStatus: ContentStatus }) {
-    const [content] = await this.contentRepository.find({ id });
+    const [content] = await this.contentRepository.find({ ids: [id] });
 
     if (!content) {
       throw new BadRequestException('존재하지 않는 컨텐츠입니다.');
+    }
+
+    if (content.status === ContentStatus.DRAFT && nextStatus === ContentStatus.READY) {
+      const readyEpisodeCount = await this.episodeRepository.count({
+        contentId: content.id,
+        statuses: [EpisodeStatus.READY],
+      });
+
+      if (readyEpisodeCount === 0) {
+        throw new BadRequestException('녹음 대기 상테의 회차가 최소 1개는 존재해야합니다.', {
+          cause: '녹음 대기 상테의 회차가 최소 1개는 존재해야합니다.',
+        });
+      }
     }
 
     content.transitionManually(nextStatus);
@@ -199,7 +212,7 @@ export class AdminContentService extends DddService {
   async handleSyncEpisodeCountEvent(event: EpisodeCreatedEvent | EpisodeRemovedEvent) {
     const { contentId } = event;
 
-    const [content] = await this.contentRepository.find({ id: contentId });
+    const [content] = await this.contentRepository.find({ ids: [contentId] });
 
     if (content) {
       const episodeCount = await this.episodeRepository.count({ contentId });

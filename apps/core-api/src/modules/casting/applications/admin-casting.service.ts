@@ -30,7 +30,7 @@ export class AdminCastingService extends DddService {
       throw new BadRequestException('등록되지 않은 캐릭터입니다.', { cause: '등록되지 않은 캐릭터입니다.' });
     }
 
-    const [content] = await this.contentRepository.find({ id: character.contentId });
+    const [content] = await this.contentRepository.find({ ids: [character.contentId] });
 
     if (!content) {
       throw new BadRequestException('등록되지 않은 컨텐츠입니다.', { cause: '등록되지 않은 컨텐츠입니다.' });

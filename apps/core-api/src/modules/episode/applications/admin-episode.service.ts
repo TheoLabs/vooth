@@ -33,7 +33,7 @@ export class AdminEpisodeService extends DddService {
     title: string;
     chapter: number;
   }) {
-    const [content] = await this.contentRepository.find({ id: contentId });
+    const [content] = await this.contentRepository.find({ ids: [contentId] });
 
     if (!content) {
       throw new BadRequestException('등록되지 않은 콘텐츠입니다.', {

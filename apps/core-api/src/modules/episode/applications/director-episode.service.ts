@@ -19,20 +19,21 @@ export class DirectorEpisodeService extends DddService {
   async list(
     {
       contentId,
-      searchKey,
       searchValue,
       statuses,
     }: {
       contentId?: number;
-      searchKey?: string;
       searchValue?: string;
       statuses?: EpisodeStatus[];
     },
     options?: PaginationOptions
   ) {
+    // 콘텐츠 범위 목록이라 검색 대상은 title 로 고정한다.
+    const conditions = { contentId, searchKey: 'title', searchValue, statuses };
+
     const [episodes, total] = await Promise.all([
-      this.episodeRepository.find({ contentId, searchKey, searchValue, statuses }, { options }),
-      this.episodeRepository.count({ contentId, searchKey, searchValue, statuses }),
+      this.episodeRepository.find(conditions, { options }),
+      this.episodeRepository.count(conditions),
     ]);
 
     const [cutCountMap, lineCountMap] = await Promise.all([
@@ -64,7 +65,15 @@ export class DirectorEpisodeService extends DddService {
   }
 
   @Transactional()
-  async ready({ contentId, episodeId }: { contentId: number; episodeId: number }) {
+  async changeStatus({
+    contentId,
+    episodeId,
+    status,
+  }: {
+    contentId: number;
+    episodeId: number;
+    status: EpisodeStatus;
+  }) {
     const [episode] = await this.episodeRepository.find({ id: episodeId, contentId });
 
     if (!episode) {
@@ -73,7 +82,7 @@ export class DirectorEpisodeService extends DddService {
       });
     }
 
-    episode.transitionTo(EpisodeStatus.READY);
+    episode.transitionTo(status);
 
     await this.episodeRepository.save([episode]);
   }

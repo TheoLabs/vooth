@@ -26,7 +26,7 @@
   </div>
 
   <div class="note warn">
-    <span class="label">구현 상태.</span> <b>생성·목록·상세·수정·삭제 구현됨</b>. 삭제는 <b>하드 삭제 + EDA</b>(<code>EpisodeRemovedEvent</code> → Cut 정리). <b>상태 전이</b>(PUT :id/status)는 예정. 공유 enum은 <code>packages/shared/src/episode.ts</code>.
+    <span class="label">구현 상태.</span> <b>생성·목록·상세·수정·삭제 구현됨</b>(admins). 삭제는 <b>하드 삭제 + EDA</b>(<code>EpisodeRemovedEvent</code> → Cut 정리). <b>directors</b>: 목록(cutCount/lineCount, title 검색)·상세·<b>상태 전이</b>(DRAFT↔READY, 되돌리기 포함) 구현됨. 공유 enum은 <code>packages/shared/src/episode.ts</code>.
     상위 구성·재생 모델은 <a href="../playback/index.html">Playback</a>, 발행 상위는 <a href="../content/index.html">Content</a> 참고.
   </div>
 
@@ -129,7 +129,7 @@
       <li><b>목록·상세</b> — content-scoped(<code>contentId</code>). 상세는 <code>{ id, contentId }</code> 정합 조회. <b>서버 기본 정렬 없음</b>(프론트가 <code>sort/order</code> 지정) — 의도.</li>
       <li><b>수정</b>(구현) — 정보 수정(title/isFree/expectedPublishOn/thumbnail, 변경 필드만). <b>구조 게이팅(<code>validateChildEditable</code>) 안 함</b> — Episode 자체 정보는 DRAFT 이후에도 수정 가능(자식 Cut/Line 편집만 DRAFT 한정).</li>
       <li><b>삭제</b>(구현) — <b>하드 삭제</b>. soft delete는 <code>(contentId, chapter)</code> unique를 점유해 재등록을 막으므로 불가. <b>DRAFT일 때만</b>(<code>Episode.remove()</code> 검증). <code>Episode.remove()</code>가 <code>EpisodeRemovedEvent</code>를 발행 → repo가 아웃박스 적재 + 하드삭제 → <b>Cut <code>@EventHandler</code>가 속한 컷을 EDA로 정리</b>(컷→라인은 물리 FK cascade). DRAFT라 녹음 등 다운스트림 참조가 없어 안전.</li>
-      <li><b>상태 전이</b>(PUT :id/status) — 예정(<code>canTransitionEpisode</code>).</li>
+      <li><b>상태 전이</b>(directors, PUT :episodeId/status) — <code>transitionTo</code>+<code>canTransitionEpisode</code> 검증, DTO가 타깃을 <code>@IsIn([DRAFT, READY])</code>로 제한. <b>DRAFT↔READY</b>: 앵커 작업 완료 → 녹음 진입(DRAFT→READY), 녹음 전 재편집 되돌리기(READY→DRAFT). <span class="badge ok">구현됨</span></li>
     </ul>
   </section>
 
@@ -155,12 +155,27 @@
           <tr><td><span class="method get">GET</span></td><td><code>/…/episodes/:id</code></td><td>단건 조회(<code>id</code>+<code>contentId</code>)</td><td>—</td><td><span class="badge ok">구현됨</span></td></tr>
           <tr><td><span class="method put">PUT</span></td><td><code>/…/episodes/:id</code></td><td>수정(변경 필드만, 정보 수정 — 게이팅 없음)</td><td><code>{ title?, isFree?, expectedPublishOn?, thumbnailFileId?, thumbnailCropBox? }</code></td><td><span class="badge ok">구현됨</span></td></tr>
           <tr><td><span class="method del">DELETE</span></td><td><code>/…/episodes/:id</code></td><td>하드 삭제(DRAFT만) → <code>EpisodeRemovedEvent</code>로 Cut EDA 정리</td><td>—</td><td><span class="badge ok">구현됨</span></td></tr>
-          <tr><td><span class="method put">PUT</span></td><td><code>/…/episodes/:id/status</code></td><td>상태 전이(<code>canTransitionEpisode</code> 검증)</td><td><code>{ status }</code></td><td><span class="badge plan">예정</span></td></tr>
         </tbody>
       </table>
     </div>
     <div class="note">
       <span class="label">관례.</span> 존재하지 않는 회차/콘텐츠는 <code>BadRequestException</code>(현 컨벤션). 목록은 <code>PaginationDto</code> + <code>{ items, total }</code>, 정렬은 클라가 <code>sort/order</code>로 지정.
+    </div>
+
+    <h3 style="margin-top:22px">directors/* <span class="badge ns" style="vertical-align:middle">directors/contents/:contentId/episodes</span></h3>
+    <p class="desc">연출(vooth-tool)용. 가드: <code>DirectorGuard</code>(=ADMIN). 콘텐츠 하위 nested.</p>
+    <div class="t-scroll">
+      <table>
+        <thead><tr><th>Method</th><th>Path</th><th>설명</th><th>본문</th><th>상태</th></tr></thead>
+        <tbody>
+          <tr><td><span class="method get">GET</span></td><td><code>/…/episodes</code></td><td>목록(<code>statuses</code> 필터·페이지네이션) + <b>cutCount/lineCount</b>(CutRepository 배치 카운트). → <code>{ items, total }</code></td><td>—</td><td><span class="badge ok">구현됨</span></td></tr>
+          <tr><td><span class="method get">GET</span></td><td><code>/…/episodes/:episodeId</code></td><td>단건 조회(<code>id</code>+<code>contentId</code>)</td><td>—</td><td><span class="badge ok">구현됨</span></td></tr>
+          <tr><td><span class="method put">PUT</span></td><td><code>/…/episodes/:episodeId/status</code></td><td>상태 전이(<code>transitionTo</code>, 타깃 <code>@IsIn([DRAFT, READY])</code>). DRAFT→READY=녹음 진입, READY→DRAFT=되돌리기</td><td><code>{ status }</code></td><td><span class="badge ok">구현됨</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note">
+      <span class="label">참고.</span> 목록 검색은 title 고정(<code>searchKey:'title'</code>, 콘텐츠 범위). 대사 anchorY 벌크 설정은 <a href="../cut/index.html">Cut</a> 도메인의 <code>POST directors/episodes/:episodeId/lines</code> 참고.
     </div>
   </section>
 </div>

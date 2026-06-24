@@ -13,7 +13,7 @@ export interface MakerNavItem {
 
 export const MAKER_NAV: MakerNavItem[] = [
   { key: 'home', label: '홈', icon: '🏠', path: '/' },
-  { key: 'works', label: '작업 목록', icon: '🎬', path: '/works' },
+  { key: 'works', label: '내 콘텐츠', icon: '🎬', path: '/works' },
   { key: 'reviews', label: '검수 현황', icon: '✅', path: '/reviews' },
   { key: 'settings', label: '설정', icon: '⚙️', path: '/settings' },
 ];

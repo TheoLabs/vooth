@@ -35,7 +35,7 @@ export class DirectorContentService extends DddService {
   }
 
   async retrieve({ id }: { id: number }) {
-    const [content] = await this.contentRepository.find({ id });
+    const [content] = await this.contentRepository.find({ ids: [id] });
 
     if (!content) {
       throw new BadRequestException('등록되지 않은 콘텐츠입니다.', { cause: '등록되지 않은 콘텐츠입니다.' });

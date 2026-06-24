@@ -58,3 +58,18 @@ export function fetchDirectorEpisode(
 ): Promise<DirectorEpisode> {
   return apiRequest<DirectorEpisode>(`/directors/contents/${contentId}/episodes/${episodeId}`)
 }
+
+/**
+ * PUT /directors/contents/:contentId/episodes/:episodeId/status — 회차 상태 전이.
+ * 단일 엔드포인트가 status(DRAFT|READY)를 받아 전이(서버 allowlist 검증). 녹음대기/초안 분리 안 함.
+ */
+export function changeEpisodeStatus(
+  contentId: number,
+  episodeId: number,
+  status: EpisodeStatus
+): Promise<unknown> {
+  return apiRequest<unknown>(`/directors/contents/${contentId}/episodes/${episodeId}/status`, {
+    method: 'PUT',
+    body: JSON.stringify({ status })
+  })
+}

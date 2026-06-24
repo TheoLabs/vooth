@@ -10,7 +10,7 @@ export class ContentRepository extends DddRepository<Content> {
 
   async find(
     conditions: {
-      id?: number;
+      ids?: number[];
       title?: string;
       statuses?: ContentStatus[];
       searchKey?: string;
@@ -21,7 +21,7 @@ export class ContentRepository extends DddRepository<Content> {
   ) {
     return this.entityManager.find(this.entityClass, {
       where: stripUndefined({
-        id: conditions.id,
+        id: checkInValue(conditions.ids),
         title: conditions.title,
         status: checkInValue(conditions.statuses),
         tags: { id: checkInValue(conditions.tagIds) },
@@ -35,7 +35,7 @@ export class ContentRepository extends DddRepository<Content> {
   }
 
   async count(conditions: {
-    id?: number;
+    ids?: number[];
     title?: string;
     statuses?: ContentStatus[];
     searchKey?: string;
@@ -44,7 +44,7 @@ export class ContentRepository extends DddRepository<Content> {
   }) {
     return this.entityManager.count(this.entityClass, {
       where: stripUndefined({
-        id: conditions.id,
+        id: checkInValue(conditions.ids),
         title: conditions.title,
         status: checkInValue(conditions.statuses),
         tags: { id: checkInValue(conditions.tagIds) },

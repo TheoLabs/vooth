@@ -84,6 +84,7 @@
       <li>🔒 <b>PUBLISHED 이후 회귀 없음</b> — 발행에 도달하면 발행 이전 상태(DRAFT~SCHEDULED)로 가는 경로가 화이트리스트에 없다. <code>ARCHIVED ⇄ PUBLISHED</code> 만 가능.</li>
       <li>🔒 <b>status 엔드포인트는 수동 전이만</b> — 자동·스케줄러·데이터 전이는 <code>canManualTransitionContent</code>로 차단해 우회 발행/녹음 트리거 무력화를 막는다.</li>
       <li><b>DRAFT ⇄ READY 는 관리자 수동</b> — 초안 완료(DRAFT→READY)·초안 회귀(READY→DRAFT)는 status 엔드포인트로 직접 전이. 회귀는 <b>녹음 전(READY)만</b> 가능.</li>
+      <li>🔒 <b>DRAFT→READY 전제: 녹음 대기 회차 ≥1</b> — 콘텐츠를 녹음대기(READY)로 올리려면 <b>소속 에피소드 중 최소 1개가 <code>EpisodeStatus.READY</code></b>여야 한다(0개·전부 DRAFT면 차단). 회차가 anchorY 작업 후 개별 READY로 전환된 뒤에야 콘텐츠를 녹음대기로 올릴 수 있다. cross-aggregate 조건이라 <code>AdminContentService.transitionStatus</code>(앱 계층, <code>nextStatus===READY</code> 가드)에서 <code>episodeRepository.count({ contentId, statuses:[READY] }) &gt; 0</code> 로 검증. <b>전이 시점 게이트</b>이며 지속 불변식은 아님(이후 회차가 DRAFT로 회귀해도 콘텐츠는 READY 유지).</li>
       <li><b>READY → RECORDING 는 자동</b> — 콘텐츠 소속 에피소드에 성우가 1명이라도 녹음을 진입하면 자동 전이. 이 경로는 역방향 없음(녹음 시작 후엔 READY로 회귀 안 함 — 회귀는 READY→DRAFT만).</li>
       <li><b>RECORDING ⇄ REVIEWING 자동 롤업</b> — 모든 회차 검수 완료 시 REVIEWING, 회차가 검수에서 회귀하면 다시 RECORDING.</li>
       <li><b>REVIEWING ⇄ APPROVED 수동</b> — 검수자가 완료(APPROVED) / 재검수(REVIEWING). status 엔드포인트.</li>
@@ -96,6 +97,7 @@
     <h2><span class="num">05</span> 구현 현황 · 예정</h2>
     <ul class="clean">
       <li>✅ <b>상태 전이 엔드포인트</b> — <code>PUT /admins/contents/:id/status { nextStatus }</code> → <code>content.transitionManually(next)</code> + <code>canManualTransitionContent</code>(수동 allowlist) 검증. <b>구현됨.</b></li>
+      <li>⏳ <b>DRAFT→READY 전제 검증</b> — 녹음대기 회차 ≥1 게이트(§04). <code>transitionStatus</code>에 <code>nextStatus===READY</code>일 때 <code>episodeRepository.count({ contentId, statuses:[READY] })</code> 체크 추가. <b>미구현(설계).</b></li>
       <li>⏳ <b><code>expectedPublishOn</code></b> (CalendarDate, nullable) — 설정 시 <code>APPROVED → SCHEDULED</code>, 해제 시 역방향(데이터 전이, update).</li>
       <li>⏳ <b>스케줄러</b> — <code>expectedPublishOn &lt;= now</code> 인 SCHEDULED 콘텐츠를 PUBLISHED 로 전이(시스템 — <code>transitionTo</code> 사용).</li>
       <li>⏳ <b>자동 전이</b> — 녹음 진입(READY→RECORDING)·검수 롤업(RECORDING↔REVIEWING)은 EpisodeReview/녹음 연동 시 시스템 전이(<code>transitionTo</code>).</li>

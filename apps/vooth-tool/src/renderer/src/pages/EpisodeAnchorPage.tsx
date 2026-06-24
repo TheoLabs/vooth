@@ -2,9 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { EPISODE_STATUS_LABEL, EpisodeStatus } from '../domain/types'
 import { Badge } from '../components/Badge'
-import { MockNote } from '../components/MockNote'
 import { EPISODE_STATUS_BADGE } from '../domain/format'
-import { useDirectorEpisode } from '../features/episode/useDirectorEpisodes'
+import { useChangeEpisodeStatus, useDirectorEpisode } from '../features/episode/useDirectorEpisodes'
 import { useDirectorCuts } from '../features/cut/useDirectorCuts'
 import { useSetLineAnchorY } from '../features/cut/useSetLineAnchorY'
 import { useDirectorCharacters } from '../features/character/useDirectorCharacters'
@@ -86,19 +85,29 @@ export function EpisodeAnchorPage(): React.JSX.Element {
   }, [cutData, id])
 
   const [dirty, setDirty] = useState(false)
-  // 회차 상태: 실 API 값을 기본으로, 로컬 전환은 override(저장은 아직 mock).
+  // 회차 상태: 실 API 값을 기본으로, 전이 중엔 낙관적 override.
   const [statusOverride, setStatusOverride] = useState<EpisodeStatus | null>(null)
   const status = statusOverride ?? episode?.status ?? EpisodeStatus.DRAFT
 
+  const statusMutation = useChangeEpisodeStatus(cid, id)
+  const changeStatus = (next: EpisodeStatus): void => {
+    const prev = statusOverride
+    setStatusOverride(next) // 낙관적 반영
+    statusMutation.mutate(next, {
+      onError: (err) => {
+        setStatusOverride(prev)
+        window.alert(`상태 변경에 실패했습니다.\n${err.message}`)
+      }
+    })
+  }
   const promoteToReady = (): void => {
     const ok = window.confirm(
       '대사 앵커 작업을 마치고 ‘녹음 대기’ 상태로 전환할까요?\n이후 성우 녹음 단계로 넘어갑니다.'
     )
     if (!ok) return
-    setStatusOverride(EpisodeStatus.READY)
-    // mock: 실제로는 directors/* PUT 으로 상태 전이.
+    changeStatus(EpisodeStatus.READY)
   }
-  const revertToDraft = (): void => setStatusOverride(EpisodeStatus.DRAFT)
+  const revertToDraft = (): void => changeStatus(EpisodeStatus.DRAFT)
 
   const orderedCuts = useMemo(() => [...cuts].sort((a, b) => a.position - b.position), [cuts])
   const [cutIdx, setCutIdx] = useState(0)
@@ -170,6 +179,18 @@ export function EpisodeAnchorPage(): React.JSX.Element {
     setActiveLineId(null)
   }
 
+  // 컷 번호 직접 입력 → 해당 컷으로 점프(컷이 많을 때).
+  // draft=편집 중 값(없으면 현재 컷 번호 표시). commit 시 점프 후 draft 해제.
+  const [cutDraft, setCutDraft] = useState<string | null>(null)
+  const cutInputValue = cutDraft ?? (cut ? String(cut.position) : '')
+  const commitCutJump = (): void => {
+    if (cutDraft != null) {
+      const idx = orderedCuts.findIndex((c) => c.position === Number(cutDraft))
+      if (idx >= 0) gotoCut(idx)
+    }
+    setCutDraft(null)
+  }
+
   // 저장: 명시 anchorY(균등=null 제외) 라인만 모아 일괄 전송. (API 가 number 만 받음)
   const setAnchorMutation = useSetLineAnchorY(id)
   const saveAnchors = (): void => {
@@ -200,11 +221,10 @@ export function EpisodeAnchorPage(): React.JSX.Element {
             <h2 className="tool-page__title">대사 앵커 설정</h2>
             <p className="tool-page__desc">
               {episode ? `${episode.chapter}화 · ${episode.title}` : '회차'} — 컷 위의 대사 앵커를
-              클릭해 선택하고 드래그해 발화 세로 위치(anchorY)를 지정합니다.
+              클릭해 선택하고 드래그해 발화 세로 위치를 지정합니다.
             </p>
           </div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <MockNote />
             <button
               className="tool-btn tool-btn--primary"
               disabled={!dirty || setAnchorMutation.isPending}
@@ -224,17 +244,25 @@ export function EpisodeAnchorPage(): React.JSX.Element {
           {status === EpisodeStatus.DRAFT ? (
             <div className="anc-status__action">
               <span className="anc-status__hint">앵커 설정을 마쳤다면 녹음 단계로 넘기세요.</span>
-              <button className="tool-btn tool-btn--primary" onClick={promoteToReady}>
-                녹음 대기로 전환 →
+              <button
+                className="tool-btn tool-btn--primary"
+                onClick={promoteToReady}
+                disabled={statusMutation.isPending}
+              >
+                {statusMutation.isPending ? '변경 중…' : '녹음 대기로 전환 →'}
               </button>
             </div>
           ) : status === EpisodeStatus.READY ? (
             <div className="anc-status__action">
               <span className="anc-status__hint anc-status__hint--ok">
-                ✓ 녹음 대기 상태입니다. 녹음(vooth-maker) 후 연출 단계로 진행됩니다.
+                ✓ 녹음 대기 상태입니다. 녹음 후 연출 단계로 진행됩니다.
               </span>
-              <button className="tool-btn tool-btn--sm tool-btn--ghost" onClick={revertToDraft}>
-                초안으로 되돌리기
+              <button
+                className="tool-btn tool-btn--sm tool-btn--ghost"
+                onClick={revertToDraft}
+                disabled={statusMutation.isPending}
+              >
+                {statusMutation.isPending ? '변경 중…' : '초안으로 되돌리기'}
               </button>
             </div>
           ) : (
@@ -258,7 +286,17 @@ export function EpisodeAnchorPage(): React.JSX.Element {
                 ← 이전 컷
               </button>
               <span className="anc-cutnav__pos">
-                컷 {cut.position}{' '}
+                컷{' '}
+                <input
+                  className="anc-cutnav__input"
+                  inputMode="numeric"
+                  value={cutInputValue}
+                  onChange={(e) => setCutDraft(e.target.value.replace(/[^0-9]/g, ''))}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
+                  }}
+                  onBlur={commitCutJump}
+                />
                 <span style={{ color: 'var(--vt-text-dim)' }}>/ {orderedCuts.length}</span>
               </span>
               <button
@@ -277,15 +315,20 @@ export function EpisodeAnchorPage(): React.JSX.Element {
             <div className="anc-viewport">
               {orderedCuts.map((c, i) => {
                 const off = i - safeIdx
+                const abs = Math.abs(off)
+                // 가상화: 활성 컷 주변 window(±3)만 렌더 → 컷이 100개여도 DOM/이미지는 ~7장.
+                // (±2 까지만 보이고 ±3 은 opacity 0 으로 대기 → 이동 시 자연스럽게 슬라이드 인)
+                if (abs > 3) return null
                 const isActive = off === 0
-                const visible = Math.abs(off) <= 1
+                const visible = abs <= 2
+                const sign = Math.sign(off)
+                const tx = abs === 0 ? 0 : sign * (58 + (abs - 1) * 34)
+                const tz = abs === 0 ? 0 : -(200 + (abs - 1) * 180)
+                const ry = abs === 0 ? 0 : -sign * (22 + (abs - 1) * 8)
                 const slideStyle: React.CSSProperties = {
-                  // 가로 간격을 카드 반폭(50%)보다 크게 둬서 옆 컷이 가운데 컷 뒤에 덜 가리게 한다.
-                  transform: `translateX(calc(-50% + ${off * 72}%)) translateZ(${
-                    isActive ? 0 : -180
-                  }px) rotateY(${off * -22}deg)`,
+                  transform: `translateX(calc(-50% + ${tx}%)) translateZ(${tz}px) rotateY(${ry}deg)`,
                   opacity: visible ? 1 : 0,
-                  zIndex: 10 - Math.abs(off),
+                  zIndex: 10 - abs,
                   pointerEvents: visible ? undefined : 'none'
                 }
 
@@ -308,6 +351,7 @@ export function EpisodeAnchorPage(): React.JSX.Element {
                         src={c.imageUrl}
                         alt={isActive ? `컷 ${c.position}` : ''}
                         draggable={false}
+                        loading={isActive ? undefined : 'lazy'}
                       />
                       {/* 대사 앵커 핸들 — 클릭 선택, 위아래 드래그로 anchorY 수정. */}
                       {isActive &&
@@ -344,7 +388,7 @@ export function EpisodeAnchorPage(): React.JSX.Element {
               })}
             </div>
             <div className="anc-stage__hint">
-              컷 위의 앵커(L#)를 <strong>클릭</strong>해 선택하고 <strong>위아래로 드래그</strong>해
+              컷 위의 앵커를 <strong>클릭</strong>해 선택하고 <strong>위아래로 드래그</strong>해
               발화 위치를 조절하세요. 점선 = 균등(기본). 양옆 흐린 컷을 누르면 이동합니다.
             </div>
           </div>

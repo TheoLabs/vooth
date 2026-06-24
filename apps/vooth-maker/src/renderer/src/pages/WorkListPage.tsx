@@ -1,137 +1,229 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import {
-  EPISODE_STATUS_LABEL,
-  EPISODE_STATUS_VARIANT,
-  MOCK_ASSIGNED_EPISODES,
-  type AssignedEpisode,
-  type EpisodeStatus,
-} from '../features/episodes/recording.mock'
+import { CONTENT_STATUS_LABEL } from '../api/content.api'
+import { useInfiniteCreatorContents } from '../features/content/useCreatorContents'
+import { useDebouncedValue } from '../hooks/useDebouncedValue'
 import './WorkListPage.css'
 
-/** UTC ISO → 로컬 'M월 D일' (CLAUDE.md 타임스탬프 룰: 로컬 변환) */
-function formatLocalDate(iso: string): string {
-  const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return '-'
-  return `${d.getMonth() + 1}월 ${d.getDate()}일`
-}
+/** 썸네일 없는 작품의 플레이스홀더 배경색(작품별 다양성). */
+const PH_COLORS = ['#6366f1', '#ec4899', '#0ea5e9', '#22c55e', '#f59e0b', '#a855f7', '#14b8a6']
 
-const STATUS_FILTERS: { value: EpisodeStatus | 'ALL'; label: string }[] = [
-  { value: 'ALL', label: '전체' },
-  { value: 'READY', label: '녹음 대기' },
-  { value: 'RECORDING', label: '녹음 중' },
-  { value: 'REVIEWING', label: '검수 중' },
-  { value: 'PUBLISHED', label: '발행 완료' },
-]
-
-function ProgressBar({ ep }: { ep: AssignedEpisode }): React.JSX.Element {
-  const pct = ep.totalLines ? Math.round((ep.recordedLines / ep.totalLines) * 100) : 0
-  return (
-    <div className="wl-progress">
-      <div className="wl-progress__track">
-        <div className="wl-progress__bar" style={{ width: `${pct}%` }} />
-      </div>
-      <span className="wl-progress__count">
-        {ep.recordedLines}/{ep.totalLines} 라인
-      </span>
-    </div>
-  )
-}
-
-/** 작업 목록 = 내게 배정된 회차(회차×성우 캐스팅). 행 클릭 → 녹음 화면. */
+/** 작업 목록 = 내 작업 작품 목록(GET /creators/contents). 작품을 골라 회차 녹음으로 진행. */
 export function WorkListPage(): React.JSX.Element {
   const navigate = useNavigate()
-  const [status, setStatus] = useState<EpisodeStatus | 'ALL'>('ALL')
   const [query, setQuery] = useState('')
+  // 입력은 즉시 반영, 질의는 멈춘 뒤 300ms 후.
+  const debouncedQuery = useDebouncedValue(query.trim(), 300)
 
-  const rows = useMemo(() => {
-    const q = query.trim().toLowerCase()
-    return MOCK_ASSIGNED_EPISODES.filter((e) => {
-      if (status !== 'ALL' && e.status !== status) return false
-      if (!q) return true
-      return (
-        e.workTitle.toLowerCase().includes(q) ||
-        e.title.toLowerCase().includes(q) ||
-        e.role.toLowerCase().includes(q)
-      )
-    })
-  }, [status, query])
+  // 보기 방식(그리드/테이블, localStorage 유지). 그리드는 한 줄 10개 고정.
+  const [view, setView] = useState<'grid' | 'table'>(() =>
+    localStorage.getItem('vooth-maker.workView') === 'table' ? 'table' : 'grid'
+  )
+  useEffect(() => {
+    localStorage.setItem('vooth-maker.workView', view)
+  }, [view])
+
+  const { data, isLoading, isError, error, fetchNextPage, hasNextPage, isFetchingNextPage } =
+    useInfiniteCreatorContents(debouncedQuery || undefined)
+
+  const items = data?.pages.flatMap((p) => p.items) ?? []
+  const total = data?.pages[0]?.total ?? items.length
+
+  // 그리드 끝 센티넬이 보이면 다음 페이지 로드.
+  const sentinelRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const el = sentinelRef.current
+    if (!el) return
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting && hasNextPage && !isFetchingNextPage) {
+          fetchNextPage()
+        }
+      },
+      { rootMargin: '300px' }
+    )
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage])
 
   return (
     <div className="wl">
       <div className="wl__head">
-        <h2 className="wl__title">작업 목록</h2>
-        <span className="wl__mock-tag">MOCK</span>
-        <span className="wl__total">총 {rows.length}건</span>
+        <h2 className="wl__title">내 콘텐츠</h2>
+        <span className="wl__total">총 {total}건</span>
       </div>
 
       <div className="wl__toolbar">
         <input
           className="wl__search"
           type="text"
-          placeholder="작품 · 회차 · 배역 검색"
+          placeholder="작품 제목 검색"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
-        <div className="wl__filters">
-          {STATUS_FILTERS.map((f) => (
-            <button
-              key={f.value}
-              type="button"
-              className={`wl__chip${status === f.value ? ' wl__chip--active' : ''}`}
-              onClick={() => setStatus(f.value)}
-            >
-              {f.label}
-            </button>
-          ))}
+        <div className="wl__viewtoggle">
+          <button
+            type="button"
+            className={`wl__viewbtn${view === 'grid' ? ' wl__viewbtn--active' : ''}`}
+            onClick={() => setView('grid')}
+          >
+            ▦ 그리드
+          </button>
+          <button
+            type="button"
+            className={`wl__viewbtn${view === 'table' ? ' wl__viewbtn--active' : ''}`}
+            onClick={() => setView('table')}
+          >
+            ☰ 테이블
+          </button>
         </div>
       </div>
 
-      {rows.length === 0 ? (
-        <div className="wl__empty">조건에 맞는 회차가 없습니다.</div>
-      ) : (
-        <ul className="wl__list">
-          {rows.map((ep) => (
-            <li
-              key={ep.id}
-              className="wl-row"
-              role="button"
-              tabIndex={0}
-              onClick={() => navigate(`/works/${ep.id}`)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault()
-                  navigate(`/works/${ep.id}`)
-                }
-              }}
-            >
-              <span className="wl-row__thumb" style={{ background: ep.thumbColor }}>
-                {ep.workTitle.slice(0, 1)}
-              </span>
+      {isLoading && <div className="wl__state">불러오는 중…</div>}
+      {isError && !isLoading && (
+        <div className="wl__state wl__state--error">
+          목록을 불러오지 못했습니다. {error?.message}
+        </div>
+      )}
+      {!isLoading && !isError && items.length === 0 && (
+        <div className="wl__state">배정된 작품이 없습니다.</div>
+      )}
 
-              <div className="wl-row__main">
-                <div className="wl-row__titles">
-                  <span className="wl-row__work">{ep.workTitle}</span>
-                  <span className="wl-row__ep">
-                    {ep.episodeNo}화 · {ep.title}
-                  </span>
-                </div>
-                <div className="wl-row__meta">
-                  <span className="wl-row__role">🎭 {ep.role}</span>
-                  <span className="wl-row__date">마지막 작업 {formatLocalDate(ep.updatedAt)}</span>
-                </div>
-              </div>
+      {!isLoading && !isError && items.length > 0 && (
+        <>
+          {view === 'grid' ? (
+            <div className="wl-grid" style={{ gridTemplateColumns: 'repeat(10, minmax(0, 1fr))' }}>
+              {items.map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  className="wl-card"
+                  onClick={() => navigate(`/works/contents/${c.id}`, { state: { content: c } })}
+                >
+                  <div
+                    className="wl-card__thumb"
+                    style={
+                      c.thumbnailUrl
+                        ? undefined
+                        : { background: PH_COLORS[c.id % PH_COLORS.length] }
+                    }
+                  >
+                    {c.thumbnailUrl ? (
+                      <img src={c.thumbnailUrl} alt="" draggable={false} loading="lazy" />
+                    ) : (
+                      <span className="wl-card__ph wl-card__ph--filled">{c.title.slice(0, 1)}</span>
+                    )}
+                    {!!c.pendingEpisodeCount && (
+                      <span className="wl-card__badge">녹음 {c.pendingEpisodeCount}</span>
+                    )}
+                  </div>
+                  <div className="wl-card__body">
+                    <div className="wl-card__title">{c.title}</div>
+                    {!!c.tags?.length && (
+                      <div className="wl-tags">
+                        {c.tags.slice(0, 3).map((t) => (
+                          <span
+                            key={t.id}
+                            className="wl-tag"
+                            style={{ color: t.color, borderColor: t.color }}
+                          >
+                            {t.name}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    <div className="wl-card__meta">
+                      {c.status && (
+                        <span className="wl-card__status">
+                          {CONTENT_STATUS_LABEL[c.status] ?? c.status}
+                        </span>
+                      )}
+                      <span className="wl-card__count">회차 {c.episodeCount ?? '-'}</span>
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <table className="wl-table">
+              <thead>
+                <tr>
+                  <th className="wl-table__thumbcol" aria-label="썸네일" />
+                  <th>작품</th>
+                  <th>녹음 필요</th>
+                  <th>상태</th>
+                  <th>회차 수</th>
+                </tr>
+              </thead>
+              <tbody>
+                {items.map((c) => (
+                  <tr
+                    key={c.id}
+                    className="wl-table__row"
+                    onClick={() => navigate(`/works/contents/${c.id}`, { state: { content: c } })}
+                  >
+                    <td className="wl-table__thumbcol">
+                      <span
+                        className="wl-table__thumb"
+                        style={
+                          c.thumbnailUrl
+                            ? undefined
+                            : { background: PH_COLORS[c.id % PH_COLORS.length] }
+                        }
+                      >
+                        {c.thumbnailUrl ? (
+                          <img src={c.thumbnailUrl} alt="" draggable={false} loading="lazy" />
+                        ) : (
+                          c.title.slice(0, 1)
+                        )}
+                      </span>
+                    </td>
+                    <td className="wl-table__title">
+                      <div>{c.title}</div>
+                      {!!c.tags?.length && (
+                        <div className="wl-tags">
+                          {c.tags.slice(0, 4).map((t) => (
+                            <span
+                              key={t.id}
+                              className="wl-tag"
+                              style={{ color: t.color, borderColor: t.color }}
+                            >
+                              {t.name}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </td>
+                    <td>
+                      {typeof c.pendingEpisodeCount === 'number' ? (
+                        c.pendingEpisodeCount > 0 ? (
+                          <span className="wl-pending">{c.pendingEpisodeCount}</span>
+                        ) : (
+                          '0'
+                        )
+                      ) : (
+                        '-'
+                      )}
+                    </td>
+                    <td>
+                      {c.status ? (
+                        <span className="wl-status">
+                          {CONTENT_STATUS_LABEL[c.status] ?? c.status}
+                        </span>
+                      ) : (
+                        '-'
+                      )}
+                    </td>
+                    <td>{c.episodeCount ?? '-'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
 
-              <div className="wl-row__progress">
-                <ProgressBar ep={ep} />
-              </div>
-
-              <span className={`status-pill status-pill--${EPISODE_STATUS_VARIANT[ep.status]}`}>
-                {EPISODE_STATUS_LABEL[ep.status]}
-              </span>
-            </li>
-          ))}
-        </ul>
+          <div ref={sentinelRef} />
+          {isFetchingNextPage && <div className="wl__state">더 불러오는 중…</div>}
+        </>
       )}
     </div>
   )

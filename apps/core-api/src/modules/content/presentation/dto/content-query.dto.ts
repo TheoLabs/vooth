@@ -12,11 +12,6 @@ abstract class BaseContentQueryDto extends PaginationDto {
   @IsString()
   @IsOptional()
   searchValue?: string;
-
-  @ToArray()
-  @IsEnum(ContentStatus, { each: true })
-  @IsOptional()
-  statuses?: ContentStatus[];
 }
 
 export class AdminContentQueryDto extends BaseContentQueryDto {
@@ -24,6 +19,18 @@ export class AdminContentQueryDto extends BaseContentQueryDto {
   @IsInt({ each: true })
   @IsOptional()
   tagIds?: number[];
+
+  @ToArray()
+  @IsEnum(ContentStatus, { each: true })
+  @IsOptional()
+  statuses?: ContentStatus[];
 }
 
-export class DirectorContentQueryDto extends BaseContentQueryDto {}
+export class DirectorContentQueryDto extends BaseContentQueryDto {
+  @ToArray()
+  @IsEnum(ContentStatus, { each: true })
+  @IsOptional()
+  statuses?: ContentStatus[];
+}
+
+export class CreatorContentQueryDto extends BaseContentQueryDto {}
