@@ -13,9 +13,10 @@ import { DirectorLineController } from './presentation/director-line.controller'
 import { DirectorLineService } from './applications/director-line.service';
 import { CreatorCutController } from './presentation/creator-cut.controller';
 import { CreatorCutService } from './applications/creator-cut.service';
+import { CastingModule } from '@modules/casting/casting.module';
 
 @Module({
-  imports: [FileModule, EpisodeModule, CharacterModule],
+  imports: [FileModule, EpisodeModule, CharacterModule, CastingModule],
   controllers: [
     AdminCutController,
     AdminLineController,

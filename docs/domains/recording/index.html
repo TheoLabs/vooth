@@ -18,7 +18,7 @@
       Cut 구성 애그리게이트와 달리 <b>별도 AR</b> — 성우(vooth-maker)가 다른 시점·다른 앱에서 쓰기 때문.
     </p>
     <div class="meta">
-      <span class="badge plan">설계 (검토용)</span>
+      <span class="badge plan">설계 확정 · 구현 예정</span>
       <span class="badge ns">creators/* · directors/*</span>
       <span class="badge ctx">Line × Casting</span>
       <span class="badge ctx">take · 채택</span>
@@ -27,8 +27,7 @@
   </div>
 
   <div class="note warn">
-    <span class="label">구현 상태 = 설계(검토 대기).</span> Recording은 아직 core-api 모듈로 존재하지 않는다. 이 문서는 <b>구현 전 합의용 설계안</b>이며,
-    <b>§04 검토 포인트</b>의 결정이 끝나면 구현에 들어간다. 선행(Casting·Line·Episode READY 전이)은 모두 구현됨.
+    <span class="label">구현 상태 = 설계 확정(구현 예정).</span> Recording은 아직 core-api 모듈로 존재하지 않는다. 검토 포인트(A: per-take 검수 미포함 / B: 채택=성우 본인)는 <b>모두 결정됨</b> — 구현 진행. 선행(Casting·Line·Episode READY 전이)은 모두 구현됨.
     부모 대사·컷은 <a href="../cut/index.html">Cut</a>(Line은 Cut의 child), 버전은 <a href="../casting/index.html">Casting</a>, 타이밍은 <a href="../playback/index.html">Playback</a> 참고.
   </div>
 
@@ -56,8 +55,6 @@
           <tr><td><code>audioFileId</code></td><td>number</td><td>✗</td><td>음성(File). <b>commit-on-attach(<code>audio/</code>)</b></td></tr>
           <tr><td><code>durationMs</code></td><td>number(ms)</td><td>✗</td><td>음성 길이. <b>클라(maker) 제공</b>(S3 HEAD로 못 구함). 타임라인 길이 원천</td></tr>
           <tr><td><code>isAdopted</code></td><td>boolean</td><td>✗</td><td>같은 <code>(lineId, castingId)</code> 테이크 중 사용본. 기본 false. 쌍당 <b>최대 1</b></td></tr>
-          <tr><td class="dim"><code>status</code> <span class="badge plan">검토</span></td><td class="dim">enum</td><td class="dim">—</td><td class="dim"><b>(검토 포인트 A)</b> per-take 검수 상태(RECORDED/REVIEWING/APPROVED/REJECTED). MVP에선 생략 후보 — 검수는 EpisodeCasting 단위로 미룸. <a href="#review">§04</a></td></tr>
-          <tr><td class="dim"><code>rejectReason</code> <span class="badge plan">검토</span></td><td class="dim">text · null</td><td class="dim">—</td><td class="dim">status=REJECTED일 때 사유. status 채택 시 동반</td></tr>
         </tbody>
       </table>
     </div>
@@ -72,40 +69,38 @@
       <li><b>캐릭터 정합</b> — <code>casting.characterId === line.characterId</code>. 엉뚱한 캐릭터 버전에 녹음 금지.</li>
       <li><b>녹음 주체(소유)</b> — <code>creators/*</code>: 현재 성우가 <b>그 casting의 creator일 때만</b>(<code>casting.creatorId === ctx.creator.id</code>) 업로드·삭제 가능. 남의 캐스팅 녹음/수정 금지.</li>
       <li><b>회차 상태 게이트</b> — 녹음은 <code>EPISODE_RECORDABLE_STATUSES = [READY, RECORDING, REVIEWING]</code>에서만. DRAFT(편집)·APPROVED 이후(잠금)엔 차단. (재녹음은 REVIEWING까지 허용)</li>
-      <li><b>채택 주체</b> — <b>(검토 포인트 B)</b> §04 참고. 잠정: 성우 본인이 자기 테이크 중 채택(<code>selectedTakeByCreator</code> 모델과 일치).</li>
+      <li><b>채택 주체</b> — <b>성우 본인</b>(<code>creators/*</code>). 자기 <code>(lineId, castingId)</code> 테이크 중 하나를 채택. §04 B.</li>
     </ul>
   </section>
 
   <section class="section" id="review">
-    <h2><span class="num">04</span> 검수 · 채택 모델 <span class="badge plan" style="vertical-align:middle">검토 포인트</span></h2>
-    <p class="desc">두 가지가 헷갈리기 쉬워 분리해 둔다 — <b>채택(어느 테이크를 쓸지)</b> vs <b>검수(그 버전을 발행할지)</b>.</p>
+    <h2><span class="num">04</span> 검수 · 채택 모델</h2>
+    <p class="desc">두 가지를 분리한다 — <b>채택(어느 테이크를 쓸지)</b> vs <b>검수(그 버전을 발행할지)</b>.</p>
 
-    <h3>A. per-take 검수 상태를 넣을까?</h3>
+    <h3>A. per-take 검수 상태 — <span class="badge ok">결정: 미포함(A1)</span></h3>
     <ul class="clean">
-      <li><b>옵션 A1 (MVP·추천)</b> — Recording엔 <code>take + isAdopted + durationMs + audio</code>만. per-take 검수 상태 없음. "어느 테이크가 좋은가"는 <code>isAdopted</code>로 충분. <b>발행 여부(검수)는 캐스팅 단위</b>로 따로(EpisodeCasting, 추후 / 현재 <code>Casting.isPublished</code> 수동 MVP).</li>
-      <li><b>옵션 A2</b> — vooth-maker mock처럼 <code>status</code>(RECORDED→REVIEWING→APPROVED/REJECTED) + <code>rejectReason</code>을 테이크마다. 테이크 단위 반려/재녹음 흐름을 코어에 둠. <b>비용</b>: 상태 머신 + 검수 surface가 EpisodeCasting과 이중화될 수 있음.</li>
-      <li class="dim"><b>판단</b>: MVP는 <b>A1</b>. 테이크 단위 반려가 실제로 필요해지면 A2로 확장(append-only enum). <span style="color:var(--accent)">← 검토 요망</span></li>
+      <li>Recording엔 <code>take + isAdopted + durationMs + audio</code>만. <b>per-take 검수 상태(status/rejectReason) 없음.</b> "어느 테이크가 좋은가"는 <code>isAdopted</code>로 충분.</li>
+      <li><b>검수·발행은 <a href="../episode-casting/index.html">EpisodeCasting</a>(회차×캐스팅) 단위.</b> 테이크 개별 검수를 코어에 두면 EpisodeCasting과 이중화되므로 안 둔다. (테이크 단위 반려가 실제로 필요해지면 append-only enum으로 확장.)</li>
     </ul>
 
-    <h3>B. 누가 채택(<code>isAdopted</code>)하나?</h3>
+    <h3>B. 누가 채택(<code>isAdopted</code>)하나? <span class="badge ok">결정: B1(성우 본인)</span></h3>
     <ul class="clean">
-      <li><b>옵션 B1 (추천)</b> — <b>성우 본인</b>이 자기 테이크 중 하나를 채택. vooth-tool mock의 <code>selectedTakeByCreator</code>(creator→recordingId)와 일치. 직관적(자기 베스트 제출). 검수/발행은 별도(EpisodeCasting).</li>
-      <li><b>옵션 B2</b> — <b>연출자(directors)</b>가 테이크 중 선정. 내부가 품질을 통제. 다만 멀티버전이라 캐스팅마다 골라줘야 해 작업량↑.</li>
-      <li class="dim"><b>판단</b>: <b>B1</b>(성우 자기선택) + 발행 게이트는 EpisodeCasting. <span style="color:var(--accent)">← 검토 요망</span></li>
+      <li><b>성우 본인</b>이 자기 테이크 중 하나를 채택(<code>creators/*</code>). vooth-tool mock의 <code>selectedTakeByCreator</code>(creator→recordingId)와 일치. 직관적(자기 베스트 제출).</li>
+      <li><b>검수/발행은 별도</b> — 채택은 "어느 테이크를 쓸지"일 뿐, 그 버전을 발행할지는 <a href="../episode-casting/index.html">EpisodeCasting</a>(연출/검수자)이 정한다. 연출자가 테이크를 고르는 B2는 채택 안 함.</li>
     </ul>
 
     <div class="note">
       <span class="label">층위 정리.</span>
-      <b>① 채택(Recording.isAdopted)</b> = (line×casting)당 쓸 테이크 1개 · <b>② 발행(Casting.isPublished / 추후 EpisodeCasting)</b> = 그 버전을 시청자에게 노출할지.
-      재생엔 <b>발행된 캐스팅</b>의 <b>채택 테이크</b>가 쓰인다. 검수=캐스팅(회차×캐스팅) 단위라 테이크 개별 검수는 기본 안 둔다(A1).
+      <b>① 채택(Recording.isAdopted)</b> = (line×casting)당 쓸 테이크 1개 · <b>② 검수·발행(<a href="../episode-casting/index.html">EpisodeCasting</a>)</b> = 그 회차 버전을 시청자에게 노출할지(현재 <code>Casting.isPublished</code> 수동 MVP).
+      재생엔 <b>발행된 EpisodeCasting</b>의 <b>채택 테이크</b>가 쓰인다.
     </div>
   </section>
 
   <section class="section">
     <h2><span class="num">05</span> 이벤트 · 회차 상태 연동</h2>
     <ul class="clean">
-      <li><b>첫 제출 → 회차 전이</b> — 회차에 첫 Recording이 생기면 <code>RecordingCreatedEvent</code> 발행 → Episode <code>READY→RECORDING</code> 자동 전이(EDA, 멱등). 라인별이 아니라 <b>회차 첫 녹음</b> 기준(<code>episodeId</code> 비정규화 덕에 판정 쉬움).</li>
-      <li><b>녹음 완료 → 검수</b> — 회차의 모든 (라인×발행대상 캐스팅)에 채택 테이크가 차면 <code>RECORDING→REVIEWING</code>. 이 롤업 판정은 <b>EpisodeCasting(추후)</b> 단위가 정확 — MVP에선 directors 수동 전이(<code>PUT directors/…/status</code>)로.</li>
+      <li><b>첫 녹음 → EpisodeCasting lazy 생성 + 회차 전이</b> — Recording 생성 시 <code>RecordingCreatedEvent</code>(lineId·castingId·episodeId 포함) 발행 → (a) <a href="../episode-casting/index.html">EpisodeCasting</a><code>(episodeId, castingId)</code> 없으면 <code>RECORDING</code>으로 <b>upsert</b>(멱등), (b) 회차 첫 녹음이면 Episode <code>READY→RECORDING</code> 자동 전이. <code>episodeId</code> 비정규화 덕에 둘 다 판정 쉬움.</li>
+      <li><b>녹음 완료 → 검수</b> — 회차의 모든 (라인×발행대상 캐스팅)에 채택 테이크가 차면 그 <a href="../episode-casting/index.html">EpisodeCasting</a>이 <code>REVIEWING</code>으로. 롤업 판정은 EpisodeCasting 단위 — MVP에선 directors 수동 전이로.</li>
       <li><b>채택/삭제 정리</b> — Episode 하드 삭제 시 <code>EpisodeRemovedEvent</code> → Recording <code>@EventHandler</code>가 그 회차 녹음 일괄 삭제(논리 FK라 EDA, <code>episodeId</code> 멱등). Cut 정리와 동형. S3 오디오 정리도 동반(추후).</li>
     </ul>
   </section>
@@ -114,7 +109,7 @@
     <h2><span class="num">06</span> 라이프사이클 · 삭제</h2>
     <ul class="clean">
       <li><b>생성(테이크 업로드)</b> — creator. presign→S3 PUT→<code>POST</code> 시 <code>commit(audio/)</code> + <code>durationMs</code> 저장. <code>take</code>는 <code>(lineId, castingId)</code>의 <code>max(take)+1</code> 자동.</li>
-      <li><b>채택</b> — (검토 B) creator 본인. <code>isAdopted</code> 토글(형제 자동 해제). 회차 recordable 상태에서만.</li>
+      <li><b>채택</b> — creator 본인. <code>isAdopted</code> 토글(형제 자동 해제). 회차 recordable 상태에서만.</li>
       <li><b>삭제</b> — 본인 테이크. 채택 테이크 삭제는 채택 해제 후/차단 검토. 회차 잠금(APPROVED↑) 후엔 차단.</li>
     </ul>
   </section>
@@ -144,7 +139,7 @@
       <li><b>→ Casting</b>: <code>castingId</code> 논리 FK. 버전·성우 정체성. <code>casting.creatorId</code>로 소유 검증.</li>
       <li><b>→ Episode</b>: <code>episodeId</code> 논리 FK(비정규화). 회차 상태 게이트·롤업·EDA 정리의 키.</li>
       <li><b>→ File</b>: <code>audioFileId</code>로 음성 참조(commit-on-attach, <code>audio/</code>).</li>
-      <li><b>← EpisodeCasting</b>(추후): 회차×캐스팅 검수·발행이 채택 Recording을 기준으로 라이브 판단. 현재는 <code>Casting.isPublished</code> 수동 MVP.</li>
+      <li><b>← <a href="../episode-casting/index.html">EpisodeCasting</a></b>: 회차×캐스팅 검수·발행이 채택 Recording을 기준으로 라이브 판단. <code>RecordingCreatedEvent</code>로 lazy 생성. 현재는 <code>Casting.isPublished</code> 수동 MVP.</li>
     </ul>
   </section>
 </div>

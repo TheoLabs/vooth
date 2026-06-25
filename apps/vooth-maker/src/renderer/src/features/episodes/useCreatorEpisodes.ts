@@ -1,5 +1,10 @@
 import { keepPreviousData, useQuery, type UseQueryResult } from '@tanstack/react-query'
-import { fetchCreatorEpisodes, type CreatorEpisode } from '../../api/episode.api'
+import {
+  fetchCreatorEpisode,
+  fetchCreatorEpisodes,
+  type CreatorEpisode,
+  type CreatorEpisodeDetail
+} from '../../api/episode.api'
 import { type Paginated } from '../../api/content.api'
 import { ApiError } from '../../lib/apiClient'
 
@@ -13,6 +18,20 @@ export function useCreatorEpisodes(
     queryFn: () => fetchCreatorEpisodes(contentId, { searchValue }),
     enabled: Number.isFinite(contentId),
     placeholderData: keepPreviousData,
+    retry: false
+  })
+}
+
+/** GET /creators/contents/:contentId/episodes/:episodeId 회차 상세 조회 훅. */
+export function useCreatorEpisode(
+  contentId: number,
+  episodeId: number
+): UseQueryResult<CreatorEpisodeDetail, ApiError> {
+  return useQuery<CreatorEpisodeDetail, ApiError>({
+    queryKey: ['creator-episode', contentId, episodeId],
+    queryFn: () => fetchCreatorEpisode(contentId, episodeId),
+    enabled: Number.isFinite(contentId) && Number.isFinite(episodeId),
+    refetchOnWindowFocus: false,
     retry: false
   })
 }

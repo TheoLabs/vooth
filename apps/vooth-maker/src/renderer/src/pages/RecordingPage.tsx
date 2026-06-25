@@ -1,9 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import {
   EPISODE_STATUS_LABEL,
   RECORDING_STATUS_LABEL,
-  getAssignedEpisode,
   type EpisodeStatus,
   type MockCharacter,
   type MockCut,
@@ -14,10 +13,14 @@ import {
   type RecordingTake
 } from '../features/episodes/recording.mock'
 import { useCreatorCuts } from '../features/cuts/useCreatorCuts'
-import type { CreatorCut } from '../api/cut.api'
+import { useCreatorEpisode } from '../features/episodes/useCreatorEpisodes'
+import type { CreatorCut, CreatorCharacter } from '../api/cut.api'
+import type { CreatorEpisodeDetail } from '../api/episode.api'
 import './RecordingPage.css'
 
 const RECORDABLE = new Set(['READY', 'RECORDING', 'REVIEWING'])
+/** 대사 1개당 최대 녹음본 수 = 저장된 take + 아직 저장 안 한(임시) take 합산. */
+const MAX_TAKES = 3
 
 interface RecNavState {
   episode?: { chapter: number; title: string; status: string }
@@ -40,7 +43,7 @@ function mapStatus(s?: string): EpisodeStatus {
   }
 }
 
-/** 캐릭터 색 팔레트(응답에 캐릭터 메타가 없어 characterId 순서로 부여 — mock). */
+/** 캐릭터 색 팔레트(응답에 color 가 없어 order 순서로 부여). */
 const CHAR_PALETTE = [
   '#818cf8',
   '#f472b6',
@@ -53,32 +56,26 @@ const CHAR_PALETTE = [
 ]
 
 /**
- * 실 컷(+대사)을 녹음 화면 스크립트로 변환.
- * 컷 이미지·대사는 실데이터. 캐릭터(이름/색)·내 배역·테이크는 응답에 없어 mock 으로 채운다.
+ * 실 컷(+대사)+캐릭터를 녹음 화면 스크립트로 변환.
+ * 컷 이미지·대사·캐릭터(이름)·내 배역(isMine)은 실데이터. 색은 부여, 테이크(녹음본)는 아직 mock.
  */
 function buildScriptFromCuts(
   episodeId: number,
-  cuts: CreatorCut[]
-): { script: MockEpisodeScript; myCharId: number | null; role: string } {
-  const charIds = [...new Set(cuts.flatMap((c) => c.lines.map((l) => l.characterId)))].sort(
-    (a, b) => a - b
-  )
-  const characters: MockCharacter[] = charIds.map((cid, i) => ({
-    id: cid,
-    name: `캐릭터 ${i + 1}`,
-    color: CHAR_PALETTE[i % CHAR_PALETTE.length]
+  cuts: CreatorCut[],
+  characters: CreatorCharacter[]
+): { script: MockEpisodeScript; myCharIds: Set<number>; role: string } {
+  const ordered = [...characters].sort((a, b) => a.order - b.order)
+  const colorById = new Map<number, string>()
+  ordered.forEach((c, i) => colorById.set(c.id, CHAR_PALETTE[i % CHAR_PALETTE.length]))
+  const scriptChars: MockCharacter[] = ordered.map((c) => ({
+    id: c.id,
+    name: c.name,
+    color: colorById.get(c.id) ?? CHAR_PALETTE[0]
   }))
 
-  const counts = new Map<number, number>()
-  cuts.forEach((c) =>
-    c.lines.forEach((l) => counts.set(l.characterId, (counts.get(l.characterId) ?? 0) + 1))
-  )
-  const myCharId = charIds.length
-    ? charIds.reduce(
-        (best, cid) => ((counts.get(cid) ?? 0) > (counts.get(best) ?? 0) ? cid : best),
-        charIds[0]
-      )
-    : null
+  // 내 배역 = isMine 대사의 캐릭터들.
+  const myCharIds = new Set<number>()
+  cuts.forEach((c) => c.lines.forEach((l) => l.isMine && myCharIds.add(l.characterId)))
 
   const scriptCuts: MockCut[] = [...cuts]
     .sort((a, b) => a.order - b.order)
@@ -102,8 +99,12 @@ function buildScriptFromCuts(
         }))
     }))
 
-  const role = characters.find((c) => c.id === myCharId)?.name ?? '내 배역'
-  return { script: { episodeId, characters, cuts: scriptCuts }, myCharId, role }
+  const role =
+    scriptChars
+      .filter((c) => myCharIds.has(c.id))
+      .map((c) => c.name)
+      .join(', ') || '내 배역'
+  return { script: { episodeId, characters: scriptChars, cuts: scriptCuts }, myCharIds, role }
 }
 
 function genMeta(id: number, state: RecNavState | null): MockEpisodeMeta {
@@ -120,6 +121,21 @@ function genMeta(id: number, state: RecNavState | null): MockEpisodeMeta {
   }
 }
 
+/** 실제 회차 상세(creators/.../episodes/:id) → 녹음 화면 메타. 작품명은 navState, 배역은 응답에 없어 mock. */
+function metaFromEpisode(ep: CreatorEpisodeDetail, state: RecNavState | null): MockEpisodeMeta {
+  return {
+    id: ep.id,
+    workId: ep.contentId,
+    workTitle: state?.contentTitle ?? '내 콘텐츠',
+    episodeNo: ep.chapter,
+    title: ep.title,
+    role: '내 배역',
+    status: mapStatus(ep.status),
+    updatedAt: ep.updatedAt ?? new Date().toISOString(),
+    dueDate: ep.expectedPublishOn ?? ep.updatedAt ?? new Date().toISOString()
+  }
+}
+
 /** ms → 'M:SS.d' */
 function fmtDuration(ms: number): string {
   const totalSec = ms / 1000
@@ -127,6 +143,25 @@ function fmtDuration(ms: number): string {
   const s = Math.floor(totalSec % 60)
   const d = Math.floor((ms % 1000) / 100)
   return `${m}:${s.toString().padStart(2, '0')}.${d}`
+}
+
+/**
+ * 대사 한 줄의 재생 길이(ms).
+ * - 채택/최근 take(녹음본)이 있으면 그 실측 길이.
+ * - 없으면 "기본 duration + 글자수 기반 duration" 합산 추정(mock). estimated=true.
+ *   (기본 = 발화 시작/끝 여유, 글자수분 = 실제 읽는 시간)
+ */
+const PREVIEW_BASE_MS = 600
+const PREVIEW_MS_PER_CHAR = 80
+function lineDurationMs(
+  line: MockLine,
+  takes?: RecordingTake[]
+): { ms: number; estimated: boolean } {
+  const sel =
+    takes?.find((t) => t.selected) ?? (takes && takes.length ? takes[takes.length - 1] : undefined)
+  if (sel) return { ms: sel.durationMs, estimated: false }
+  const len = line.text.trim().length
+  return { ms: PREVIEW_BASE_MS + Math.round(len * PREVIEW_MS_PER_CHAR), estimated: true }
 }
 
 /** 결정적 파형(테이크 재생용 — 정적) */
@@ -198,11 +233,18 @@ export function RecordingPage(): React.JSX.Element {
 function RecordingScreen(): React.JSX.Element {
   const navigate = useNavigate()
   const location = useLocation()
-  const { episodeId } = useParams<{ episodeId: string }>()
+  const { contentId: contentIdParam, episodeId } = useParams<{
+    contentId: string
+    episodeId: string
+  }>()
   const id = Number(episodeId)
+  const contentId = Number(contentIdParam)
   const navState = (location.state as RecNavState | null) ?? null
 
-  const meta = getAssignedEpisode(id) ?? genMeta(id, navState)
+  // 회차 상세(creators/contents/:contentId/episodes/:episodeId) — URL 파라미터로 항상 조회.
+  // 상세 로딩 전에는 navState(목록에서 넘긴 실제 회차 제목/번호/상태)로 표시. mock 회차는 쓰지 않는다.
+  const { data: episode } = useCreatorEpisode(contentId, id)
+  const meta = episode ? metaFromEpisode(episode, navState) : genMeta(id, navState)
   const {
     data: cutData,
     isLoading: cutsLoading,
@@ -210,16 +252,41 @@ function RecordingScreen(): React.JSX.Element {
     error: cutsErr
   } = useCreatorCuts(id)
   const built = useMemo(
-    () => buildScriptFromCuts(id, Array.isArray(cutData?.items) ? cutData.items : []),
+    () =>
+      buildScriptFromCuts(
+        id,
+        Array.isArray(cutData?.cuts) ? cutData.cuts : [],
+        Array.isArray(cutData?.characters) ? cutData.characters : []
+      ),
     [id, cutData]
   )
-  const { script, myCharId, role } = built
+  const { script, myCharIds, role } = built
 
   const initialLineStates = useMemo(() => {
     const m: Record<number, LineState> = {}
-    script.cuts.forEach((c) => c.lines.forEach((l) => (m[l.id] = { takes: l.takes })))
+    script.cuts.forEach((c) =>
+      c.lines.forEach((l) => {
+        // mock: 내 대사 일부(약 1/3)는 이미 녹음·저장된 상태로 시드 — 상태 UI 데모용.
+        // 실제 녹음 저장 시 갱신되고, 녹음 저장 API 연동 시 이 시드는 제거한다.
+        const seeded = myCharIds.has(l.characterId) && l.id % 3 === 0
+        m[l.id] = {
+          takes: seeded
+            ? [
+                {
+                  id: l.id * 1000 + 1,
+                  status: 'RECORDED',
+                  durationMs:
+                    PREVIEW_BASE_MS + Math.round(l.text.trim().length * PREVIEW_MS_PER_CHAR),
+                  recordedAt: new Date().toISOString(),
+                  selected: true
+                }
+              ]
+            : l.takes
+        }
+      })
+    )
     return m
-  }, [script])
+  }, [script, myCharIds])
 
   const [lineStates, setLineStates] = useState<Record<number, LineState>>(initialLineStates)
   const [cutIdx, setCutIdx] = useState(0)
@@ -228,6 +295,10 @@ function RecordingScreen(): React.JSX.Element {
   const [isRecording, setIsRecording] = useState(false)
   const [elapsedMs, setElapsedMs] = useState(0)
   const [playingTakeId, setPlayingTakeId] = useState<number | null>(null)
+  // 녹음 직후 아직 저장 안 한 take(들어보고 저장/다시 녹음). 대사별 1개.
+  const [pendingTake, setPendingTake] = useState<{ lineId: number; take: RecordingTake } | null>(
+    null
+  )
   // 보기 모드: 컷 단위(커버플로우) / 스크롤 단위(웹툰형 연속). localStorage 유지.
   const [mode, setMode] = useState<'cut' | 'scroll'>(() =>
     localStorage.getItem('vooth-maker.recMode') === 'scroll' ? 'scroll' : 'cut'
@@ -251,7 +322,6 @@ function RecordingScreen(): React.JSX.Element {
   }, [isRecording])
 
   const charById = new Map<number, MockCharacter>(script.characters.map((c) => [c.id, c]))
-  const myCharIds = new Set<number>(myCharId != null ? [myCharId] : [])
 
   const orderedCuts = script.cuts
   const safeIdx = Math.min(cutIdx, Math.max(0, orderedCuts.length - 1))
@@ -280,36 +350,75 @@ function RecordingScreen(): React.JSX.Element {
   const recordable = RECORDABLE.has(meta.status)
   const isReviewing = meta.status === 'REVIEWING'
 
-  const activeLine = activeLineId != null ? allLines.find((l) => l.id === activeLineId) : null
-  const activeChar = activeLine ? charById.get(activeLine.characterId) : null
-
   function startRecording(lineId: number): void {
     setActiveLineId(lineId)
+    setPendingTake(null)
     setElapsedMs(0)
     setIsRecording(true)
     setPlayingTakeId(null)
   }
 
-  function stopAndSave(): void {
+  // 정지 → 임시 take 생성(아직 저장 X). 들어보고 저장/다시 녹음.
+  function stopRecording(): void {
     if (activeLineId == null) return
-    const newTake: RecordingTake = {
+    const take: RecordingTake = {
       id: Date.now(),
       status: 'RECORDED',
       durationMs: Math.max(elapsedMs, 500),
       recordedAt: new Date().toISOString(),
       selected: true
     }
-    setLineStates((prev) => {
-      const cur = prev[activeLineId]?.takes ?? []
-      const cleared = cur.map((t) => ({ ...t, selected: false }))
-      return { ...prev, [activeLineId]: { takes: [...cleared, newTake] } }
-    })
+    setPendingTake({ lineId: activeLineId, take })
     setIsRecording(false)
     setElapsedMs(0)
   }
 
+  // 임시 take 저장 → 해당 대사의 take 목록에 커밋(채택). TODO: POST 녹음 저장 API 연동.
+  function saveTake(): void {
+    if (!pendingTake) return
+    const { lineId, take } = pendingTake
+    setLineStates((prev) => {
+      const cur = prev[lineId]?.takes ?? []
+      const cleared = cur.map((t) => ({ ...t, selected: false }))
+      return { ...prev, [lineId]: { takes: [...cleared, take] } }
+    })
+    setPendingTake(null)
+    setPlayingTakeId(null)
+  }
+
+  // 녹음본 채택 — 해당 take 만 selected. TODO: 채택 API 연동.
+  function selectTake(lineId: number, takeId: number): void {
+    setLineStates((prev) => {
+      const cur = prev[lineId]?.takes ?? []
+      return { ...prev, [lineId]: { takes: cur.map((t) => ({ ...t, selected: t.id === takeId })) } }
+    })
+  }
+
+  // 녹음본 삭제 — take 제거. 채택본을 지우면 마지막 take 를 채택. TODO: DELETE API 연동.
+  function deleteTake(lineId: number, takeId: number): void {
+    setLineStates((prev) => {
+      const next = (prev[lineId]?.takes ?? []).filter((t) => t.id !== takeId)
+      if (next.length > 0 && !next.some((t) => t.selected)) {
+        next[next.length - 1] = { ...next[next.length - 1], selected: true }
+      }
+      return { ...prev, [lineId]: { takes: next } }
+    })
+    setPlayingTakeId((cur) => (cur === takeId ? null : cur))
+  }
+
+  // 다시 녹음 — 임시 take 버리고 같은 대사 재녹음.
+  function reRecord(): void {
+    const lineId = pendingTake?.lineId ?? activeLineId
+    setPendingTake(null)
+    setPlayingTakeId(null)
+    if (lineId != null) startRecording(lineId)
+  }
+
+  // 녹음 중 취소 / 임시 take 버리기.
   function cancelRecording(): void {
     setIsRecording(false)
+    setPendingTake(null)
+    setPlayingTakeId(null)
     setElapsedMs(0)
   }
 
@@ -364,9 +473,7 @@ function RecordingScreen(): React.JSX.Element {
           <h2 className="rec-top__name">
             {meta.episodeNo}화 · {meta.title}
           </h2>
-          <span className="rec-top__role">
-            🎭 {role} <span className="rec-mock">(M)</span>
-          </span>
+          <span className="rec-top__role">🎭 {role}</span>
           {script.characters.length > 0 && (
             <div className="rec-top__chars">
               {script.characters.map((c) => (
@@ -375,7 +482,6 @@ function RecordingScreen(): React.JSX.Element {
                   {c.name}
                 </span>
               ))}
-              <span className="rec-mock">(M)</span>
             </div>
           )}
         </div>
@@ -581,10 +687,18 @@ function RecordingScreen(): React.JSX.Element {
                   recordable={recordable}
                   active={activeLineId === line.id}
                   isRecording={isRecording}
+                  elapsedMs={elapsedMs}
+                  pendingTake={pendingTake}
                   playingTakeId={playingTakeId}
                   onSelect={setActiveLineId}
                   onRecord={startRecording}
+                  onStop={stopRecording}
+                  onSave={saveTake}
+                  onReRecord={reRecord}
+                  onCancel={cancelRecording}
                   onPlay={togglePlay}
+                  onSelectTake={selectTake}
+                  onDeleteTake={deleteTake}
                 />
               ))}
               {cutLines.length === 0 && (
@@ -603,81 +717,113 @@ function RecordingScreen(): React.JSX.Element {
           recordable={recordable}
           activeLineId={activeLineId}
           isRecording={isRecording}
+          elapsedMs={elapsedMs}
+          pendingTake={pendingTake}
           playingTakeId={playingTakeId}
           onSelect={setActiveLineId}
           onRecord={startRecording}
+          onStop={stopRecording}
+          onSave={saveTake}
+          onReRecord={reRecord}
+          onCancel={cancelRecording}
           onPlay={togglePlay}
+          onSelectTake={selectTake}
+          onDeleteTake={deleteTake}
         />
       )}
-
-      {/* ── 하단 레코더 바(라이브 파형) ── */}
-      <div className={`rec-bar${isRecording ? ' rec-bar--rec' : ''}`}>
-        <div className="rec-bar__info">
-          {activeLine && activeChar ? (
-            <>
-              <span className="rec-bar__speaker" style={{ color: activeChar.color }}>
-                {activeChar.name}
-              </span>
-              <span className="rec-bar__text">{activeLine.text}</span>
-            </>
-          ) : (
-            <span className="rec-bar__hint">녹음할 내 대사를 선택하세요.</span>
-          )}
-        </div>
-
-        <div className="rec-bar__center">
-          <LiveWaveform active={isRecording} />
-          <span className={`rec-bar__timer${isRecording ? ' rec-bar__timer--on' : ''}`}>
-            {fmtDuration(elapsedMs)}
-          </span>
-        </div>
-
-        <div className="rec-bar__actions">
-          {isRecording ? (
-            <>
-              <button type="button" className="rec-btn rec-btn--stop" onClick={stopAndSave}>
-                ■ 정지 · 저장
-              </button>
-              <button type="button" className="rec-btn rec-btn--ghost" onClick={cancelRecording}>
-                취소
-              </button>
-            </>
-          ) : (
-            <button
-              type="button"
-              className="rec-btn rec-btn--record"
-              disabled={!recordable || activeLine == null}
-              onClick={() => activeLine && startRecording(activeLine.id)}
-            >
-              ● {activeLine ? '녹음' : '대사 선택'}
-            </button>
-          )}
-        </div>
-      </div>
     </div>
   )
 }
 
-/** 라인별 녹음 컨트롤(내 배역 라인). take 목록 + 녹음/재생/다시 녹음. */
-function LineControls({
+/**
+ * 인라인 녹음 컨트롤 — 말풍선(컷 오른쪽) 안에서 한 대사의 녹음/들어보기/저장을 모두 처리.
+ * 상태 머신: (저장된 take 목록 + 녹음) → 녹음 중(정지/취소) → 임시 take(들어보기·저장·다시 녹음).
+ */
+function RecorderControls({
   takes,
   recordable,
-  isActiveRecording,
+  isRecording,
+  elapsedMs,
+  pending,
   playingTakeId,
-  onRecord,
-  onPlay
+  onStart,
+  onStop,
+  onSave,
+  onReRecord,
+  onCancel,
+  onPlay,
+  onSelectTake,
+  onDeleteTake
 }: {
   takes: RecordingTake[]
   recordable: boolean
-  isActiveRecording: boolean
+  isRecording: boolean
+  elapsedMs: number
+  pending: RecordingTake | null
   playingTakeId: number | null
-  onRecord: () => void
+  onStart: () => void
+  onStop: () => void
+  onSave: () => void
+  onReRecord: () => void
+  onCancel: () => void
   onPlay: (takeId: number) => void
+  onSelectTake: (takeId: number) => void
+  onDeleteTake: (takeId: number) => void
 }): React.JSX.Element {
-  const hasTakes = takes.length > 0
+  if (isRecording) {
+    return (
+      <div className="rec-rc rec-rc--rec">
+        <div className="rec-rc__live">
+          <LiveWaveform active />
+          <span className="rec-rc__timer">{fmtDuration(elapsedMs)}</span>
+        </div>
+        <div className="rec-rc__row">
+          <button type="button" className="rec-btn rec-btn--sm rec-btn--stop" onClick={onStop}>
+            ■ 정지
+          </button>
+          <button type="button" className="rec-btn rec-btn--sm rec-btn--ghost" onClick={onCancel}>
+            취소
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  if (pending) {
+    return (
+      <div className="rec-rc rec-rc--review">
+        <div className="rec-rc__take">
+          <button
+            type="button"
+            className={`rec-take__play${playingTakeId === pending.id ? ' rec-take__play--on' : ''}`}
+            onClick={() => onPlay(pending.id)}
+            aria-label="들어보기"
+          >
+            {playingTakeId === pending.id ? '❚❚' : '▶'}
+          </button>
+          <Waveform seed={pending.id} active={playingTakeId === pending.id} />
+          <span className="rec-take__time">{fmtDuration(pending.durationMs)}</span>
+        </div>
+        <div className="rec-rc__row">
+          <button
+            type="button"
+            className="rec-btn rec-btn--sm rec-btn--record"
+            onClick={onReRecord}
+          >
+            ● 다시 녹음
+          </button>
+          <button type="button" className="rec-btn rec-btn--sm rec-btn--save" onClick={onSave}>
+            ✓ 저장
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  const atMax = takes.length >= MAX_TAKES
   return (
-    <div className="rec-ctrl">
-      {hasTakes ? (
+    <div className="rec-rc">
+      {takes.length > 0 && (
         <ul className="rec-takes">
           {takes.map((t, i) => (
             <li key={t.id} className={`rec-take${t.selected ? ' rec-take--sel' : ''}`}>
@@ -692,21 +838,37 @@ function LineControls({
               <span className="rec-take__no">T{i + 1}</span>
               <Waveform seed={t.id} active={playingTakeId === t.id} />
               <span className="rec-take__time">{fmtDuration(t.durationMs)}</span>
-              {t.selected && <span className="rec-take__sel">채택</span>}
+              {t.selected ? (
+                <span className="rec-take__sel">채택</span>
+              ) : (
+                <button type="button" className="rec-take__pick" onClick={() => onSelectTake(t.id)}>
+                  채택
+                </button>
+              )}
+              <button
+                type="button"
+                className="rec-take__del"
+                onClick={() => onDeleteTake(t.id)}
+                aria-label="삭제"
+                title="녹음본 삭제"
+              >
+                ✕
+              </button>
             </li>
           ))}
         </ul>
-      ) : (
-        <span className="rec-ctrl__pending">아직 녹음하지 않은 대사</span>
       )}
-
       <button
         type="button"
-        className={`rec-btn rec-btn--sm${isActiveRecording ? ' rec-btn--recording' : ''}`}
-        disabled={!recordable}
-        onClick={onRecord}
+        className="rec-btn rec-btn--sm rec-btn--record"
+        disabled={!recordable || atMax}
+        onClick={onStart}
       >
-        {isActiveRecording ? '● 녹음 중…' : hasTakes ? '다시 녹음' : '● 녹음'}
+        {atMax
+          ? `최대 ${MAX_TAKES}개 (${takes.length}/${MAX_TAKES})`
+          : takes.length > 0
+            ? `● 녹음 (${takes.length}/${MAX_TAKES})`
+            : '● 녹음'}
       </button>
     </div>
   )
@@ -718,13 +880,16 @@ function CutAnchors({
   charById,
   myCharIds,
   activeLineId,
-  onSelect
+  onSelect,
+  selectableAll = false
 }: {
   lines: MockLine[]
   charById: Map<number, MockCharacter>
   myCharIds: Set<number>
   activeLineId: number | null
   onSelect: (lineId: number) => void
+  /** true 면 상대역 앵커도 클릭 가능(가이드 모드 — 클릭으로 이동/선택). */
+  selectableAll?: boolean
 }): React.JSX.Element {
   return (
     <>
@@ -741,7 +906,7 @@ function CutAnchors({
             title={line.text}
             onClick={(e) => {
               e.stopPropagation()
-              if (mine) onSelect(line.id)
+              if (selectableAll || mine) onSelect(line.id)
             }}
           >
             <span className="rec-anchor__line" />
@@ -763,10 +928,18 @@ function LineCard({
   recordable,
   active,
   isRecording,
+  elapsedMs,
+  pendingTake,
   playingTakeId,
   onSelect,
   onRecord,
-  onPlay
+  onStop,
+  onSave,
+  onReRecord,
+  onCancel,
+  onPlay,
+  onSelectTake,
+  onDeleteTake
 }: {
   line: MockLine
   char: MockCharacter | undefined
@@ -775,10 +948,18 @@ function LineCard({
   recordable: boolean
   active: boolean
   isRecording: boolean
+  elapsedMs: number
+  pendingTake: { lineId: number; take: RecordingTake } | null
   playingTakeId: number | null
   onSelect: (lineId: number) => void
   onRecord: (lineId: number) => void
+  onStop: () => void
+  onSave: () => void
+  onReRecord: () => void
+  onCancel: () => void
   onPlay: (takeId: number) => void
+  onSelectTake: (lineId: number, takeId: number) => void
+  onDeleteTake: (lineId: number, takeId: number) => void
 }): React.JSX.Element {
   const primary = linePrimaryStatus({ takes })
   return (
@@ -790,7 +971,7 @@ function LineCard({
         <span className="rec-line__idx">L{line.position}</span>
         <span className="rec-line__speaker" style={{ color: char?.color }}>
           <span className="rec-line__dot" style={{ background: char?.color }} />
-          {char?.name ?? '?'} <span className="rec-mock">(M)</span>
+          {char?.name ?? '?'}
         </span>
         {!mine && <span className="rec-line__tag">상대역</span>}
         {primary !== 'NONE' && (
@@ -803,13 +984,21 @@ function LineCard({
       <p className="rec-line__text">{line.text}</p>
 
       {mine && (
-        <LineControls
+        <RecorderControls
           takes={takes}
           recordable={recordable}
-          isActiveRecording={isRecording && active}
+          isRecording={isRecording && active}
+          elapsedMs={elapsedMs}
+          pending={pendingTake && pendingTake.lineId === line.id ? pendingTake.take : null}
           playingTakeId={playingTakeId}
-          onRecord={() => onRecord(line.id)}
+          onStart={() => onRecord(line.id)}
+          onStop={onStop}
+          onSave={onSave}
+          onReRecord={onReRecord}
+          onCancel={onCancel}
           onPlay={onPlay}
+          onSelectTake={(tid) => onSelectTake(line.id, tid)}
+          onDeleteTake={(tid) => onDeleteTake(line.id, tid)}
         />
       )}
     </li>
@@ -820,11 +1009,31 @@ function LineCard({
 const GUIDE_SPEED = 90
 /** 읽는 줄(플레이헤드) 위치 — 뷰포트 상단에서의 비율. */
 const GUIDE_PLAYHEAD = 0.4
+/** 자동 스크롤 배속 옵션. */
+const GUIDE_SPEEDS = [0.5, 1, 1.5, 2]
+/**
+ * 좌측 타임라인 & 미리보기 슬로우 구간 공통 스케일: 녹음 1초 = 몇 px, 최소 블럭 높이(px).
+ * 대사 구간 높이 = durMs×TL_PX_PER_SEC 이고, 미리보기는 이 구간을 durMs 동안(= TL_PX_PER_SEC 속도로) 통과한다.
+ * → 플레이헤드가 좌측 블럭을 정확히 그 대사 길이만큼 위→아래로 지나가 싱크가 맞는다.
+ */
+const TL_PX_PER_SEC = 44
+const TL_MIN_PX = 10
+
+/** 대사 목록 라인별 녹음 상태 라벨. */
+type RecLineStatus = 'recording' | 'pending' | 'saved' | 'none'
+const REC_ST_LABEL: Record<RecLineStatus, string> = {
+  recording: '● 녹음 중',
+  pending: '● 미저장',
+  saved: '✓ 저장됨',
+  none: '미녹음'
+}
 
 interface GuideStop {
   lineId: number
   y: number
   mine: boolean
+  /** 이 대사의 재생 길이(ms) — 미리보기 페이싱에서 구간 통과 시간으로 사용. */
+  durMs: number
 }
 
 /**
@@ -841,10 +1050,18 @@ function GuideScroll({
   recordable,
   activeLineId,
   isRecording,
+  elapsedMs,
+  pendingTake,
   playingTakeId,
   onSelect,
   onRecord,
-  onPlay
+  onStop,
+  onSave,
+  onReRecord,
+  onCancel,
+  onPlay,
+  onSelectTake,
+  onDeleteTake
 }: {
   cuts: MockCut[]
   charById: Map<number, MockCharacter>
@@ -853,22 +1070,69 @@ function GuideScroll({
   recordable: boolean
   activeLineId: number | null
   isRecording: boolean
+  elapsedMs: number
+  pendingTake: { lineId: number; take: RecordingTake } | null
   playingTakeId: number | null
   onSelect: (lineId: number) => void
   onRecord: (lineId: number) => void
+  onStop: () => void
+  onSave: () => void
+  onReRecord: () => void
+  onCancel: () => void
   onPlay: (takeId: number) => void
+  onSelectTake: (lineId: number, takeId: number) => void
+  onDeleteTake: (lineId: number, takeId: number) => void
 }): React.JSX.Element {
   const viewportRef = useRef<HTMLDivElement>(null)
   const stripRef = useRef<HTMLDivElement>(null)
   const cutWrapRefs = useRef<Map<number, HTMLDivElement>>(new Map())
-  const posRef = useRef(0)
+  // 읽는 위치(콘텐츠 좌표). 스크롤량이 아니라 "지금 읽는 지점". 스크롤·플레이헤드 위치는 여기서 파생.
+  const cyRef = useRef(0)
   const rafRef = useRef<number | null>(null)
   const lastTsRef = useRef(0)
   const stopsRef = useRef<GuideStop[]>([])
   const nextStopRef = useRef(0)
+  const panelActiveRef = useRef<HTMLButtonElement>(null)
+  const playheadRef = useRef<HTMLDivElement>(null)
+  const bubbleRef = useRef<HTMLDivElement>(null)
+  // 읽는 위치의 현재 화면상 세로 위치(px) — 말풍선/플레이헤드 위치 동기화용.
+  const screenYRef = useRef(0)
+  // 연속 재생(preview)에서 자막으로 띄운 대사 — 바뀔 때만 setState 하도록 추적.
+  const captionRef = useRef<number | null>(null)
 
   const [playing, setPlaying] = useState(false)
   const [stoppedLineId, setStoppedLineId] = useState<number | null>(null)
+  // 끝까지 재생됨 — 재생 버튼을 '처음으로'로 바꾼다.
+  const [atEnd, setAtEnd] = useState(false)
+  // 실측 스트립 폭 — 좌측 타임라인 블럭의 컷 높이/위치 계산용.
+  const [stripW, setStripW] = useState(0)
+  // 대사 목록 필터 — 'mine'(내 대사만) | 'all'(전체). rAF 루프는 ref로 즉시 반영(재생 중 변경 대응).
+  const [lineFilter, setLineFilter] = useState<'mine' | 'all'>('all')
+  const lineFilterRef = useRef(lineFilter)
+  const changeFilter = (f: 'mine' | 'all'): void => {
+    setLineFilter(f)
+    lineFilterRef.current = f
+  }
+  // 자동 스크롤 배속(UI는 state, rAF 루프는 ref로 즉시 반영).
+  const [speed, setSpeed] = useState(
+    () => Number(localStorage.getItem('vooth-maker.guideSpeed')) || 1
+  )
+  const speedRef = useRef(speed)
+  const changeSpeed = (s: number): void => {
+    setSpeed(s)
+    speedRef.current = s
+    localStorage.setItem('vooth-maker.guideSpeed', String(s))
+  }
+  // 페이싱 — 'fixed'(균일 속도) | 'preview'(대사 길이=녹음본/추정 duration 에 맞춰 구간 속도 가변).
+  const [pace, setPace] = useState<'fixed' | 'preview'>(() =>
+    localStorage.getItem('vooth-maker.guidePace') === 'fixed' ? 'fixed' : 'preview'
+  )
+  const paceRef = useRef(pace)
+  const changePace = (p: 'fixed' | 'preview'): void => {
+    setPace(p)
+    paceRef.current = p
+    localStorage.setItem('vooth-maker.guidePace', p)
+  }
 
   const lineById = useMemo(() => {
     const m = new Map<number, MockLine>()
@@ -876,18 +1140,61 @@ function GuideScroll({
     return m
   }, [cuts])
 
-  const maxScroll = (): number => {
-    const vp = viewportRef.current
-    const strip = stripRef.current
-    if (!vp || !strip) return 0
-    return Math.max(0, strip.offsetHeight - vp.clientHeight)
+  // 라인별 녹음 상태(대사 목록 배지용): 녹음 중 / 미저장(임시 take) / 저장됨 / 미녹음.
+  const recStatus = (lineId: number): RecLineStatus => {
+    if (isRecording && activeLineId === lineId) return 'recording'
+    if (pendingTake?.lineId === lineId) return 'pending'
+    if ((lineStates[lineId]?.takes.length ?? 0) > 0) return 'saved'
+    return 'none'
   }
-  const applyPos = (): void => {
-    if (stripRef.current) {
-      stripRef.current.style.transform = `translate(-50%, ${-posRef.current}px)`
+
+  // 좌측 세로 타임라인 블럭 — 각 대사를 앵커(시작점)에 두고 녹음 길이(durMs)만큼의 높이로.
+  // 컷 높이 = 실측 스트립 폭 / 이미지비율 → 실제 레이아웃과 정확히 일치(누적 위치 오차 없음).
+  const timeline = useMemo(() => {
+    let acc = 0
+    const blocks: {
+      lineId: number
+      top: number
+      height: number
+      color: string
+      mine: boolean
+      estimated: boolean
+      durMs: number
+    }[] = []
+    for (const c of cuts) {
+      const ar = c.imageWidth && c.imageHeight ? c.imageWidth / c.imageHeight : 0.7
+      const h = stripW > 0 ? stripW / ar : 0
+      for (const line of c.lines) {
+        if (line.anchorY == null) continue
+        const d = lineDurationMs(line, lineStates[line.id]?.takes)
+        blocks.push({
+          lineId: line.id,
+          top: acc + line.anchorY * h,
+          height: Math.max(TL_MIN_PX, (d.ms / 1000) * TL_PX_PER_SEC),
+          color: charById.get(line.characterId)?.color ?? '#94a3b8',
+          mine: myCharIds.has(line.characterId),
+          estimated: d.estimated,
+          durMs: d.ms
+        })
+      }
+      acc += h
     }
-  }
+    return blocks
+  }, [cuts, lineStates, stripW, charById, myCharIds])
+
+  const contentH = (): number => stripRef.current?.offsetHeight ?? 0
+  const maxScroll = (): number => Math.max(0, contentH() - (viewportRef.current?.clientHeight ?? 0))
   const playheadPx = (): number => (viewportRef.current?.clientHeight ?? 0) * GUIDE_PLAYHEAD
+  // 읽는 위치(cy)에 대한 스크롤량 — 시작/끝에선 0/max 로 고정돼 플레이헤드가 위/아래로 움직인다.
+  const scrollFor = (cy: number): number => Math.max(0, Math.min(cy - playheadPx(), maxScroll()))
+  const applyPos = (): void => {
+    const scroll = scrollFor(cyRef.current)
+    if (stripRef.current) stripRef.current.style.transform = `translate(-50%, ${-scroll}px)`
+    const screenY = cyRef.current - scroll
+    screenYRef.current = screenY
+    if (playheadRef.current) playheadRef.current.style.top = `${screenY}px`
+    if (bubbleRef.current) bubbleRef.current.style.top = `${screenY}px`
+  }
   const computeStops = (): void => {
     const stops: GuideStop[] = []
     for (const c of cuts) {
@@ -900,7 +1207,8 @@ function GuideScroll({
         stops.push({
           lineId: line.id,
           y: top + line.anchorY * h,
-          mine: myCharIds.has(line.characterId)
+          mine: myCharIds.has(line.characterId),
+          durMs: lineDurationMs(line, lineStates[line.id]?.takes).ms
         })
       }
     }
@@ -908,7 +1216,9 @@ function GuideScroll({
     stopsRef.current = stops
   }
 
-  // 자동 스크롤 루프(rAF). playing 일 때만 동작, 다음 앵커에서 멈춘다.
+  // 자동 스크롤 루프(rAF). 두 모드 모두 각 대사 앵커부터 SLOW_ZONE(=녹음본/대사 길이) 동안 느려진다.
+  //  - 녹음모드(fixed): 슬로우 구간 반영하며 다음 앵커에서 멈춘다(정지-녹음 가이드).
+  //  - 미리보기(preview): 멈추지 않고 끝까지 연속 재생 + 슬로우 구간 동안 자막 표시.
   useEffect(() => {
     if (!playing) {
       if (rafRef.current != null) cancelAnimationFrame(rafRef.current)
@@ -916,28 +1226,65 @@ function GuideScroll({
       return
     }
     computeStops()
-    const ph = playheadPx()
-    let idx = stopsRef.current.findIndex((s) => s.y - ph > posRef.current + 1)
-    if (idx < 0) idx = stopsRef.current.length
-    nextStopRef.current = idx
+    const stops = stopsRef.current
+    // 필터는 ref로 읽어 재생 중 변경(내 대사/전체)도 즉시 반영.
+    const matches = (s: GuideStop): boolean => lineFilterRef.current === 'all' || s.mine
+    let idx = stops.findIndex((s) => s.y > cyRef.current + 1 && matches(s))
+    if (idx < 0) idx = stops.length
+    nextStopRef.current = idx // 균일: 다음 정지 앵커
     lastTsRef.current = performance.now()
 
     const step = (ts: number): void => {
       const dt = Math.min((ts - lastTsRef.current) / 1000, 0.05)
       lastTsRef.current = ts
-      const max = maxScroll()
-      const hasStop = nextStopRef.current < stopsRef.current.length
-      const rawTarget = hasStop ? stopsRef.current[nextStopRef.current].y - ph : max
-      const target = Math.max(0, Math.min(rawTarget, max))
-      posRef.current = Math.min(posRef.current + GUIDE_SPEED * dt, target)
+      const preview = paceRef.current === 'preview'
+      const stopsArr = stopsRef.current
+      const ch = contentH() // 프레임당 1회만 측정(레이아웃 thrash 방지)
+
+      // 현재 대사(직전 매칭 앵커)의 슬로우 구간 — 두 모드 공통.
+      // durMs = 채택 녹음본 길이(있으면) 또는 대사 길이 추정. 구간 = durMs×TL_PX_PER_SEC(좌측 블럭과 동일).
+      let origin: GuideStop | null = null
+      for (const s of stopsArr) {
+        if (s.y > cyRef.current + 0.5) break
+        if (matches(s)) origin = s
+      }
+      const zoneH = origin ? Math.max(TL_MIN_PX, TL_PX_PER_SEC * (origin.durMs / 1000)) : 0
+      const inZone = origin != null && cyRef.current - origin.y < zoneH
+      // 슬로우 구간이면 읽기 속도(TL_PX_PER_SEC), 그 외 기본 속도. (배속 반영)
+      const v = (inZone ? TL_PX_PER_SEC : GUIDE_SPEED) * speedRef.current
+
+      if (preview) {
+        // 연속 재생 + 슬로우 구간 동안만 자막(말풍선).
+        const caption = inZone && origin ? origin.lineId : null
+        if (caption !== captionRef.current) {
+          captionRef.current = caption
+          setStoppedLineId(caption)
+        }
+        cyRef.current = Math.min(cyRef.current + v * dt, ch)
+        applyPos()
+        if (cyRef.current >= ch - 0.5) {
+          setAtEnd(true)
+          setPlaying(false)
+          return
+        }
+        rafRef.current = requestAnimationFrame(step)
+        return
+      }
+
+      // 녹음모드: 동일한 슬로우 구간 속도로 다음 앵커까지, 닿으면 정지(수동 다음).
+      const hasStop = nextStopRef.current < stopsArr.length
+      const target = hasStop ? stopsArr[nextStopRef.current].y : ch
+      cyRef.current = Math.min(cyRef.current + v * dt, target)
       applyPos()
-      if (posRef.current >= target - 0.5) {
-        posRef.current = target
+      if (cyRef.current >= target - 0.5) {
+        cyRef.current = target
         applyPos()
         if (hasStop) {
-          const stop = stopsRef.current[nextStopRef.current]
+          const stop = stopsArr[nextStopRef.current]
           setStoppedLineId(stop.lineId)
           if (stop.mine) onSelect(stop.lineId)
+        } else {
+          setAtEnd(true)
         }
         setPlaying(false)
         return
@@ -956,35 +1303,170 @@ function GuideScroll({
     const vp = viewportRef.current
     if (!vp) return
     const ro = new ResizeObserver(() => {
-      posRef.current = Math.min(posRef.current, maxScroll())
+      setStripW(stripRef.current?.offsetWidth ?? 0)
+      cyRef.current = Math.min(cyRef.current, contentH())
       applyPos()
     })
     ro.observe(vp)
     return () => ro.disconnect()
-  }, [])
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const play = (): void => {
+    captionRef.current = null
+    setAtEnd(false)
     setStoppedLineId(null)
     setPlaying(true)
   }
+  // 처음으로 — 맨 위로 되돌린 뒤 재생.
+  const restart = (): void => {
+    cyRef.current = 0
+    applyPos()
+    play()
+  }
   const togglePlaying = (): void => {
     if (playing) setPlaying(false)
+    else if (atEnd) restart()
     else play()
   }
   const onWheel = (e: React.WheelEvent): void => {
     if (playing) setPlaying(false)
-    posRef.current = Math.max(0, Math.min(posRef.current + e.deltaY, maxScroll()))
+    if (atEnd) setAtEnd(false)
+    cyRef.current = Math.max(0, Math.min(cyRef.current + e.deltaY, contentH()))
     applyPos()
+    // 미리보기에서 수동 스크롤 시 자동 자막(말풍선)이 엉뚱한 위치에 남지 않도록 정리.
+    if (paceRef.current === 'preview' && captionRef.current != null) {
+      captionRef.current = null
+      setStoppedLineId(null)
+    }
   }
+
+  // 특정 대사로 이동 — 그 앵커를 읽는 위치로 잡고 멈춤 + 선택.
+  const goToLine = (lineId: number): void => {
+    computeStops()
+    const stop = stopsRef.current.find((s) => s.lineId === lineId)
+    let cy: number
+    if (stop) {
+      cy = stop.y
+    } else {
+      // 앵커 없는 라인은 그 컷 상단으로.
+      const cut = cuts.find((c) => c.lines.some((l) => l.id === lineId))
+      const el = cut ? cutWrapRefs.current.get(cut.id) : null
+      cy = el ? el.offsetTop : cyRef.current
+    }
+    setPlaying(false)
+    setAtEnd(false)
+    captionRef.current = lineId
+    cyRef.current = Math.max(0, Math.min(cy, contentH()))
+    applyPos()
+    setStoppedLineId(lineId)
+    const cid = lineById.get(lineId)?.characterId
+    if (cid != null && myCharIds.has(cid)) onSelect(lineId)
+  }
+
+  // 자막 대사가 바뀌면: 왼쪽 패널 가운데로 스크롤 + 말풍선을 현재 읽는 위치(플레이헤드)에 맞춘다.
+  useLayoutEffect(() => {
+    panelActiveRef.current?.scrollIntoView({ block: 'nearest' })
+    if (bubbleRef.current) bubbleRef.current.style.top = `${screenYRef.current}px`
+  }, [stoppedLineId])
 
   const stoppedLine = stoppedLineId != null ? lineById.get(stoppedLineId) : null
   const stoppedChar = stoppedLine ? charById.get(stoppedLine.characterId) : undefined
   const stoppedMine = stoppedLine ? myCharIds.has(stoppedLine.characterId) : false
+  const stoppedDur = stoppedLine
+    ? lineDurationMs(stoppedLine, lineStates[stoppedLine.id]?.takes)
+    : null
 
   return (
     <div className="rec-guide">
+      {/* 왼쪽 sticky 대사 목록 — 클릭 시 해당 앵커로 이동 */}
+      <aside className="rec-guide__panel">
+        <div className="rec-guide__panel-head">
+          <span>대사 목록</span>
+          <div className="rec-guide__panel-filter">
+            <button
+              type="button"
+              className={`rec-gfbtn${lineFilter === 'mine' ? ' rec-gfbtn--on' : ''}`}
+              onClick={() => changeFilter('mine')}
+            >
+              내 대사
+            </button>
+            <button
+              type="button"
+              className={`rec-gfbtn${lineFilter === 'all' ? ' rec-gfbtn--on' : ''}`}
+              onClick={() => changeFilter('all')}
+            >
+              전체
+            </button>
+          </div>
+        </div>
+        <div className="rec-guide__panel-list">
+          {cuts.map((c) => {
+            const visible =
+              lineFilter === 'mine' ? c.lines.filter((l) => myCharIds.has(l.characterId)) : c.lines
+            if (visible.length === 0) return null
+            return (
+              <div key={c.id} className="rec-guide__panel-cut">
+                <div className="rec-guide__panel-cuthead">컷 {c.position}</div>
+                {visible.map((line) => {
+                  const ch = charById.get(line.characterId)
+                  const mine = myCharIds.has(line.characterId)
+                  const on = stoppedLineId === line.id
+                  return (
+                    <button
+                      key={line.id}
+                      ref={on ? panelActiveRef : undefined}
+                      type="button"
+                      className={`rec-plitem${on ? ' rec-plitem--on' : ''}${mine ? '' : ' rec-plitem--other'}`}
+                      onClick={() => goToLine(line.id)}
+                      title={line.text}
+                    >
+                      <span className="rec-plitem__dot" style={{ background: ch?.color }} />
+                      <span className="rec-plitem__body">
+                        <span className="rec-plitem__name">
+                          <span className="rec-plitem__nametext" style={{ color: ch?.color }}>
+                            {ch?.name ?? '?'}
+                          </span>
+                          {!mine && <span className="rec-plitem__rel">상대역</span>}
+                        </span>
+                        <span className="rec-plitem__text">{line.text}</span>
+                      </span>
+                      {mine && (
+                        <span className={`rec-recst rec-recst--${recStatus(line.id)}`}>
+                          {REC_ST_LABEL[recStatus(line.id)]}
+                        </span>
+                      )}
+                    </button>
+                  )
+                })}
+              </div>
+            )
+          })}
+          {lineFilter === 'mine' &&
+            !cuts.some((c) => c.lines.some((l) => myCharIds.has(l.characterId))) && (
+              <div className="rec-guide__panel-empty">내 대사가 없습니다.</div>
+            )}
+        </div>
+      </aside>
+
       <div className="rec-guide__viewport" ref={viewportRef} onWheel={onWheel}>
         <div className="rec-guide__strip" ref={stripRef}>
+          {/* 컷 바로 왼쪽: 녹음 길이 기반 세로 타임라인(블럭). 스트립 안에 있어 함께 스크롤. */}
+          <div className="rec-tl" aria-hidden>
+            {timeline.map((b) => (
+              <button
+                key={b.lineId}
+                type="button"
+                className={`rec-tlblock${b.lineId === stoppedLineId ? ' rec-tlblock--on' : ''}${b.mine ? '' : ' rec-tlblock--other'}`}
+                style={{
+                  top: `${b.top}px`,
+                  height: `${b.height}px`,
+                  background: b.color
+                }}
+                title={`${fmtDuration(b.durMs)}${b.estimated ? ' (추정)' : ''}`}
+                onClick={() => goToLine(b.lineId)}
+              />
+            ))}
+          </div>
           {cuts.map((c) => (
             <div
               key={c.id}
@@ -1010,48 +1492,112 @@ function GuideScroll({
                 lines={c.lines}
                 charById={charById}
                 myCharIds={myCharIds}
-                activeLineId={activeLineId}
-                onSelect={onSelect}
+                activeLineId={stoppedLineId}
+                onSelect={goToLine}
+                selectableAll
               />
             </div>
           ))}
         </div>
 
-        {/* 읽는 줄(플레이헤드) */}
-        <div className="rec-guide__playhead" style={{ top: `${GUIDE_PLAYHEAD * 100}%` }} />
+        {/* 읽는 줄(플레이헤드) — 시작엔 상단, 진행하며 40%로 내려와 고정, 끝에선 하단으로 */}
+        <div className="rec-guide__playhead" ref={playheadRef} />
 
-        {/* 멈춘 대사 말풍선 */}
+        {/* 대사 말풍선 — 균일은 정지 시, 미리보기는 재생 중 자막처럼. 위치는 플레이헤드 추종(imperative). */}
         {stoppedLine && (
-          <div className="rec-bubble" style={{ top: `${GUIDE_PLAYHEAD * 100}%` }}>
+          <div className="rec-bubble" ref={bubbleRef}>
             <div className="rec-bubble__head">
               <span className="rec-line__speaker" style={{ color: stoppedChar?.color }}>
                 <span className="rec-line__dot" style={{ background: stoppedChar?.color }} />
-                {stoppedChar?.name ?? '?'} <span className="rec-mock">(M)</span>
+                {stoppedChar?.name ?? '?'}
               </span>
               {!stoppedMine && <span className="rec-line__tag">상대역</span>}
+              {stoppedDur && (
+                <span
+                  className="rec-bubble__dur"
+                  title={stoppedDur.estimated ? '기본 duration 추정(mock)' : '녹음본 길이'}
+                >
+                  {stoppedDur.estimated ? '≈ ' : '🎙 '}
+                  {fmtDuration(stoppedDur.ms)}
+                </span>
+              )}
             </div>
             <p className="rec-bubble__text">{stoppedLine.text}</p>
-            {stoppedMine && (
-              <LineControls
-                takes={lineStates[stoppedLine.id]?.takes ?? []}
-                recordable={recordable}
-                isActiveRecording={isRecording && activeLineId === stoppedLine.id}
-                playingTakeId={playingTakeId}
-                onRecord={() => onRecord(stoppedLine.id)}
-                onPlay={onPlay}
-              />
+            {/* 녹음모드에서만 녹음 컨트롤 + 다음. 미리보기는 자막만(연속 재생). */}
+            {pace === 'fixed' ? (
+              <>
+                {stoppedMine && (
+                  <RecorderControls
+                    takes={lineStates[stoppedLine.id]?.takes ?? []}
+                    recordable={recordable}
+                    isRecording={isRecording && activeLineId === stoppedLine.id}
+                    elapsedMs={elapsedMs}
+                    pending={
+                      pendingTake && pendingTake.lineId === stoppedLine.id ? pendingTake.take : null
+                    }
+                    playingTakeId={playingTakeId}
+                    onStart={() => onRecord(stoppedLine.id)}
+                    onStop={onStop}
+                    onSave={onSave}
+                    onReRecord={onReRecord}
+                    onCancel={onCancel}
+                    onPlay={onPlay}
+                    onSelectTake={(tid) => onSelectTake(stoppedLine.id, tid)}
+                    onDeleteTake={(tid) => onDeleteTake(stoppedLine.id, tid)}
+                  />
+                )}
+                {/* 녹음 중·미저장 take 가 있으면 실수로 넘어가지 않게 '다음' 숨김. */}
+                {!(
+                  (isRecording && activeLineId === stoppedLine.id) ||
+                  pendingTake?.lineId === stoppedLine.id
+                ) && (
+                  <button type="button" className="rec-bubble__next" onClick={play}>
+                    다음 ▶
+                  </button>
+                )}
+              </>
+            ) : (
+              playing && <span className="rec-bubble__playing">▷ 재생 중…</span>
             )}
-            <button type="button" className="rec-bubble__next" onClick={play}>
-              다음 ▶
-            </button>
           </div>
         )}
 
-        {/* 재생/일시정지 */}
+        {/* 재생/일시정지 + 페이싱 + 배속 */}
         <div className="rec-guide__ctrl">
           <button type="button" className="rec-btn rec-btn--primary" onClick={togglePlaying}>
-            {playing ? '❚❚ 일시정지' : '▶ 재생'}
+            {playing ? '❚❚ 일시정지' : atEnd ? '↺ 처음으로' : '▶ 재생'}
           </button>
+          <div
+            className="rec-guide__speed"
+            title="미리보기는 대사 길이에 맞춰 연속 재생, 녹음모드는 앵커마다 멈춰 녹음"
+          >
+            <button
+              type="button"
+              className={`rec-spbtn${pace === 'preview' ? ' rec-spbtn--on' : ''}`}
+              onClick={() => changePace('preview')}
+            >
+              🎬 미리보기
+            </button>
+            <button
+              type="button"
+              className={`rec-spbtn${pace === 'fixed' ? ' rec-spbtn--on' : ''}`}
+              onClick={() => changePace('fixed')}
+            >
+              🎙 녹음모드
+            </button>
+          </div>
+          <div className="rec-guide__speed" title="배속">
+            {GUIDE_SPEEDS.map((s) => (
+              <button
+                key={s}
+                type="button"
+                className={`rec-spbtn${speed === s ? ' rec-spbtn--on' : ''}`}
+                onClick={() => changeSpeed(s)}
+              >
+                {s}×
+              </button>
+            ))}
+          </div>
         </div>
       </div>
     </div>

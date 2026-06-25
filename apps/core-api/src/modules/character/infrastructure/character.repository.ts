@@ -10,7 +10,7 @@ export class CharacterRepository extends DddRepository<Character> {
 
   async find(
     conditions: {
-      id?: number;
+      ids?: number[];
       name?: string;
       contentId?: number;
       types?: CharacterType[];
@@ -21,7 +21,7 @@ export class CharacterRepository extends DddRepository<Character> {
   ) {
     return this.entityManager.find(this.entityClass, {
       where: stripUndefined({
-        id: conditions.id,
+        id: checkInValue(conditions.ids),
         contentId: conditions.contentId,
         name: conditions.name,
         type: checkInValue(conditions.types),
@@ -32,7 +32,7 @@ export class CharacterRepository extends DddRepository<Character> {
   }
 
   async count(conditions: {
-    id?: number;
+    ids?: number[];
     name?: string;
     contentId?: number;
     types?: CharacterType[];
@@ -41,7 +41,7 @@ export class CharacterRepository extends DddRepository<Character> {
   }) {
     return this.entityManager.count(this.entityClass, {
       where: stripUndefined({
-        id: conditions.id,
+        id: checkInValue(conditions.ids),
         contentId: conditions.contentId,
         name: conditions.name,
         type: checkInValue(conditions.types),

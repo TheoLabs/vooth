@@ -27,4 +27,21 @@ export class CreatorEpisodeController {
     // 4. Send response
     return { data };
   }
+
+  @Get(':episodeId')
+  async retrieve(
+    @Param('contentId', ParseIntPipe) contentId: number,
+    @Param('episodeId', ParseIntPipe) episodeId: number
+  ) {
+    // 1. Destructure body, params, query
+
+    // 2. Get context
+    const creator = this.context.get<Creator>(ContextKey.CREATOR);
+
+    // 3. Get result
+    const data = await this.creatorEpisodeService.retrieve({ creator, contentId, episodeId });
+
+    // 4. Send response
+    return { data };
+  }
 }

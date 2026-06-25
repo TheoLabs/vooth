@@ -24,7 +24,7 @@ export class AdminCastingService extends DddService {
 
   @Transactional()
   async create({ characterId, creatorId }: { characterId: number; creatorId: number }) {
-    const [character] = await this.characterRepository.find({ id: characterId });
+    const [character] = await this.characterRepository.find({ ids: [characterId] });
 
     if (!character) {
       throw new BadRequestException('등록되지 않은 캐릭터입니다.', { cause: '등록되지 않은 캐릭터입니다.' });
@@ -42,7 +42,7 @@ export class AdminCastingService extends DddService {
       throw new BadRequestException('등록되지 않은 크리에이터입니다.', { cause: '등록되지 않은 크리에이터입니다.' });
     }
 
-    const [existingCasting] = await this.castingRepository.find({ characterId, creatorId });
+    const [existingCasting] = await this.castingRepository.find({ characterIds: [characterId], creatorId });
 
     if (existingCasting) {
       throw new BadRequestException('이미 등록된 캐스팅입니다.', { cause: '이미 등록된 캐스팅입니다.' });
@@ -58,8 +58,11 @@ export class AdminCastingService extends DddService {
     options?: PaginationOptions
   ) {
     const [castings, total] = await Promise.all([
-      this.castingRepository.find({ contentId, characterId, creatorId }, { options, relations: { creator: true } }),
-      this.castingRepository.count({ contentId, characterId, creatorId }),
+      this.castingRepository.find(
+        { contentId, characterIds: [characterId], creatorId },
+        { options, relations: { creator: true } }
+      ),
+      this.castingRepository.count({ contentId, characterIds: [characterId], creatorId }),
     ]);
 
     const getPublicUrl = await this.fileService.getPublicUrl(castings.map((casting) => casting.creator.avatarFileId));
@@ -76,7 +79,7 @@ export class AdminCastingService extends DddService {
 
   @Transactional()
   async changePublish({ id, characterId, isPublished }: { id: number; characterId: number; isPublished: boolean }) {
-    const [casting] = await this.castingRepository.find({ id, characterId });
+    const [casting] = await this.castingRepository.find({ id, characterIds: [characterId] });
 
     if (!casting) {
       throw new BadRequestException('등록되지 않은 캐스팅입니다.', { cause: '등록되지 않은 캐스팅입니다.' });
@@ -89,7 +92,7 @@ export class AdminCastingService extends DddService {
 
   @Transactional()
   async remove({ id, characterId }: { id: number; characterId: number }) {
-    const [casting] = await this.castingRepository.find({ id, characterId });
+    const [casting] = await this.castingRepository.find({ id, characterIds: [characterId] });
 
     if (!casting) {
       throw new BadRequestException('등록되지 않은 캐스팅입니다.', { cause: '등록되지 않은 캐스팅입니다.' });

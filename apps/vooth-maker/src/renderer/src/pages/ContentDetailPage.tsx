@@ -163,7 +163,7 @@ export function ContentDetailPage(): React.JSX.Element {
                         disabled={!canRecord}
                         title={canRecord ? undefined : '녹음 대기 상태에서만 녹음할 수 있습니다.'}
                         onClick={() =>
-                          navigate(`/works/${ep.id}`, {
+                          navigate(`/works/contents/${id}/episodes/${ep.id}`, {
                             state: {
                               episode: { chapter: ep.chapter, title: ep.title, status: ep.status },
                               contentTitle: content?.title

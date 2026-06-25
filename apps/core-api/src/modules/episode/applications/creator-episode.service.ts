@@ -46,4 +46,26 @@ export class CreatorEpisodeService extends DddService {
 
     return { items: episodes, total };
   }
+
+  async retrieve({ creator, contentId, episodeId }: { creator: Creator; contentId: number; episodeId: number }) {
+    const [content] = await this.contentRepository.satisfyElementFrom(
+      new CreatorAccessibleContentSpec({ ids: [contentId] })
+    );
+
+    if (!content) {
+      throw new BadRequestException('존재하지 않는 콘텐츠입니다.', {
+        cause: '존재하지 않는 콘텐츠입니다.',
+      });
+    }
+
+    const [episode] = await this.episodeRepository.find({ id: episodeId });
+
+    if (!episode) {
+      throw new BadRequestException('존재하지 않거나 접근할 수 없는 에피소드입니다.', {
+        cause: '존재하지 않거나 접근할 수 없는 에피소드입니다.',
+      });
+    }
+
+    return episode;
+  }
 }

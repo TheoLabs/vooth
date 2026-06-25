@@ -44,7 +44,7 @@ export class AdminLineService extends DddService {
 
     episode.validateChildEditable();
 
-    const [character] = await this.characterRepository.find({ id: characterId });
+    const [character] = await this.characterRepository.find({ ids: [characterId] });
 
     if (!character) {
       throw new BadRequestException('해당하는 캐릭터가 없습니다.', {
@@ -88,7 +88,7 @@ export class AdminLineService extends DddService {
     episode.validateChildEditable();
 
     if (characterId) {
-      const [character] = await this.characterRepository.find({ id: characterId });
+      const [character] = await this.characterRepository.find({ ids: [characterId] });
 
       if (!character) {
         throw new BadRequestException('해당하는 캐릭터가 없습니다.', {

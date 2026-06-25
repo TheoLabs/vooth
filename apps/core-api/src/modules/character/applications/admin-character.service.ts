@@ -81,7 +81,7 @@ export class AdminCharacterService extends DddService {
   }
 
   async retrieve({ id, contentId }: { id: number; contentId: number }) {
-    const [character] = await this.characterRepository.find({ id, contentId });
+    const [character] = await this.characterRepository.find({ ids: [id], contentId });
 
     if (!character) {
       throw new BadRequestException('등록되지 않은 캐릭터입니다.', { cause: '등록되지 않은 캐릭터입니다.' });
@@ -120,7 +120,7 @@ export class AdminCharacterService extends DddService {
       });
     }
 
-    const [character] = await this.characterRepository.find({ id });
+    const [character] = await this.characterRepository.find({ ids: [id] });
 
     if (!character) {
       throw new BadRequestException('등록되지 않은 캐릭터입니다.', { cause: '등록되지 않은 캐릭터입니다.' });
@@ -146,7 +146,7 @@ export class AdminCharacterService extends DddService {
 
   @Transactional()
   async remove({ id, contentId }: { id: number; contentId: number }) {
-    const [character] = await this.characterRepository.find({ id, contentId });
+    const [character] = await this.characterRepository.find({ ids: [id], contentId });
 
     if (!character) {
       throw new BadRequestException('등록되지 않은 캐릭터입니다.', { cause: '등록되지 않은 캐릭터입니다.' });

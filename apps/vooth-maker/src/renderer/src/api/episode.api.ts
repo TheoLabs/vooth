@@ -11,6 +11,21 @@ export interface CreatorEpisode {
   isFree?: boolean
 }
 
+/** GET /creators/contents/:contentId/episodes/:episodeId 상세(Episode). */
+export interface CreatorEpisodeDetail extends CreatorEpisode {
+  expectedPublishOn?: string | null
+  createdAt?: string
+  updatedAt?: string
+}
+
+/** GET /creators/contents/:contentId/episodes/:episodeId — 회차 상세. */
+export function fetchCreatorEpisode(
+  contentId: number,
+  episodeId: number
+): Promise<CreatorEpisodeDetail> {
+  return apiRequest<CreatorEpisodeDetail>(`/creators/contents/${contentId}/episodes/${episodeId}`)
+}
+
 export interface CreatorEpisodeListParams {
   /** 회차 제목 검색어(searchKey='title' 고정). */
   searchValue?: string
