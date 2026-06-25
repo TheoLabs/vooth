@@ -60,4 +60,28 @@ export class CutRepository extends DddRepository<Cut> {
 
     return new Map(rows.map((r) => [Number(r.episodeId), Number(r.count)]));
   }
+
+  async findLines(
+    conditions: { ids?: number[]; cutId?: number; characterId?: number },
+    options?: TypeormRelationOptions<Line>
+  ) {
+    return this.entityManager.find(Line, {
+      where: stripUndefined({
+        id: checkInValue(conditions.ids),
+        cutId: conditions.cutId,
+        characterId: conditions.characterId,
+      }),
+      ...convertOptions(options),
+    });
+  }
+
+  async countLines(conditions: { ids?: number[]; cutId?: number; characterId?: number }) {
+    return this.entityManager.count(Line, {
+      where: stripUndefined({
+        id: checkInValue(conditions.ids),
+        cutId: conditions.cutId,
+        characterId: conditions.characterId,
+      }),
+    });
+  }
 }

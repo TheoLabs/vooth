@@ -12,6 +12,7 @@ import { CharacterModule } from './character/character.module';
 import { EpisodeModule } from './episode/episode.module';
 import { CastingModule } from './casting/casting.module';
 import { CutModule } from './cut/cut.module';
+import { RecordingModule } from './recording/recording.module';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { CutModule } from './cut/cut.module';
     EpisodeModule,
     CastingModule,
     CutModule,
+    RecordingModule,
   ],
   exports: [
     AccountModule,
@@ -43,6 +45,7 @@ import { CutModule } from './cut/cut.module';
     EpisodeModule,
     CastingModule,
     CutModule,
+    RecordingModule,
   ],
 })
 export class DomainModule {}

@@ -22,7 +22,7 @@ export class DirectorLineService extends DddService {
     episodeId: number;
     anchorYItems: { cutId: number; lineId: number; anchorY: number }[];
   }) {
-    const [episode] = await this.episodeRepository.find({ id: episodeId });
+    const [episode] = await this.episodeRepository.find({ ids: [episodeId] });
 
     if (!episode) {
       throw new BadRequestException('존재하지 않는 에피소드입니다.', { cause: '존재하지 않는 에피소드입니다.' });

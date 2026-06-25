@@ -102,7 +102,7 @@ export class AdminEpisodeService extends DddService {
   }
 
   async retrieve({ id, contentId }: { id: number; contentId: number }) {
-    const [episode] = await this.episodeRepository.find({ id, contentId });
+    const [episode] = await this.episodeRepository.find({ ids: [id], contentId });
 
     if (!episode) {
       throw new BadRequestException('등록되지 않은 에피소드입니다.', {
@@ -133,7 +133,7 @@ export class AdminEpisodeService extends DddService {
     isFree?: boolean;
     expectedPublishOn?: CalendarDate | null;
   }) {
-    const [episode] = await this.episodeRepository.find({ id, contentId });
+    const [episode] = await this.episodeRepository.find({ ids: [id], contentId });
 
     if (!episode) {
       throw new BadRequestException('등록되지 않은 에피소드입니다.', {
@@ -152,7 +152,7 @@ export class AdminEpisodeService extends DddService {
 
   @Transactional()
   async remove({ id, contentId }: { id: number; contentId: number }) {
-    const [episode] = await this.episodeRepository.find({ id, contentId });
+    const [episode] = await this.episodeRepository.find({ ids: [id], contentId });
 
     if (!episode) {
       throw new BadRequestException('등록되지 않은 에피소드입니다.', {

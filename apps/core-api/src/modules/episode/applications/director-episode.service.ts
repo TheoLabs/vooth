@@ -53,7 +53,7 @@ export class DirectorEpisodeService extends DddService {
   }
 
   async retrieve({ id, contentId }: { id: number; contentId: number }) {
-    const [episode] = await this.episodeRepository.find({ id, contentId });
+    const [episode] = await this.episodeRepository.find({ ids: [id], contentId });
 
     if (!episode) {
       throw new BadRequestException('해당 에피소드를 찾을 수 없습니다.', {
@@ -74,7 +74,7 @@ export class DirectorEpisodeService extends DddService {
     episodeId: number;
     status: EpisodeStatus;
   }) {
-    const [episode] = await this.episodeRepository.find({ id: episodeId, contentId });
+    const [episode] = await this.episodeRepository.find({ ids: [episodeId], contentId });
 
     if (!episode) {
       throw new BadRequestException('해당 에피소드를 찾을 수 없습니다.', {

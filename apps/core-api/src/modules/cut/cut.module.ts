@@ -14,6 +14,7 @@ import { DirectorLineService } from './applications/director-line.service';
 import { CreatorCutController } from './presentation/creator-cut.controller';
 import { CreatorCutService } from './applications/creator-cut.service';
 import { CastingModule } from '@modules/casting/casting.module';
+import { RecordingRepository } from '@modules/recording/infrastructure/recording.repository';
 
 @Module({
   imports: [FileModule, EpisodeModule, CharacterModule, CastingModule],
@@ -31,6 +32,7 @@ import { CastingModule } from '@modules/casting/casting.module';
     DirectorCutService,
     DirectorLineService,
     CreatorCutService,
+    RecordingRepository,
   ],
   exports: [
     CutRepository,

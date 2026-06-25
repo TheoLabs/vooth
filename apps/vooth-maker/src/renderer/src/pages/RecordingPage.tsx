@@ -14,6 +14,7 @@ import {
 } from '../features/episodes/recording.mock'
 import { useCreatorCuts } from '../features/cuts/useCreatorCuts'
 import { useCreatorEpisode } from '../features/episodes/useCreatorEpisodes'
+import { uploadAudio, createRecording } from '../api/recording.api'
 import type { CreatorCut, CreatorCharacter } from '../api/cut.api'
 import type { CreatorEpisodeDetail } from '../api/episode.api'
 import './RecordingPage.css'
@@ -64,7 +65,7 @@ function buildScriptFromCuts(
   cuts: CreatorCut[],
   characters: CreatorCharacter[]
 ): { script: MockEpisodeScript; myCharIds: Set<number>; role: string } {
-  const ordered = [...characters].sort((a, b) => a.order - b.order)
+  const ordered = [...characters].sort((a, b) => a.id - b.id)
   const colorById = new Map<number, string>()
   ordered.forEach((c, i) => colorById.set(c.id, CHAR_PALETTE[i % CHAR_PALETTE.length]))
   const scriptChars: MockCharacter[] = ordered.map((c) => ({
@@ -95,7 +96,16 @@ function buildScriptFromCuts(
           characterId: l.characterId,
           text: l.script,
           anchorY: l.anchorY,
-          takes: []
+          // 서버 녹음본(take 순) → 화면 take. status/recordedAt 은 응답에 없어 기본값.
+          takes: [...(l.recordings ?? [])]
+            .sort((a, b) => a.take - b.take)
+            .map((r) => ({
+              id: r.id,
+              status: 'RECORDED' as RecordingStatus,
+              durationMs: r.durationMs,
+              recordedAt: '',
+              selected: r.isAdopted
+            }))
         }))
     }))
 
@@ -262,43 +272,44 @@ function RecordingScreen(): React.JSX.Element {
   )
   const { script, myCharIds, role } = built
 
+  // 초기 take 는 비어 있음(서버에 저장된 녹음 목록 GET 이 아직 없어 세션 내 녹음만 반영).
   const initialLineStates = useMemo(() => {
     const m: Record<number, LineState> = {}
-    script.cuts.forEach((c) =>
-      c.lines.forEach((l) => {
-        // mock: 내 대사 일부(약 1/3)는 이미 녹음·저장된 상태로 시드 — 상태 UI 데모용.
-        // 실제 녹음 저장 시 갱신되고, 녹음 저장 API 연동 시 이 시드는 제거한다.
-        const seeded = myCharIds.has(l.characterId) && l.id % 3 === 0
-        m[l.id] = {
-          takes: seeded
-            ? [
-                {
-                  id: l.id * 1000 + 1,
-                  status: 'RECORDED',
-                  durationMs:
-                    PREVIEW_BASE_MS + Math.round(l.text.trim().length * PREVIEW_MS_PER_CHAR),
-                  recordedAt: new Date().toISOString(),
-                  selected: true
-                }
-              ]
-            : l.takes
-        }
-      })
-    )
+    script.cuts.forEach((c) => c.lines.forEach((l) => (m[l.id] = { takes: l.takes })))
     return m
-  }, [script, myCharIds])
+  }, [script])
+
+  // lineId → cutId (녹음 저장 POST 경로용).
+  const lineCutId = useMemo(() => {
+    const m = new Map<number, number>()
+    script.cuts.forEach((c) => c.lines.forEach((l) => m.set(l.id, l.cutId)))
+    return m
+  }, [script])
 
   const [lineStates, setLineStates] = useState<Record<number, LineState>>(initialLineStates)
+  // cuts 응답이 (재)도착하면 lineStates 를 서버 녹음본으로 재설정 — 렌더 중 동기화(권장 패턴).
+  const [syncedScript, setSyncedScript] = useState(script)
+  if (script !== syncedScript) {
+    setSyncedScript(script)
+    setLineStates(initialLineStates)
+  }
   const [cutIdx, setCutIdx] = useState(0)
   const [cutDraft, setCutDraft] = useState<string | null>(null)
   const [activeLineId, setActiveLineId] = useState<number | null>(null)
   const [isRecording, setIsRecording] = useState(false)
   const [elapsedMs, setElapsedMs] = useState(0)
   const [playingTakeId, setPlayingTakeId] = useState<number | null>(null)
-  // 녹음 직후 아직 저장 안 한 take(들어보고 저장/다시 녹음). 대사별 1개.
-  const [pendingTake, setPendingTake] = useState<{ lineId: number; take: RecordingTake } | null>(
-    null
-  )
+  // 녹음 직후 아직 저장 안 한 take(들어보고 저장/다시 녹음). 대사별 1개. blob/url 은 업로드·재생용.
+  const [pendingTake, setPendingTake] = useState<{
+    lineId: number
+    cutId: number
+    take: RecordingTake
+    blob: Blob
+    url: string
+  } | null>(null)
+  // 저장(업로드+POST) 진행 중인 lineId, 직전 녹음/저장 오류 메시지.
+  const [savingLineId, setSavingLineId] = useState<number | null>(null)
+  const [recError, setRecError] = useState<string | null>(null)
   // 보기 모드: 컷 단위(커버플로우) / 스크롤 단위(웹툰형 연속). localStorage 유지.
   const [mode, setMode] = useState<'cut' | 'scroll'>(() =>
     localStorage.getItem('vooth-maker.recMode') === 'scroll' ? 'scroll' : 'cut'
@@ -307,6 +318,13 @@ function RecordingScreen(): React.JSX.Element {
   const stripActiveRef = useRef<HTMLButtonElement>(null)
   // 스크롤 모드: 컷 번호 점프용 컷 섹션 ref 맵.
   const scrollCutRefs = useRef<Map<number, HTMLElement>>(new Map())
+  // 실제 마이크 녹음(MediaRecorder) + 재생용 ref.
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
+  const chunksRef = useRef<Blob[]>([])
+  const streamRef = useRef<MediaStream | null>(null)
+  const recStartRef = useRef(0)
+  const audioElRef = useRef<HTMLAudioElement | null>(null)
+  const takeUrlsRef = useRef<Map<number, string>>(new Map())
 
   useEffect(() => {
     localStorage.setItem('vooth-maker.recMode', mode)
@@ -320,6 +338,29 @@ function RecordingScreen(): React.JSX.Element {
       if (timerRef.current) clearInterval(timerRef.current)
     }
   }, [isRecording])
+
+  // 언마운트 정리 — 마이크 스트림/재생 정지 + objectURL 해제.
+  useEffect(() => {
+    const urls = takeUrlsRef.current
+    return () => {
+      streamRef.current?.getTracks().forEach((t) => t.stop())
+      audioElRef.current?.pause()
+      urls.forEach((u) => URL.revokeObjectURL(u))
+      urls.clear()
+    }
+  }, [])
+
+  // 서버 take 재생 URL 등록(부수효과만 — setState 없음).
+  useEffect(() => {
+    if (!cutData) return
+    cutData.cuts.forEach((c) =>
+      c.lines.forEach((l) =>
+        (l.recordings ?? []).forEach((r) => {
+          if (r.audioUrl) takeUrlsRef.current.set(r.id, r.audioUrl)
+        })
+      )
+    )
+  }, [cutData])
 
   const charById = new Map<number, MockCharacter>(script.characters.map((c) => [c.id, c]))
 
@@ -350,40 +391,86 @@ function RecordingScreen(): React.JSX.Element {
   const recordable = RECORDABLE.has(meta.status)
   const isReviewing = meta.status === 'REVIEWING'
 
-  function startRecording(lineId: number): void {
-    setActiveLineId(lineId)
-    setPendingTake(null)
-    setElapsedMs(0)
-    setIsRecording(true)
-    setPlayingTakeId(null)
+  function stopPlayback(): void {
+    if (audioElRef.current) {
+      audioElRef.current.pause()
+      audioElRef.current = null
+    }
   }
 
-  // 정지 → 임시 take 생성(아직 저장 X). 들어보고 저장/다시 녹음.
-  function stopRecording(): void {
-    if (activeLineId == null) return
-    const take: RecordingTake = {
-      id: Date.now(),
-      status: 'RECORDED',
-      durationMs: Math.max(elapsedMs, 500),
-      recordedAt: new Date().toISOString(),
-      selected: true
+  // 마이크 녹음 시작(MediaRecorder). 권한 거부/미지원 시 오류 표시.
+  async function startRecording(lineId: number): Promise<void> {
+    setRecError(null)
+    setActiveLineId(lineId)
+    setPendingTake(null)
+    setPlayingTakeId(null)
+    stopPlayback()
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      streamRef.current = stream
+      const mr = new MediaRecorder(stream)
+      chunksRef.current = []
+      mr.ondataavailable = (e) => {
+        if (e.data.size > 0) chunksRef.current.push(e.data)
+      }
+      mr.onstop = () => {
+        const blob = new Blob(chunksRef.current, { type: mr.mimeType || 'audio/webm' })
+        const durationMs = Math.max(Date.now() - recStartRef.current, 300)
+        const take: RecordingTake = {
+          id: Date.now(),
+          status: 'RECORDED',
+          durationMs,
+          recordedAt: new Date().toISOString(),
+          selected: true
+        }
+        const url = URL.createObjectURL(blob)
+        takeUrlsRef.current.set(take.id, url)
+        setPendingTake({ lineId, cutId: lineCutId.get(lineId) ?? 0, take, blob, url })
+        streamRef.current?.getTracks().forEach((t) => t.stop())
+        streamRef.current = null
+      }
+      recStartRef.current = Date.now()
+      mr.start()
+      mediaRecorderRef.current = mr
+      setElapsedMs(0)
+      setIsRecording(true)
+    } catch {
+      setIsRecording(false)
+      setRecError('마이크를 사용할 수 없습니다. 권한을 확인해주세요.')
     }
-    setPendingTake({ lineId: activeLineId, take })
+  }
+
+  // 정지 → onstop 에서 임시 take 생성(아직 저장 X).
+  function stopRecording(): void {
+    const mr = mediaRecorderRef.current
+    if (mr && mr.state !== 'inactive') mr.stop()
+    mediaRecorderRef.current = null
     setIsRecording(false)
     setElapsedMs(0)
   }
 
-  // 임시 take 저장 → 해당 대사의 take 목록에 커밋(채택). TODO: POST 녹음 저장 API 연동.
-  function saveTake(): void {
-    if (!pendingTake) return
-    const { lineId, take } = pendingTake
-    setLineStates((prev) => {
-      const cur = prev[lineId]?.takes ?? []
-      const cleared = cur.map((t) => ({ ...t, selected: false }))
-      return { ...prev, [lineId]: { takes: [...cleared, take] } }
-    })
-    setPendingTake(null)
-    setPlayingTakeId(null)
+  // 임시 take 저장 → 오디오 업로드(presign+PUT) → POST 녹음 저장 → take 목록 커밋(채택).
+  async function saveTake(): Promise<void> {
+    if (!pendingTake || savingLineId != null) return
+    const { lineId, cutId, take, blob } = pendingTake
+    setSavingLineId(lineId)
+    setRecError(null)
+    try {
+      const audioFileId = await uploadAudio(blob)
+      await createRecording(id, cutId, lineId, { audioFileId, durationMs: take.durationMs })
+      setLineStates((prev) => {
+        const cur = prev[lineId]?.takes ?? []
+        const cleared = cur.map((t) => ({ ...t, selected: false }))
+        return { ...prev, [lineId]: { takes: [...cleared, take] } }
+      })
+      setPendingTake(null) // url 은 세션 재생용으로 유지(takeUrlsRef)
+      setPlayingTakeId(null)
+      stopPlayback()
+    } catch (e) {
+      setRecError(e instanceof Error ? e.message : '녹음 저장에 실패했습니다.')
+    } finally {
+      setSavingLineId(null)
+    }
   }
 
   // 녹음본 채택 — 해당 take 만 selected. TODO: 채택 API 연동.
@@ -403,27 +490,66 @@ function RecordingScreen(): React.JSX.Element {
       }
       return { ...prev, [lineId]: { takes: next } }
     })
+    if (playingTakeId === takeId) stopPlayback()
     setPlayingTakeId((cur) => (cur === takeId ? null : cur))
+    const url = takeUrlsRef.current.get(takeId)
+    if (url) {
+      URL.revokeObjectURL(url)
+      takeUrlsRef.current.delete(takeId)
+    }
   }
 
   // 다시 녹음 — 임시 take 버리고 같은 대사 재녹음.
   function reRecord(): void {
     const lineId = pendingTake?.lineId ?? activeLineId
+    discardPending()
+    if (lineId != null) void startRecording(lineId)
+  }
+
+  // 임시 take 폐기(url revoke).
+  function discardPending(): void {
+    if (pendingTake) {
+      URL.revokeObjectURL(pendingTake.url)
+      takeUrlsRef.current.delete(pendingTake.take.id)
+    }
     setPendingTake(null)
     setPlayingTakeId(null)
-    if (lineId != null) startRecording(lineId)
+    stopPlayback()
   }
 
   // 녹음 중 취소 / 임시 take 버리기.
   function cancelRecording(): void {
+    const mr = mediaRecorderRef.current
+    if (mr && mr.state !== 'inactive') {
+      mr.onstop = null
+      mr.stop()
+    }
+    mediaRecorderRef.current = null
+    streamRef.current?.getTracks().forEach((t) => t.stop())
+    streamRef.current = null
+    discardPending()
     setIsRecording(false)
-    setPendingTake(null)
-    setPlayingTakeId(null)
     setElapsedMs(0)
   }
 
+  // take 재생/정지(실제 오디오). url 없는 take(서버 로드 등)는 동작 없음.
   function togglePlay(takeId: number): void {
-    setPlayingTakeId((cur) => (cur === takeId ? null : takeId))
+    if (playingTakeId === takeId) {
+      stopPlayback()
+      setPlayingTakeId(null)
+      return
+    }
+    stopPlayback()
+    const url = takeUrlsRef.current.get(takeId)
+    if (!url) {
+      setRecError('이 녹음본은 이 화면에서 재생할 수 없습니다. (서버 재생 URL 미연동)')
+      return
+    }
+    const audio = new Audio(url)
+    audio.onended = () => setPlayingTakeId((cur) => (cur === takeId ? null : cur))
+    void audio.play().catch(() => undefined)
+    audioElRef.current = audio
+    setPlayingTakeId(takeId)
   }
 
   function gotoCut(idx: number): void {
@@ -699,6 +825,8 @@ function RecordingScreen(): React.JSX.Element {
                   onPlay={togglePlay}
                   onSelectTake={selectTake}
                   onDeleteTake={deleteTake}
+                  saving={savingLineId === line.id}
+                  error={activeLineId === line.id ? recError : null}
                 />
               ))}
               {cutLines.length === 0 && (
@@ -729,6 +857,8 @@ function RecordingScreen(): React.JSX.Element {
           onPlay={togglePlay}
           onSelectTake={selectTake}
           onDeleteTake={deleteTake}
+          savingLineId={savingLineId}
+          recError={recError}
         />
       )}
     </div>
@@ -753,7 +883,9 @@ function RecorderControls({
   onCancel,
   onPlay,
   onSelectTake,
-  onDeleteTake
+  onDeleteTake,
+  saving,
+  error
 }: {
   takes: RecordingTake[]
   recordable: boolean
@@ -769,7 +901,10 @@ function RecorderControls({
   onPlay: (takeId: number) => void
   onSelectTake: (takeId: number) => void
   onDeleteTake: (takeId: number) => void
+  saving: boolean
+  error: string | null
 }): React.JSX.Element {
+  const errEl = error ? <span className="rec-rc__err">{error}</span> : null
   if (isRecording) {
     return (
       <div className="rec-rc rec-rc--rec">
@@ -785,6 +920,7 @@ function RecorderControls({
             취소
           </button>
         </div>
+        {errEl}
       </div>
     )
   }
@@ -808,14 +944,21 @@ function RecorderControls({
           <button
             type="button"
             className="rec-btn rec-btn--sm rec-btn--record"
+            disabled={saving}
             onClick={onReRecord}
           >
             ● 다시 녹음
           </button>
-          <button type="button" className="rec-btn rec-btn--sm rec-btn--save" onClick={onSave}>
-            ✓ 저장
+          <button
+            type="button"
+            className="rec-btn rec-btn--sm rec-btn--save"
+            disabled={saving}
+            onClick={onSave}
+          >
+            {saving ? '저장 중…' : '✓ 저장'}
           </button>
         </div>
+        {errEl}
       </div>
     )
   }
@@ -870,6 +1013,7 @@ function RecorderControls({
             ? `● 녹음 (${takes.length}/${MAX_TAKES})`
             : '● 녹음'}
       </button>
+      {errEl}
     </div>
   )
 }
@@ -939,7 +1083,9 @@ function LineCard({
   onCancel,
   onPlay,
   onSelectTake,
-  onDeleteTake
+  onDeleteTake,
+  saving,
+  error
 }: {
   line: MockLine
   char: MockCharacter | undefined
@@ -960,6 +1106,8 @@ function LineCard({
   onPlay: (takeId: number) => void
   onSelectTake: (lineId: number, takeId: number) => void
   onDeleteTake: (lineId: number, takeId: number) => void
+  saving: boolean
+  error: string | null
 }): React.JSX.Element {
   const primary = linePrimaryStatus({ takes })
   return (
@@ -999,6 +1147,8 @@ function LineCard({
           onPlay={onPlay}
           onSelectTake={(tid) => onSelectTake(line.id, tid)}
           onDeleteTake={(tid) => onDeleteTake(line.id, tid)}
+          saving={saving}
+          error={error}
         />
       )}
     </li>
@@ -1061,7 +1211,9 @@ function GuideScroll({
   onCancel,
   onPlay,
   onSelectTake,
-  onDeleteTake
+  onDeleteTake,
+  savingLineId,
+  recError
 }: {
   cuts: MockCut[]
   charById: Map<number, MockCharacter>
@@ -1082,6 +1234,8 @@ function GuideScroll({
   onPlay: (takeId: number) => void
   onSelectTake: (lineId: number, takeId: number) => void
   onDeleteTake: (lineId: number, takeId: number) => void
+  savingLineId: number | null
+  recError: string | null
 }): React.JSX.Element {
   const viewportRef = useRef<HTMLDivElement>(null)
   const stripRef = useRef<HTMLDivElement>(null)
@@ -1544,6 +1698,8 @@ function GuideScroll({
                     onPlay={onPlay}
                     onSelectTake={(tid) => onSelectTake(stoppedLine.id, tid)}
                     onDeleteTake={(tid) => onDeleteTake(stoppedLine.id, tid)}
+                    saving={savingLineId === stoppedLine.id}
+                    error={activeLineId === stoppedLine.id ? recError : null}
                   />
                 )}
                 {/* 녹음 중·미저장 take 가 있으면 실수로 넘어가지 않게 '다음' 숨김. */}

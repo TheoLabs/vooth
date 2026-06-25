@@ -11,6 +11,7 @@ import { Episode } from '@modules/episode/domain/episode.entity';
 import { Casting } from '@modules/casting/domain/casting.entity';
 import { Cut } from '@modules/cut/domain/cut.entity';
 import { Line } from '@modules/cut/domain/line.entity';
+import { Recording } from '@modules/recording/domain/recording.entity';
 
 export default [
   DddEvent,
@@ -26,4 +27,5 @@ export default [
   Casting,
   Cut,
   Line,
+  Recording,
 ];

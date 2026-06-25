@@ -34,7 +34,7 @@ export class AdminCutService extends DddService {
     imageWidth: number;
     imageHeight: number;
   }) {
-    const [episode] = await this.episodeRepository.find({ id: episodeId });
+    const [episode] = await this.episodeRepository.find({ ids: [episodeId] });
 
     if (!episode) {
       throw new BadRequestException('해당하는 에피소드가 없습니다.', {
@@ -90,7 +90,7 @@ export class AdminCutService extends DddService {
     imageWidth?: number;
     imageHeight?: number;
   }) {
-    const [episode] = await this.episodeRepository.find({ id: episodeId });
+    const [episode] = await this.episodeRepository.find({ ids: [episodeId] });
 
     if (!episode) {
       throw new BadRequestException('해당하는 에피소드가 없습니다.', {
@@ -135,7 +135,7 @@ export class AdminCutService extends DddService {
       });
     }
 
-    const [episode] = await this.episodeRepository.find({ id: cut.episodeId });
+    const [episode] = await this.episodeRepository.find({ ids: [cut.episodeId] });
 
     if (!episode) {
       throw new BadRequestException('해당하는 에피소드가 없습니다.', {

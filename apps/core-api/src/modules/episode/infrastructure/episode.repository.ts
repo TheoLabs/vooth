@@ -14,14 +14,23 @@ import {
 import { CalendarDate, EpisodeStatus } from '@vooth/shared';
 import { Content } from '@modules/content/domain/content.entity';
 import { Brackets } from 'typeorm';
+import { EpisodeSpec } from '../domain/specs';
 
 @Injectable()
 export class EpisodeRepository extends DddRepository<Episode> {
   entityClass = Episode;
 
+  async satisfyElementFrom(spec: EpisodeSpec, options?: TypeormRelationOptions<Episode>) {
+    return spec.satisfyElementFrom(this, options);
+  }
+
+  async satisfyCountFrom(spec: EpisodeSpec) {
+    return spec.satisfyCountFrom(this);
+  }
+
   async find(
     conditions: {
-      id?: number;
+      ids?: number[];
       contentId?: number;
       statuses?: EpisodeStatus[];
       chapter?: number;
@@ -35,7 +44,7 @@ export class EpisodeRepository extends DddRepository<Episode> {
   ) {
     return this.entityManager.find(this.entityClass, {
       where: stripUndefined({
-        id: conditions.id,
+        id: checkInValue(conditions.ids),
         contentId: conditions.contentId,
         status: checkInValue(conditions.statuses),
         chapter: conditions.chapter,
@@ -48,7 +57,7 @@ export class EpisodeRepository extends DddRepository<Episode> {
   }
 
   async count(conditions: {
-    id?: number;
+    ids?: number[];
     contentId?: number;
     statuses?: EpisodeStatus[];
     chapter?: number;
@@ -60,7 +69,7 @@ export class EpisodeRepository extends DddRepository<Episode> {
   }) {
     return this.entityManager.count(this.entityClass, {
       where: stripUndefined({
-        id: conditions.id,
+        id: checkInValue(conditions.ids),
         contentId: conditions.contentId,
         status: checkInValue(conditions.statuses),
         chapter: conditions.chapter,

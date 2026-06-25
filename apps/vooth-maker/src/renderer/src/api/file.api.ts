@@ -24,12 +24,12 @@ export function presignFile(input: PresignInput): Promise<PresignResult> {
   })
 }
 
-/** presigned URL 로 S3 에 직접 PUT 업로드(인증 헤더 없이 raw fetch). */
-async function putToS3(uploadUrl: string, file: File): Promise<void> {
+/** presigned URL 로 S3 에 직접 PUT 업로드(인증 헤더 없이 raw fetch). File/Blob 모두 허용. */
+export async function putToS3(uploadUrl: string, blob: Blob): Promise<void> {
   const res = await fetch(uploadUrl, {
     method: 'PUT',
-    headers: { 'Content-Type': file.type },
-    body: file
+    headers: { 'Content-Type': blob.type },
+    body: blob
   })
   if (!res.ok) {
     throw new Error(`파일 업로드에 실패했습니다. (HTTP ${res.status})`)

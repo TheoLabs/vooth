@@ -58,7 +58,7 @@ export class CreatorEpisodeService extends DddService {
       });
     }
 
-    const [episode] = await this.episodeRepository.find({ id: episodeId });
+    const [episode] = await this.episodeRepository.find({ ids: [episodeId] });
 
     if (!episode) {
       throw new BadRequestException('존재하지 않거나 접근할 수 없는 에피소드입니다.', {
