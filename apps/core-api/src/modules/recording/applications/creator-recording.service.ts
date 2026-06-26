@@ -98,4 +98,65 @@ export class CreatorRecordingService extends DddService {
     await this.fileService.commit(audioFileId, { mimePrefix: 'audio/' });
     await this.recordingRepository.save([recording]);
   }
+
+  @Transactional()
+  async select({ creator, recordingId }: { creator: Creator; recordingId: number }) {
+    const [recording] = await this.recordingRepository.find({ ids: [recordingId], creatorId: creator.id });
+
+    if (!recording) {
+      throw new BadRequestException('존재하지 않는 녹음 파일입니다.', {
+        cause: '존재하지 않는 녹음 파일입니다.',
+      });
+    }
+
+    const [episode] = await this.episodeRepository.satisfyElementFrom(
+      new RecordableEpisodeSpec({ ids: [recording.episodeId] })
+    );
+
+    if (!episode) {
+      throw new BadRequestException('녹음할 수 없는 에피소드입니다.', {
+        cause: '녹음할 수 없는 에피소드입니다.',
+      });
+    }
+
+    const selectedRecordings = (
+      await this.recordingRepository.find({
+        creatorId: creator.id,
+        lineIds: [recording.lineId],
+        isAdopted: true,
+      })
+    ).filter((selectedRecording) => selectedRecording.id !== recording.id);
+
+    // NOTE: 혹시 모를 정합성이 위반되었을 때를 위함. 로직상으로는 0~1개여야 함.
+    selectedRecordings.forEach((selectedRecording) => selectedRecording.unselect());
+
+    recording.select();
+
+    await this.recordingRepository.save([recording, ...selectedRecordings]);
+  }
+
+  @Transactional()
+  async remove({ creator, recordingId }: { creator: Creator; recordingId: number }) {
+    const [recording] = await this.recordingRepository.find({ ids: [recordingId], creatorId: creator.id });
+
+    if (!recording) {
+      throw new BadRequestException('존재하지 않는 녹음 파일입니다.', {
+        cause: '존재하지 않는 녹음 파일입니다.',
+      });
+    }
+
+    const [episode] = await this.episodeRepository.satisfyElementFrom(
+      new RecordableEpisodeSpec({ ids: [recording.episodeId] })
+    );
+
+    if (!episode) {
+      throw new BadRequestException('녹음을 삭제할 수 없는 에피소드입니다.', {
+        cause: '녹음을 삭제할 수 없는 에피소드입니다.',
+      });
+    }
+
+    // TODO: 삭제 이벤트 발행하는 도메인 메서드 필요함.
+
+    await this.recordingRepository.remove([recording]);
+  }
 }

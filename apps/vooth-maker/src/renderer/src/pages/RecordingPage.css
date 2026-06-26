@@ -143,23 +143,44 @@
   gap: 8px;
 }
 .rec-top__track {
-  width: 120px;
-  height: 7px;
+  position: relative;
+  width: 130px;
+  height: 8px;
   background: var(--rsurf2);
   border-radius: 999px;
   overflow: hidden;
 }
 .rec-top__bar {
+  position: absolute;
+  left: 0;
+  top: 0;
   height: 100%;
-  background: var(--raccent);
   border-radius: 999px;
   transition: width 0.25s ease;
 }
+/* 녹음(연한) — 아래층 */
+.rec-top__bar--rec {
+  background: rgba(74, 222, 128, 0.35);
+}
+/* 채택(진한) — 위층 */
+.rec-top__bar--adopt {
+  background: #4ade80;
+}
 .rec-top__count {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+}
+.rec-top__count-main {
   font-size: 12px;
+  font-weight: 800;
+  color: var(--rtext);
+}
+.rec-top__count-sub {
+  font-size: 10px;
   font-weight: 700;
   color: var(--rmuted);
-  font-variant-numeric: tabular-nums;
 }
 
 .rec-pill {
@@ -805,16 +826,21 @@
 
 /* ---- 가이드 자동 스크롤 모드(웹툰형 연속 + 앵커 정지 + 우측 말풍선) ---- */
 .rec-guide {
+  position: relative;
   flex: 1 1 auto;
   min-height: 0;
   display: flex;
 }
 
-/* 왼쪽 sticky 대사 목록 — 떠 있는 아일랜드 카드 */
+/* 왼쪽 대사 목록 — 떠 있는 아일랜드 카드. 절대위치라 컷(뷰포트)은 전체 폭 기준 중앙에 온다. */
 .rec-guide__panel {
-  flex: 0 0 260px;
+  position: absolute;
+  left: 14px;
+  top: 14px;
+  bottom: 14px;
+  width: 390px;
+  z-index: 5;
   min-height: 0;
-  margin: 14px 0 14px 14px;
   display: flex;
   flex-direction: column;
   background: var(--rsurf);
@@ -962,11 +988,37 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* 대사 목록 라인별 상태 묶음(녹음 상태 + 채택 여부) */
+.rec-plitem__st {
+  flex: 0 0 auto;
+  align-self: center;
+  margin-left: 8px;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 4px;
+}
+.rec-adopt {
+  font-size: 9px;
+  font-weight: 800;
+  white-space: nowrap;
+  padding: 1px 6px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+}
+.rec-adopt--on {
+  color: #fbbf24;
+  background: rgba(251, 191, 36, 0.16);
+  border-color: rgba(251, 191, 36, 0.35);
+}
+.rec-adopt--off {
+  color: var(--rdim);
+  background: var(--rbg);
+  border-color: var(--rborder);
+}
 /* 대사 목록 라인별 녹음 상태 배지 */
 .rec-recst {
   flex: 0 0 auto;
-  align-self: center;
-  margin-left: 6px;
   padding: 1px 7px;
   font-size: 10px;
   font-weight: 800;

@@ -33,3 +33,13 @@ export function createRecording(
     body: JSON.stringify(body)
   })
 }
+
+/** 녹음본 채택. PUT /creators/recordings/:recordingId/select (서버가 같은 라인의 기존 채택 해제). */
+export function selectRecording(recordingId: number): Promise<unknown> {
+  return apiRequest(`/creators/recordings/${recordingId}/select`, { method: 'PUT' })
+}
+
+/** 녹음본 삭제. DELETE /creators/recordings/:recordingId */
+export function deleteRecording(recordingId: number): Promise<unknown> {
+  return apiRequest(`/creators/recordings/${recordingId}`, { method: 'DELETE' })
+}

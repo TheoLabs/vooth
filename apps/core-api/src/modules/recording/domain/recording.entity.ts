@@ -60,4 +60,12 @@ export class Recording extends DddAggregate {
   static of(args: Ctor) {
     return new Recording(args);
   }
+
+  select() {
+    this.isAdopted = true;
+  }
+
+  unselect() {
+    this.isAdopted = false;
+  }
 }

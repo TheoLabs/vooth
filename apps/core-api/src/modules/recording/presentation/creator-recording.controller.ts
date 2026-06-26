@@ -1,5 +1,5 @@
 import { CreatorGuard } from '@common/guards';
-import { Body, Controller, Get, Param, ParseIntPipe, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, ParseIntPipe, Post, Put, UseGuards } from '@nestjs/common';
 import { CreatorRecordingService } from '../applications/creator-recording.service';
 import { Context, ContextKey } from '@common/context';
 import { Creator } from '@modules/creator/domain/creator.entity';
@@ -26,6 +26,32 @@ export class CreatorRecordingController {
 
     // 3. Get result
     await this.creatorRecordingService.record({ creator, episodeId, cutId, lineId, ...body });
+
+    // 4. Send response
+    return { data: {} };
+  }
+
+  @Delete('recordings/:recordingId')
+  async removeRecording(@Param('recordingId', ParseIntPipe) recordingId: number) {
+    // 1. Destructure body, params, query
+    // 2. Get context
+    const creator = this.context.get<Creator>(ContextKey.CREATOR);
+
+    // 3. Get result
+    await this.creatorRecordingService.remove({ creator, recordingId });
+
+    // 4. Send response
+    return { data: {} };
+  }
+
+  @Put('recordings/:recordingId/select')
+  async selectRecording(@Param('recordingId', ParseIntPipe) recordingId: number) {
+    // 1. Destructure body, params, query
+    // 2. Get context
+    const creator = this.context.get<Creator>(ContextKey.CREATOR);
+
+    // 3. Get result
+    await this.creatorRecordingService.select({ creator, recordingId });
 
     // 4. Send response
     return { data: {} };

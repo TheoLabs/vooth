@@ -14,7 +14,13 @@ import {
 } from '../features/episodes/recording.mock'
 import { useCreatorCuts } from '../features/cuts/useCreatorCuts'
 import { useCreatorEpisode } from '../features/episodes/useCreatorEpisodes'
-import { uploadAudio, createRecording } from '../api/recording.api'
+import { useQueryClient } from '@tanstack/react-query'
+import {
+  uploadAudio,
+  createRecording,
+  selectRecording,
+  deleteRecording
+} from '../api/recording.api'
 import type { CreatorCut, CreatorCharacter } from '../api/cut.api'
 import type { CreatorEpisodeDetail } from '../api/episode.api'
 import './RecordingPage.css'
@@ -241,6 +247,7 @@ export function RecordingPage(): React.JSX.Element {
 
 /** 회차 녹음 화면 — 다크 프로 톤(vooth-tool 앵커 화면 레퍼런스). 컷 뷰어 + 대사 패널 + 라이브 레코더 바. */
 function RecordingScreen(): React.JSX.Element {
+  const queryClient = useQueryClient()
   const navigate = useNavigate()
   const location = useLocation()
   const { contentId: contentIdParam, episodeId } = useParams<{
@@ -383,10 +390,15 @@ function RecordingScreen(): React.JSX.Element {
 
   const allLines = orderedCuts.flatMap((c) => c.lines)
   const myLines = allLines.filter((l) => myCharIds.has(l.characterId))
-  const recordedCount = myLines.filter((l) => (lineStates[l.id]?.takes.length ?? 0) > 0).length
   const totalCount = myLines.length
-  const pct = totalCount ? Math.round((recordedCount / totalCount) * 100) : 0
-  const allRecorded = totalCount > 0 && recordedCount === totalCount
+  // 녹음 = take 1개 이상, 채택 = selected take 보유. 검수는 "전원 채택" 이어야 가능.
+  const recordedCount = myLines.filter((l) => (lineStates[l.id]?.takes.length ?? 0) > 0).length
+  const adoptedCount = myLines.filter((l) =>
+    (lineStates[l.id]?.takes ?? []).some((t) => t.selected)
+  ).length
+  const recordedPct = totalCount ? Math.round((recordedCount / totalCount) * 100) : 0
+  const adoptedPct = totalCount ? Math.round((adoptedCount / totalCount) * 100) : 0
+  const allAdopted = totalCount > 0 && adoptedCount === totalCount
 
   const recordable = RECORDABLE.has(meta.status)
   const isReviewing = meta.status === 'REVIEWING'
@@ -449,7 +461,7 @@ function RecordingScreen(): React.JSX.Element {
     setElapsedMs(0)
   }
 
-  // 임시 take 저장 → 오디오 업로드(presign+PUT) → POST 녹음 저장 → take 목록 커밋(채택).
+  // 임시 take 저장 → 오디오 업로드(presign+PUT) → POST 녹음 저장 → cuts 무효화(서버 take 재조회).
   async function saveTake(): Promise<void> {
     if (!pendingTake || savingLineId != null) return
     const { lineId, cutId, take, blob } = pendingTake
@@ -458,14 +470,8 @@ function RecordingScreen(): React.JSX.Element {
     try {
       const audioFileId = await uploadAudio(blob)
       await createRecording(id, cutId, lineId, { audioFileId, durationMs: take.durationMs })
-      setLineStates((prev) => {
-        const cur = prev[lineId]?.takes ?? []
-        const cleared = cur.map((t) => ({ ...t, selected: false }))
-        return { ...prev, [lineId]: { takes: [...cleared, take] } }
-      })
-      setPendingTake(null) // url 은 세션 재생용으로 유지(takeUrlsRef)
-      setPlayingTakeId(null)
-      stopPlayback()
+      discardPending()
+      await queryClient.invalidateQueries({ queryKey: ['creator-cuts', id] })
     } catch (e) {
       setRecError(e instanceof Error ? e.message : '녹음 저장에 실패했습니다.')
     } finally {
@@ -473,21 +479,25 @@ function RecordingScreen(): React.JSX.Element {
     }
   }
 
-  // 녹음본 채택 — 해당 take 만 selected. TODO: 채택 API 연동.
-  function selectTake(lineId: number, takeId: number): void {
+  // 녹음본 채택 — 낙관적 반영 + PUT select → cuts 무효화(서버 채택 상태 동기화).
+  async function selectTake(lineId: number, takeId: number): Promise<void> {
     setLineStates((prev) => {
       const cur = prev[lineId]?.takes ?? []
       return { ...prev, [lineId]: { takes: cur.map((t) => ({ ...t, selected: t.id === takeId })) } }
     })
+    try {
+      await selectRecording(takeId)
+    } catch (e) {
+      setRecError(e instanceof Error ? e.message : '채택에 실패했습니다.')
+    } finally {
+      void queryClient.invalidateQueries({ queryKey: ['creator-cuts', id] })
+    }
   }
 
-  // 녹음본 삭제 — take 제거. 채택본을 지우면 마지막 take 를 채택. TODO: DELETE API 연동.
-  function deleteTake(lineId: number, takeId: number): void {
+  // 녹음본 삭제 — 낙관적 제거 + DELETE → cuts 무효화(서버 상태 동기화).
+  async function deleteTake(lineId: number, takeId: number): Promise<void> {
     setLineStates((prev) => {
       const next = (prev[lineId]?.takes ?? []).filter((t) => t.id !== takeId)
-      if (next.length > 0 && !next.some((t) => t.selected)) {
-        next[next.length - 1] = { ...next[next.length - 1], selected: true }
-      }
       return { ...prev, [lineId]: { takes: next } }
     })
     if (playingTakeId === takeId) stopPlayback()
@@ -496,6 +506,13 @@ function RecordingScreen(): React.JSX.Element {
     if (url) {
       URL.revokeObjectURL(url)
       takeUrlsRef.current.delete(takeId)
+    }
+    try {
+      await deleteRecording(takeId)
+    } catch (e) {
+      setRecError(e instanceof Error ? e.message : '녹음본 삭제에 실패했습니다.')
+    } finally {
+      void queryClient.invalidateQueries({ queryKey: ['creator-cuts', id] })
     }
   }
 
@@ -632,12 +649,26 @@ function RecordingScreen(): React.JSX.Element {
           <span className={`rec-pill rec-pill--${meta.status.toLowerCase()}`}>
             {EPISODE_STATUS_LABEL[meta.status]}
           </span>
-          <div className="rec-top__prog">
+          <div
+            className="rec-top__prog"
+            title={`녹음 ${recordedCount} · 채택 ${adoptedCount} / 총 ${totalCount}`}
+          >
             <div className="rec-top__track">
-              <div className="rec-top__bar" style={{ width: `${pct}%` }} />
+              {/* 녹음(연한) 위에 채택(진한) 을 겹쳐 — 채택 기준 진행 */}
+              <div
+                className="rec-top__bar rec-top__bar--rec"
+                style={{ width: `${recordedPct}%` }}
+              />
+              <div
+                className="rec-top__bar rec-top__bar--adopt"
+                style={{ width: `${adoptedPct}%` }}
+              />
             </div>
             <span className="rec-top__count">
-              {recordedCount}/{totalCount} ({pct}%)
+              <span className="rec-top__count-main">
+                채택 {adoptedCount}/{totalCount}
+              </span>
+              <span className="rec-top__count-sub">녹음 {recordedCount}</span>
             </span>
           </div>
           {isReviewing ? (
@@ -646,8 +677,8 @@ function RecordingScreen(): React.JSX.Element {
             <button
               type="button"
               className="rec-btn rec-btn--primary"
-              disabled={!recordable || !allRecorded}
-              title={!allRecorded ? '모든 라인 녹음을 완료해야 검수 요청이 가능합니다.' : undefined}
+              disabled={!recordable || !allAdopted}
+              title={!allAdopted ? '모든 대사가 채택되어야 검수 요청이 가능합니다.' : undefined}
             >
               검수 요청
             </button>
@@ -1301,6 +1332,9 @@ function GuideScroll({
     if ((lineStates[lineId]?.takes.length ?? 0) > 0) return 'saved'
     return 'none'
   }
+  // 저장된 라인의 채택 여부.
+  const isAdopted = (lineId: number): boolean =>
+    (lineStates[lineId]?.takes ?? []).some((t) => t.selected)
 
   // 좌측 세로 타임라인 블럭 — 각 대사를 앵커(시작점)에 두고 녹음 길이(durMs)만큼의 높이로.
   // 컷 높이 = 실측 스트립 폭 / 이미지비율 → 실제 레이아웃과 정확히 일치(누적 위치 오차 없음).
@@ -1539,17 +1573,17 @@ function GuideScroll({
           <div className="rec-guide__panel-filter">
             <button
               type="button"
-              className={`rec-gfbtn${lineFilter === 'mine' ? ' rec-gfbtn--on' : ''}`}
-              onClick={() => changeFilter('mine')}
-            >
-              내 대사
-            </button>
-            <button
-              type="button"
               className={`rec-gfbtn${lineFilter === 'all' ? ' rec-gfbtn--on' : ''}`}
               onClick={() => changeFilter('all')}
             >
               전체
+            </button>
+            <button
+              type="button"
+              className={`rec-gfbtn${lineFilter === 'mine' ? ' rec-gfbtn--on' : ''}`}
+              onClick={() => changeFilter('mine')}
+            >
+              내 대사
             </button>
           </div>
         </div>
@@ -1585,8 +1619,17 @@ function GuideScroll({
                         <span className="rec-plitem__text">{line.text}</span>
                       </span>
                       {mine && (
-                        <span className={`rec-recst rec-recst--${recStatus(line.id)}`}>
-                          {REC_ST_LABEL[recStatus(line.id)]}
+                        <span className="rec-plitem__st">
+                          <span className={`rec-recst rec-recst--${recStatus(line.id)}`}>
+                            {REC_ST_LABEL[recStatus(line.id)]}
+                          </span>
+                          {recStatus(line.id) === 'saved' && (
+                            <span
+                              className={`rec-adopt rec-adopt--${isAdopted(line.id) ? 'on' : 'off'}`}
+                            >
+                              {isAdopted(line.id) ? '★ 채택' : '미채택'}
+                            </span>
+                          )}
                         </span>
                       )}
                     </button>

@@ -27,6 +27,7 @@ export abstract class DddRepository<T extends DddAggregate> {
   }
 
   async softRemove(entities: T[]) {
+    await this.saveEvents(entities.flatMap((entity) => entity.getPublishedEvents()));
     await this.entityManager.softRemove(entities);
   }
 
