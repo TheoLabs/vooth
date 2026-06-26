@@ -27,7 +27,7 @@
   </div>
 
   <div class="note warn">
-    <span class="label">구현 상태 = 부분 구현.</span> <b>녹음 화면 조회 · 테이크 업로드 · 채택(select) 구현됨</b>. <b>삭제(자동 해제 ②) 구현중.</b> <b>이벤트(RecordingCreatedEvent → EpisodeCasting lazy / Episode READY→RECORDING)는 미배선</b>(§05, 목록류 완료 후). 검토 포인트 A(per-take 검수 미포함)·B(채택=성우 본인)는 결정 완료.
+    <span class="label">구현 상태 = 부분 구현.</span> <b>녹음 화면 조회 · 테이크 업로드 · 채택(select) 구현됨</b>. <b>삭제(자동 해제 ②) 구현중.</b> <b>이벤트(RecordingCreatedEvent → Episode READY→RECORDING)는 미배선</b>(§05, 목록류 완료 후). 검토 포인트 A(per-take 검수 미포함)·B(채택=성우 본인)는 결정 완료.
     부모 대사·컷은 <a href="../cut/index.html">Cut</a>(Line은 Cut의 child), 버전은 <a href="../casting/index.html">Casting</a>, 타이밍은 <a href="../playback/index.html">Playback</a> 참고.
   </div>
 
@@ -100,8 +100,8 @@
   <section class="section">
     <h2><span class="num">05</span> 이벤트 · 회차 상태 연동</h2>
     <ul class="clean">
-      <li><b>첫 녹음 → EpisodeCasting lazy 생성 + 회차 전이</b> — Recording 생성 시 <code>RecordingCreatedEvent</code>(lineId·castingId·episodeId 포함) 발행 → (a) <a href="../episode-casting/index.html">EpisodeCasting</a><code>(episodeId, castingId)</code> 없으면 <code>RECORDING</code>으로 <b>upsert</b>(멱등), (b) 회차 첫 녹음이면 Episode <code>READY→RECORDING</code> 자동 전이. <code>episodeId</code> 비정규화 덕에 둘 다 판정 쉬움.</li>
-      <li><b>녹음 완료 → 검수</b> — 회차의 모든 (라인×발행대상 캐스팅)에 채택 테이크가 차면 그 <a href="../episode-casting/index.html">EpisodeCasting</a>이 <code>REVIEWING</code>으로. 롤업 판정은 EpisodeCasting 단위 — MVP에선 directors 수동 전이로.</li>
+      <li><b>첫 녹음 → 회차 전이</b> — Recording 생성 시 <code>RecordingCreatedEvent</code>(lineId·castingId·episodeId 포함) 발행 → 회차 첫 녹음이면 Episode <code>READY→RECORDING</code> 자동 전이(<code>episodeId</code> 비정규화로 판정). <b>EpisodeCasting은 여기서 안 만든다</b> — 검수 요청 때 생성(<a href="../episode-casting/index.html">EpisodeCasting</a> §05, ③).</li>
+      <li><b>녹음 완료 → 검수 요청</b> — 성우가 자기 라인 전부 채택하면 <b>검수 요청</b>(creator) → 그때 <a href="../episode-casting/index.html">EpisodeCasting</a> <code>REVIEWING</code> 생성/재요청. 검수(승인/반려)는 director.</li>
       <li><b>채택/삭제 정리</b> — Episode 하드 삭제 시 <code>EpisodeRemovedEvent</code> → Recording <code>@EventHandler</code>가 그 회차 녹음 일괄 삭제(논리 FK라 EDA, <code>episodeId</code> 멱등). Cut 정리와 동형. S3 오디오 정리도 동반(추후).</li>
     </ul>
   </section>
@@ -140,7 +140,7 @@
       <li><b>→ Casting</b>: <code>castingId</code> 논리 FK. 버전·성우 정체성. <code>casting.creatorId</code>로 소유 검증.</li>
       <li><b>→ Episode</b>: <code>episodeId</code> 논리 FK(비정규화). 회차 상태 게이트·롤업·EDA 정리의 키.</li>
       <li><b>→ File</b>: <code>audioFileId</code>로 음성 참조(commit-on-attach, <code>audio/</code>).</li>
-      <li><b>← <a href="../episode-casting/index.html">EpisodeCasting</a></b>: 회차×캐스팅 검수·발행이 채택 Recording을 기준으로 라이브 판단. <code>RecordingCreatedEvent</code>로 lazy 생성. 현재는 <code>Casting.isPublished</code> 수동 MVP.</li>
+      <li><b>← <a href="../episode-casting/index.html">EpisodeCasting</a></b>: 회차×캐스팅 검수·발행이 채택 Recording을 기준으로 라이브 판단. <b>검수 요청(creator) 시 생성</b>(③). 현재는 <code>Casting.isPublished</code> 수동 MVP.</li>
     </ul>
   </section>
 </div>

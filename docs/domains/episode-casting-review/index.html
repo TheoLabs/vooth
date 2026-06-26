@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>EpisodeCastingReview 도메인 — Vooth core-api</title>
+<link rel="stylesheet" href="../assets/style.css" />
+</head>
+<body>
+<header class="topnav"><div class="inner" id="site-nav"></div></header>
+
+<div class="wrap">
+  <div class="hero">
+    <div class="eyebrow">Composition · 구성·재생</div>
+    <h1>EpisodeCastingReview · 검수 이력(로그)</h1>
+    <p class="lead">
+      <a href="../episode-casting/index.html">EpisodeCasting</a>의 검수 전이(<b>요청 → 승인/반려 → 발행</b>)를 시간순으로 남기는 <b>append-only 감사 로그</b>.
+      EpisodeCasting은 <b>현재 상태만</b> 들고 <code>REJECTED↔REVIEWING</code>로 덮어쓰므로, 누가·언제·왜(반려 사유) 했는지의 <b>사이클 이력</b>은 여기서 보존한다.
+    </p>
+    <div class="meta">
+      <span class="badge plan">설계 (구현 추후)</span>
+      <span class="badge ns">creators/* · directors/*</span>
+      <span class="badge ctx">append-only</span>
+      <span class="badge ctx">audit</span>
+    </div>
+  </div>
+
+  <div class="note warn">
+    <span class="label">구현 상태 = 설계(추후).</span> <b>EpisodeCasting이 먼저</b> — 이 로그는 그 뒤에 만든다. 단, 이력은 <b>소급 복원이 안 되므로</b>(만들기 전 전이는 유실), EpisodeCasting 구현 시 <b>검수 전이 이벤트를 풍부하게 발행</b>해 캡처는 처음부터 해둔다(§04). 부모는 <a href="../episode-casting/index.html">EpisodeCasting</a>.
+  </div>
+
+  <section class="section">
+    <h2><span class="num">01</span> 책임과 특성</h2>
+    <ul class="clean">
+      <li><b>검수 이력(audit)</b> — (회차×캐스팅) 검수의 모든 전이(요청/승인/반려/발행)를 <b>1행씩</b> 시간순 기록. "누가·언제·왜".</li>
+      <li><b>왜 별도인가</b> — EpisodeCasting은 <b>현재 상태</b>만(반려→재요청에서 <code>REJECTED→REVIEWING</code>로 덮어씀) → 사이클 이력·반려 사유 히스토리가 사라진다. 로그로 보존.</li>
+      <li><b>append-only</b> — 생성만, 수정·삭제 없음. 불변 기록.</li>
+      <li><b>반려 사유 보존</b> — 성우가 "왜 반려됐나"를 회차별·사이클별로 확인. (EpisodeCasting엔 <b>최신</b> <code>rejectReason</code>만 두는 편의 필드, 전체 이력은 여기.)</li>
+    </ul>
+  </section>
+
+  <section class="section">
+    <h2><span class="num">02</span> 애그리게이트 — <code>EpisodeCastingReview</code></h2>
+    <p class="desc">파일(예정): <code>src/modules/episode-casting-review/domain/episode-casting-review.entity.ts</code> · append-only.</p>
+    <div class="t-scroll">
+      <table>
+        <thead><tr><th>필드</th><th>타입</th><th>null</th><th>설명</th></tr></thead>
+        <tbody>
+          <tr><td><code>episodeCastingId</code></td><td>number</td><td>✗</td><td>대상 <a href="../episode-casting/index.html">EpisodeCasting</a>. <b>논리 FK</b> + INDEX(이력 조회 키)</td></tr>
+          <tr><td><code>action</code></td><td>enum</td><td>✗</td><td><code>REQUESTED</code>(검수 요청·재요청) / <code>APPROVED</code> / <code>REJECTED</code> / <code>PUBLISHED</code></td></tr>
+          <tr><td><code>actorId</code></td><td>number</td><td>✗</td><td>수행 주체. <code>REQUESTED</code>=creator, 그 외=director. 역할은 action에서 파생</td></tr>
+          <tr><td><code>reason</code></td><td>text</td><td>✓</td><td>반려 사유 등(<code>REJECTED</code> 시). 그 외 null</td></tr>
+          <tr><td><code>createdAt</code></td><td>datetime</td><td>✗</td><td>발생 시각(감사 타임스탬프). 정렬 키</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note">
+      <span class="label">불변.</span> 한 EpisodeCasting에 대해 <b>여러 행</b>(사이클마다 누적): 예) <code>REQUESTED → REJECTED → REQUESTED → APPROVED → PUBLISHED</code>. 행은 절대 수정·삭제하지 않는다. 재요청은 EpisodeCasting에선 <code>REJECTED→REVIEWING</code> 전이지만, 로그엔 <code>REQUESTED</code> 새 행으로 남는다.
+    </div>
+  </section>
+
+  <section class="section">
+    <h2><span class="num">03</span> 상태(EpisodeCasting)와의 대응</h2>
+    <div class="t-scroll"><table>
+      <thead><tr><th>액션(creator/director)</th><th>EpisodeCasting 전이</th><th>로그 action</th></tr></thead>
+      <tbody>
+        <tr><td>검수 요청(creator)</td><td>(없음)→REVIEWING / REJECTED→REVIEWING</td><td><code>REQUESTED</code></td></tr>
+        <tr><td>승인(director)</td><td>REVIEWING→APPROVED</td><td><code>APPROVED</code></td></tr>
+        <tr><td>반려(director)</td><td>REVIEWING→REJECTED</td><td><code>REJECTED</code>(+reason)</td></tr>
+        <tr><td>발행(director)</td><td>APPROVED→PUBLISHED</td><td><code>PUBLISHED</code></td></tr>
+      </tbody>
+    </table></div>
+    <p class="desc" style="margin-top:8px">즉 로그는 <a href="../episode-casting/index.html">EpisodeCasting</a> §03 상태 머신의 <b>전이 1건 = 로그 1행</b>이다.</p>
+  </section>
+
+  <section class="section">
+    <h2><span class="num">04</span> 캡처 방식 (구현 시)</h2>
+    <ul class="clean">
+      <li><b>(A) 이벤트 프로젝션 — 권장</b> — EpisodeCasting 전이마다 발행하는 도메인 이벤트(<code>ReviewRequested/Approved/Rejected/PublishedEvent</code>, actorId·reason 포함)를 <code>@EventHandler</code>가 받아 로그 행 append. EpisodeCasting 변경 0, 핸들러+테이블만 추가. <b>전제: <code>ddd_events</code> 보존</b>(보존되면 이미 쌓인 이벤트로 과거까지 복원).</li>
+      <li><b>(B) 동기 append</b> — 전이와 <b>같은 트랜잭션</b>에서 로그 행 insert. 감사 무결성을 tx로 못 박음(유실·지연 없음). <code>ddd_events</code> 보존이 불확실하면 이쪽.</li>
+      <li><b>지금 해둘 것</b> — 어느 쪽이든 <b>EpisodeCasting 구현 시 전이 이벤트를 actorId·reason까지 풍부하게 발행</b>. 그래야 로그를 추후에 붙여도 이력 손실이 없다(이력은 소급 복원 불가).</li>
+    </ul>
+  </section>
+
+  <section class="section">
+    <h2><span class="num">05</span> API 표면 <span class="badge plan" style="vertical-align:middle">추후</span></h2>
+    <div class="t-scroll">
+      <table>
+        <thead><tr><th>Method</th><th>Path</th><th>설명</th><th>주체</th></tr></thead>
+        <tbody>
+          <tr><td><span class="method get">GET</span></td><td><code>directors/episode-castings/:id/reviews</code></td><td>그 (회차×캐스팅) 검수 이력 전체(감사)</td><td>director</td></tr>
+          <tr><td><span class="method get">GET</span></td><td><code>creators/episodes/:episodeId/casting/reviews</code></td><td>내 버전의 검수 이력(반려 사유 확인)</td><td>성우(본인)</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note"><span class="label">읽기 전용.</span> append-only 도메인이라 조회만 노출(생성은 EpisodeCasting 전이의 부수효과/프로젝션). 쓰기 엔드포인트 없음.</div>
+  </section>
+
+  <section class="section">
+    <h2><span class="num">06</span> 관계 · 경계</h2>
+    <ul class="clean">
+      <li><b>→ <a href="../episode-casting/index.html">EpisodeCasting</a></b>: <code>episodeCastingId</code> 논리 FK. 1:N(EpisodeCasting → 검수 이력들).</li>
+      <li><b>actor</b>: <code>actorId</code>는 creator(REQUESTED) 또는 director(그 외) — 별도 FK 제약 없이 논리 참조.</li>
+      <li><b>EpisodeCasting과의 분리</b>: EpisodeCasting = 현재 상태(빠른 읽기), Review = 불변 이력(감사). 같은 전이를 두 곳이 다른 목적으로 본다.</li>
+    </ul>
+  </section>
+</div>
+
+<footer class="page">
+  Source: 설계(미구현, 추후) · 부모 <a href="../episode-casting/index.html">EpisodeCasting</a> · 음성 <a href="../recording/index.html">Recording</a>
+</footer>
+<script src="../assets/nav.js"></script>
+</body>
+</html>

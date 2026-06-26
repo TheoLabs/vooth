@@ -22,7 +22,7 @@
       <span class="badge ns">directors/* · public</span>
       <span class="badge ctx">Episode × Casting</span>
       <span class="badge ctx">검수·발행 단위</span>
-      <span class="badge ctx">lazy 생성</span>
+      <span class="badge ctx">검수요청 시 생성</span>
     </div>
   </div>
 
@@ -51,23 +51,28 @@
           <tr><td><code>episodeId</code></td><td>number</td><td>✗</td><td>대상 회차. <b>논리 FK</b> + INDEX</td></tr>
           <tr><td><code>castingId</code></td><td>number</td><td>✗</td><td>버전(Character×Creator). <b>논리 FK</b> + INDEX. 캐릭터는 <code>casting.characterId</code>로 파생</td></tr>
           <tr><td><code>status</code></td><td>enum</td><td>✗</td><td><code>EpisodeCastingStatus</code>(§03)</td></tr>
+          <tr><td><code>rejectReason</code></td><td>text</td><td>✓</td><td><b>최신</b> 반려 사유(REJECTED 시). 전체 이력은 <a href="../episode-casting-review/index.html">EpisodeCastingReview</a>(추후)</td></tr>
           <tr><td><code>publishedAt</code></td><td>datetime</td><td>✓</td><td>발행 시각(필모 정렬·스케줄·구매 기준)</td></tr>
         </tbody>
       </table>
     </div>
     <div class="note">
-      <span class="label">불변식.</span> <code>@Unique(episodeId, castingId)</code> — 회차×캐스팅당 1행. 정합: <code>casting.characterId</code>가 <b>그 회차에 등장</b>(라인 ≥1)해야 행이 생긴다. 멀티버전이라 <b>회차당 <code>PUBLISHED</code> 여러 개 허용</b>(버전별).
+      <span class="label">불변식.</span> <code>@Unique(episodeId, castingId)</code> — 회차×캐스팅당 1행. 정합: <code>casting.characterId</code>가 <b>그 회차에 등장</b>(라인 ≥1)해야 행이 생긴다. 멀티버전이라 <b>회차당 <code>PUBLISHED</code> 여러 개 허용</b>(버전별). 검수 전이 이력(누가·언제·왜)은 별도 <a href="../episode-casting-review/index.html">EpisodeCastingReview</a> 로그에 보존(추후).
     </div>
   </section>
 
   <section class="section">
     <h2><span class="num">03</span> 상태 — <code>EpisodeCastingStatus</code></h2>
-    <pre class="mono" style="background:var(--code-bg,#0f172a0a);padding:12px 14px;border-radius:8px;overflow:auto;font-size:13px;">RECORDING → REVIEWING → APPROVED → PUBLISHED
-                ↑__________|   (REJECTED = 반려·재녹음)</pre>
+    <pre class="mono" style="background:var(--code-bg,#0f172a0a);padding:12px 14px;border-radius:8px;overflow:auto;font-size:13px;">(없음) ──검수요청(creator)──▶ REVIEWING ──승인(director)──▶ APPROVED ──▶ PUBLISHED
+                                 │ ▲
+                              반려│ │재요청(재녹음 후, creator)
+                                 ▼ │
+                              REJECTED</pre>
     <ul class="clean">
-      <li><code>RECORDING</code> — 이 회차 이 버전 녹음 진행(라인별 채택 진행 중).</li>
-      <li><code>REVIEWING</code> — 대상 라인 모두 채택 완료 → 검수 요청.</li>
-      <li><code>APPROVED</code> / <code>REJECTED</code> — 검수 통과 / 반려(재녹음).</li>
+      <li><b>녹음 단계엔 EpisodeCasting 없음</b> — 녹음 중은 <a href="../recording/index.html">Recording</a> 행으로만 추적(RECORDING 상태 없음). EpisodeCasting은 <b>검수 요청 시</b> 태어난다(§05).</li>
+      <li><code>REVIEWING</code> — 검수 대기. <b>creator가 검수 요청</b>(내 라인 전부 채택 완료 게이트) 시 생성/진입.</li>
+      <li><code>APPROVED</code> / <code>REJECTED</code> — <b>director</b>가 검수 통과 / 반려.</li>
+      <li><b><code>REJECTED → REVIEWING</code></b> — 반려 후 creator가 재녹음 → <b>재요청</b>. 이때 <b>재생성이 아니라 기존 행을 다시 REVIEWING으로 전이</b>(<code>@Unique(episodeId,castingId)</code>). 반려/재요청 사이클 내내 행 유지.</li>
       <li><code>PUBLISHED</code> — 발행(시청자 노출). <code>publishedAt</code> 기록.</li>
       <li><b>하차는 Casting 레벨</b> — 중간 하차 시 미래 회차엔 그 캐스팅의 EpisodeCasting을 <b>안 만들면</b> 됨. 이미 PUBLISHED된 과거 회차는 그대로 유지(필모 보존).</li>
     </ul>
@@ -85,17 +90,18 @@
       </tbody>
     </table></div>
     <div class="note">
-      <span class="label">필모 정밀도 &amp; READY 누설 방지.</span> "이 성우 1~5화 담당" = 그 캐스팅의 <code>PUBLISHED</code> EpisodeCasting 집합. 새 성우가 녹음 중(<code>RECORDING</code>)이어도 <code>PUBLISHED</code> 전엔 <b>공개 필모/시청자에 안 뜬다</b> — 발행 게이트가 여기에 있기 때문.
+      <span class="label">필모 정밀도 &amp; 발행 전 누설 방지.</span> "이 성우 1~5화 담당" = 그 캐스팅의 <code>PUBLISHED</code> EpisodeCasting 집합. 새 성우가 녹음·검수 중이어도(EpisodeCasting 없거나 REVIEWING/APPROVED) <code>PUBLISHED</code> 전엔 <b>공개 필모/시청자에 안 뜬다</b> — 발행 게이트가 여기에 있기 때문.
     </div>
   </section>
 
   <section class="section">
-    <h2><span class="num">05</span> 생성 시점 · 이벤트 <span class="badge ok" style="vertical-align:middle">결정: lazy</span></h2>
+    <h2><span class="num">05</span> 생성 시점 · 이벤트 <span class="badge ok" style="vertical-align:middle">결정: 검수 요청 시(③)</span></h2>
     <ul class="clean">
-      <li><b>생성 = lazy(첫 녹음)</b> — <code>(episodeId, castingId)</code>의 <b>첫 Recording 제출</b> 시 <code>RecordingCreatedEvent</code>(episodeId·castingId 포함) → EpisodeCasting 없으면 <code>RECORDING</code>으로 <b>upsert</b>. <code>@Unique(episodeId, castingId)</code>라 멱등.
-        <span class="dim">(대안 ①: 회차 READY 시 등장 캐스팅 일괄 프로비저닝 — 늦은 배정/이어받기를 위해 back-fill 트리거가 추가로 필요해 채택 안 함.)</span></li>
-      <li><b>왜 lazy인가</b> — 트리거 1개(RecordingCreated)로 단순하고, <b>이어받기·중간 하차·늦은 캐스팅 배정을 특별처리 없이 흡수</b>. 안 나오는 캐릭터/안 녹음한 버전은 행이 안 생김(phantom 없음).</li>
-      <li><b>예정(분모)은 파생</b> — "이 회차에 녹음해야 할 버전 집합"(진행률·검수 보드 분모)은 EpisodeCasting이 아니라 <code>Casting(등장 캐릭터)</code>에서 계산. 검수 보드의 "미시작" 표시는 <b>예정 LEFT JOIN EpisodeCasting</b>(실적)으로 머지한다.</li>
+      <li><b>생성 = 검수 요청 시 upsert</b> — <b>creator가 (회차×내 캐스팅) 검수 요청</b>할 때 <code>(episodeId, castingId)</code>로 <b>create-or-resubmit</b>: 없으면 <code>REVIEWING</code> 생성, 있으면(REJECTED) <code>REJECTED→REVIEWING</code> 전이. <code>@Unique(episodeId, castingId)</code>라 멱등. <b>완결성 게이트</b>(내 라인 전부 채택 테이크)를 이 액션에서 검증.</li>
+      <li><b>왜 검수 요청 시점인가</b> — EpisodeCasting의 본업은 <b>검수·발행</b>이라 녹음 단계엔 할 일이 없다(진행률은 파생). 그래서 <b>RECORDING 상태를 두지 않고</b>, 명시적 액션(검수 요청)에 <b>생성 + 완결성 검증</b>을 묶는다. phantom(녹음만 깨작인 버전 행) 없음.
+        <span class="dim">(대안 ② 첫 녹음 lazy / ① 회차 READY 프로비저닝 — RECORDING 상태가 저부가가치라 채택 안 함.)</span></li>
+      <li><b>Episode 전이는 분리</b> — <code>READY→RECORDING</code>(첫 녹음)은 <code>RecordingCreatedEvent → Episode</code> 전이로 처리(EpisodeCasting과 무관). 즉 <code>RecordingCreatedEvent</code>는 회차 전이만 담당.</li>
+      <li><b>예정(분모)은 파생</b> — "이 회차에 녹음해야 할 버전 집합"(진행률·검수 보드 분모)은 EpisodeCasting이 아니라 <code>Casting(등장 캐릭터)</code>에서 계산. 검수 보드는 <b>예정 LEFT JOIN Recording(진행) LEFT JOIN EpisodeCasting(검수)</b>로 머지(미시작/녹음중/검수중 구분).</li>
       <li><b>이벤트</b> — <code>EpisodeCastingPublishedEvent</code> → (a) <a href="../casting/index.html">Casting</a>.status 롤업(→PUBLISHED), (b) 필모 프로젝션 갱신, (c) <a href="../episode/index.html">Episode</a>.status 롤업, (d) 구매 가능 버전 갱신(추후). 회차 삭제 시 <code>EpisodeRemovedEvent</code> → EpisodeCasting EDA 정리(episodeId 멱등).</li>
     </ul>
   </section>
@@ -106,14 +112,15 @@
       <table>
         <thead><tr><th>Method</th><th>Path</th><th>설명</th><th>주체</th></tr></thead>
         <tbody>
-          <tr><td><span class="method get">GET</span></td><td><code>directors/episodes/:episodeId/castings</code></td><td>검수 보드 — 버전별 진행(예정 LEFT JOIN 실적, 미시작 포함)</td><td>연출/검수자</td></tr>
-          <tr><td><span class="method put">PUT</span></td><td><code>directors/episode-castings/:id/status</code></td><td>검수 전이(approve/reject) · 발행(publish)</td><td>연출/검수자</td></tr>
-          <tr><td><span class="method get">GET</span></td><td><code>creators/episodes/:episodeId/casting</code></td><td>내 버전의 이 회차 진행 상태(읽기)</td><td>성우</td></tr>
+          <tr><td><span class="method post">POST</span></td><td><code>creators/episodes/:episodeId/casting/review-request</code></td><td><b>검수 요청</b> — (회차×내 캐스팅) upsert(REVIEWING). 완결성 게이트. 반려 후 재요청 포함</td><td>성우(본인)</td></tr>
+          <tr><td><span class="method get">GET</span></td><td><code>creators/episodes/:episodeId/casting</code></td><td>내 버전의 이 회차 검수 상태(읽기)</td><td>성우</td></tr>
+          <tr><td><span class="method get">GET</span></td><td><code>directors/episodes/:episodeId/castings</code></td><td>검수 보드 — 버전별 진행(예정 LEFT JOIN Recording LEFT JOIN EpisodeCasting)</td><td>director</td></tr>
+          <tr><td><span class="method put">PUT</span></td><td><code>directors/episode-castings/:id/status</code></td><td><b>검수</b> — 승인(APPROVED)/반려(REJECTED) · 발행(PUBLISHED)</td><td>director</td></tr>
           <tr><td>—</td><td><code>public</code>(시청자)</td><td>회차의 <code>PUBLISHED</code> EpisodeCasting = 버전 선택지</td><td>시청자</td></tr>
         </tbody>
       </table>
     </div>
-    <div class="note"><span class="label">네임스페이스.</span> 검수·발행=<code>directors/*</code>(DirectorGuard=ADMIN). 진행 조회=<code>creators/*</code>. 발행본은 시청자 서비스(같은 서비스 vs 분리 미정)가 소비.</div>
+    <div class="note"><span class="label">네임스페이스.</span> <b>검수 요청·진행 조회 = <code>creators/*</code></b>(성우 self-submit). <b>검수(승인/반려)·발행 = <code>directors/*</code></b>(DirectorGuard=ADMIN). 발행본은 시청자 서비스(같은 서비스 vs 분리 미정)가 소비.</div>
   </section>
 
   <section class="section">
